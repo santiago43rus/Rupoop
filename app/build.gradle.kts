@@ -69,4 +69,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(libs.kotlinx.serialization.json)
     implementation("androidx.media3:media3-exoplayer-hls:1.2.1")
+
+    implementation("io.coil-kt:coil-compose:2.4.0")
 }

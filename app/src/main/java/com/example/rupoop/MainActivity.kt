@@ -13,13 +13,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -29,6 +33,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import coil.compose.AsyncImage
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -40,21 +45,46 @@ import okhttp3.MediaType.Companion.toMediaType
 import retrofit2.Retrofit
 import retrofit2.http.GET
 import retrofit2.http.Path
+import retrofit2.http.Query
 
-// --- 1. DATA LAYER (БЕЗ ИЗМЕНЕНИЙ) ---
+// --- 1. DATA LAYER ---
 
 @Serializable
 data class RutubeResponse(
     @SerialName("video_balancer") val videoBalancer: VideoBalancer? = null
 )
+
 @Serializable
 data class VideoBalancer(
     @SerialName("m3u8") val m3u8: String? = null
 )
+
+@Serializable
+data class SearchResponse(
+    val results: List<SearchResult> = emptyList()
+)
+
+@Serializable
+data class SearchResult(
+    @SerialName("video_url") val videoUrl: String,
+    val title: String,
+    @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
+    val author: Author? = null
+)
+
+@Serializable
+data class Author(
+    val name: String
+)
+
 interface RutubeApi {
+    @GET("api/search/video/?format=json")
+    suspend fun searchVideos(@Query("query") query: String): SearchResponse
+
     @GET("api/play/options/{id}/?format=json")
     suspend fun getVideoOptions(@Path("id") id: String): RutubeResponse
 }
+
 object RetrofitClient {
     private val json = Json { ignoreUnknownKeys = true }
     val api: RutubeApi by lazy {
@@ -71,7 +101,6 @@ object RetrofitClient {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Включаем отображение "под" системными барами для корректной обработки отступов
         enableEdgeToEdge()
         setContent {
             MaterialTheme {
@@ -88,100 +117,125 @@ fun RutubePlayerScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var urlInput by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     var streamUrl by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
-
-    // Состояние полноэкранного режима
     var isFullscreen by remember { mutableStateOf(false) }
 
-    // Обработка системной кнопки "Назад" для выхода из полного экрана
-    BackHandler(enabled = isFullscreen) {
-        isFullscreen = false
-        setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+    BackHandler(enabled = isFullscreen || streamUrl != null) {
+        if (isFullscreen) {
+            isFullscreen = false
+            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            showSystemBars(context.findActivity()!!)
+        } else if (streamUrl != null) {
+            streamUrl = null
+        }
     }
 
-    // Применяем отступы системных баров (status bar, navigation bar), чтобы UI не перекрывался камерой
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-    ) {
-        // Скрываем панель поиска, если включен полноэкранный режим
-        if (!isFullscreen) {
+    Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
+        if (!isFullscreen && streamUrl == null) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 TextField(
-                    value = urlInput,
-                    onValueChange = { urlInput = it },
-                    label = { Text("Rutube URL") },
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Search video...") },
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
                 Button(
                     onClick = {
-                        if (urlInput.isBlank()) return@Button
                         scope.launch {
                             isLoading = true
-                            streamUrl = null
                             try {
-                                val videoId = extractRutubeId(urlInput)
-                                if (videoId == null) {
-                                    Toast.makeText(context, "Invalid URL", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    val response = withContext(Dispatchers.IO) {
-                                        RetrofitClient.api.getVideoOptions(videoId)
-                                    }
-                                    streamUrl = response.videoBalancer?.m3u8
-                                    if (streamUrl == null) {
-                                        Toast.makeText(context, "Link not found", Toast.LENGTH_SHORT).show()
-                                    }
+                                val response = withContext(Dispatchers.IO) {
+                                    RetrofitClient.api.searchVideos(searchQuery)
                                 }
+                                searchResults = response.results
                             } catch (e: Exception) {
-                                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Search error: ${e.message}", Toast.LENGTH_SHORT).show()
                             } finally {
                                 isLoading = false
                             }
                         }
-                    },
-                    enabled = !isLoading
+                    }
                 ) {
-                    Text(if (isLoading) "..." else "Play")
+                    Text("Search")
                 }
             }
         }
 
-        // Область плеера
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f)
-        ) {
+        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
             if (streamUrl != null) {
                 VideoPlayer(
                     uri = Uri.parse(streamUrl),
                     isFullscreen = isFullscreen,
-                    onFullscreenToggle = { shouldBeFullscreen ->
-                        isFullscreen = shouldBeFullscreen
+                    onFullscreenToggle = { shouldBeFull ->
+                        isFullscreen = shouldBeFull
                         val activity = context.findActivity()
-                        if (shouldBeFullscreen) {
-                            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
-                            activity?.let { hideSystemBars(it) }
-                        } else {
-                            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-                            activity?.let { showSystemBars(it) }
+                        if (activity != null) {
+                            if (shouldBeFull) {
+                                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+                                hideSystemBars(activity)
+                            } else {
+                                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+                                showSystemBars(activity)
+                            }
                         }
                     }
                 )
-            } else if (!isLoading) {
-                Text("Enter a URL and press Play", modifier = Modifier.align(Alignment.Center))
             } else {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    LazyColumn {
+                        items(searchResults) { video ->
+                            VideoItem(video) {
+                                scope.launch {
+                                    val id = extractRutubeId(video.videoUrl)
+                                    if (id != null) {
+                                        try {
+                                            val options = withContext(Dispatchers.IO) {
+                                                RetrofitClient.api.getVideoOptions(id)
+                                            }
+                                            streamUrl = options.videoBalancer?.m3u8
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Play error", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VideoItem(video: SearchResult, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
+            .clickable { onClick() }
+    ) {
+        Row(modifier = Modifier.padding(8.dp)) {
+            AsyncImage(
+                model = video.thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier.size(120.dp, 68.dp),
+                contentScale = ContentScale.Crop
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(text = video.title, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+                Text(text = video.author?.name ?: "", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -214,16 +268,10 @@ fun VideoPlayer(
             PlayerView(ctx).apply {
                 player = exoPlayer
                 layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-
-                // Настраиваем кнопку полноэкранного режима в контроллере ExoPlayer
                 setFullscreenButtonClickListener { isCurrentlyFull ->
-                    // Если плеер думает, что он полноэкранный, мы переключаем наше состояние
                     onFullscreenToggle(!isFullscreen)
                 }
             }
-        },
-        update = { playerView ->
-            // Можно вручную управлять иконкой или состоянием здесь, если нужно
         },
         modifier = Modifier.fillMaxSize()
     )
@@ -236,20 +284,16 @@ fun extractRutubeId(url: String): String? {
     return regex.find(url)?.groupValues?.get(1)
 }
 
-// Вспомогательная функция для смены ориентации экрана
 fun setScreenOrientation(context: Context, orientation: Int) {
-    val activity = context.findActivity()
-    activity?.requestedOrientation = orientation
+    context.findActivity()?.requestedOrientation = orientation
 }
 
-// Поиск Activity в контексте
 fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
 
-// Скрытие системных баров (Fullscreen mode)
 fun hideSystemBars(activity: Activity) {
     val window = activity.window
     val controller = WindowCompat.getInsetsController(window, window.decorView)
