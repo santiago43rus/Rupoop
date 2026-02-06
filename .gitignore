@@ -1,0 +1,28 @@
+# Зависимости и результаты сборки
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Специфично для Android Studio
+*.iws
+*.ipr
+/out
+
+# Кэши и логи
+.artifacts
+.idea/httpRequests
+
+# Файлы эмуляторов и тестов
+*.hprof
