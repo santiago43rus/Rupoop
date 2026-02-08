@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -118,10 +119,16 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
         else { playerState = PlayerState.CLOSED; exoPlayer.stop() }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)) {
+        Column(Modifier
+            .fillMaxSize()
+            .statusBarsPadding()) {
             // ВЕРХНЯЯ ПАНЕЛЬ: Поиск + Смена темы
-            Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 TextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -177,7 +184,10 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
                 label = ""
             )
 
-            Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(playerHeight)) {
+            Box(modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(playerHeight)) {
                 if (playerState == PlayerState.FULL) {
                     CustomVideoPlayer(
                         exoPlayer = exoPlayer,
@@ -200,15 +210,70 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
 
 @Composable
 fun VideoItem(video: SearchResult, onClick: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(12.dp)) {
-        AsyncImage(
-            model = video.thumbnailUrl,
-            contentDescription = null,
-            modifier = Modifier.fillMaxWidth().aspectRatio(16/9f).background(Color.DarkGray),
-            contentScale = ContentScale.Crop
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .clickable { onClick() }
+        .padding(12.dp)
+    ) {
+        // Обернули превью в Box для наложения текста
+        Box(modifier = Modifier.fillMaxWidth()) {
+            AsyncImage(
+                model = video.thumbnailUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16 / 9f)
+                    .background(Color.DarkGray),
+                contentScale = ContentScale.Crop
+            )
+
+            // Отображение длительности в правом нижнем углу
+            video.duration?.let { durSeconds ->
+                if (durSeconds > 0) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = formatDuration(durSeconds.toLong()),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        Text(
+            text = video.title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 2,
+            modifier = Modifier.padding(top = 8.dp)
         )
-        Text(video.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground, maxLines = 2, modifier = Modifier.padding(top = 8.dp))
-        Text("${video.author?.name ?: "Автор"} • Rutube", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+        Text(
+            text = "${video.author?.name ?: "Автор"} • Rutube",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
+    }
+}
+
+/**
+ * Хелпер для форматирования секунд в 00:00 или 00:00:00
+ */
+fun formatDuration(seconds: Long): String {
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    return if (h > 0) {
+        String.format("%d:%02d:%02d", h, m, s)
+    } else {
+        String.format("%02d:%02d", m, s)
     }
 }
 

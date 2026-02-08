@@ -30,7 +30,8 @@ data class SearchResult(
     @SerialName("video_url") val videoUrl: String,
     val title: String,
     @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
-    val author: Author? = null
+    val author: Author? = null,
+    val duration: Int? = null
 )
 
 @Serializable
@@ -56,5 +57,17 @@ object RetrofitClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(RutubeApi::class.java)
+    }
+}
+
+fun formatDuration(seconds: Int?): String {
+    if (seconds == null || seconds <= 0) return ""
+    val h = seconds / 3600
+    val m = (seconds % 3600) / 60
+    val s = seconds % 60
+    return if (h > 0) {
+        String.format("%d:%02d:%02d", h, m, s)
+    } else {
+        String.format("%02d:%02d", m, s)
     }
 }
