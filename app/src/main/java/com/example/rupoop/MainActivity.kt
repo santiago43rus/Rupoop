@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,17 +23,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -47,30 +49,39 @@ import kotlinx.coroutines.withContext
 enum class PlayerState { CLOSED, MINI, FULL }
 
 class MainActivity : ComponentActivity() {
+    private lateinit var settingsManager: SettingsManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        settingsManager = SettingsManager(this)
         enableEdgeToEdge()
         setContent {
-            // Глобальное состояние темы
-            var isDarkTheme by remember { mutableStateOf(true) }
+            var isDarkTheme by remember { mutableStateOf(settingsManager.isDarkTheme) }
 
             val colorScheme = if (isDarkTheme) darkColorScheme(
                 background = Color(0xFF0F0F0F),
-                surface = Color(0xFF1E1E1E),
+                surface = Color(0xFF212121),
                 onBackground = Color.White,
-                onSurface = Color.White
+                onSurface = Color.White,
+                surfaceVariant = Color(0xFF272727),
+                onSurfaceVariant = Color.White
             ) else lightColorScheme(
                 background = Color.White,
                 surface = Color(0xFFF2F2F2),
                 onBackground = Color.Black,
-                onSurface = Color.Black
+                onSurface = Color.Black,
+                surfaceVariant = Color(0xFFF2F2F2),
+                onSurfaceVariant = Color.Black
             )
 
             MaterialTheme(colorScheme = colorScheme) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     RutubeApp(
                         isDarkTheme = isDarkTheme,
-                        onThemeToggle = { isDarkTheme = !isDarkTheme }
+                        onThemeToggle = {
+                            isDarkTheme = !isDarkTheme
+                            settingsManager.isDarkTheme = isDarkTheme
+                        }
                     )
                 }
             }
@@ -78,6 +89,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
     val context = LocalContext.current
@@ -91,6 +103,7 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
     var currentVideo by remember { mutableStateOf<SearchResult?>(null) }
     var isFullscreenVideo by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
+    var isSearchExpanded by remember { mutableStateOf(false) }
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -119,41 +132,57 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
         else { playerState = PlayerState.CLOSED; exoPlayer.stop() }
     }
 
-    Box(modifier = Modifier
-        .fillMaxSize()
-        .background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier
-            .fillMaxSize()
-            .statusBarsPadding()) {
-            // ВЕРХНЯЯ ПАНЕЛЬ: Поиск + Смена темы
-            Row(modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Поиск") },
-                    singleLine = true,
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, null) }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            // Верхняя панель скрывается при полном плеере
+            if (playerState != PlayerState.FULL) {
+                TopAppBar(
+                    modifier = Modifier.statusBarsPadding(),
+                    title = {
+                        if (!isSearchExpanded) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.PlayCircleFilled, null, tint = Color.Red, modifier = Modifier.size(32.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Rupoop", fontWeight = FontWeight.Bold, letterSpacing = (-1).sp)
+                            }
+                        } else {
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = { Text("Поиск") },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = {
+                                    focusManager.clearFocus()
+                                    scope.launch {
+                                        try {
+                                            val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(searchQuery) }
+                                            searchResults = resp.results
+                                        } catch (e: Exception) {}
+                                    }
+                                    isSearchExpanded = false
+                                })
+                            )
                         }
                     },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        focusManager.clearFocus()
-                        scope.launch {
-                            try {
-                                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(searchQuery) }
-                                searchResults = resp.results
-                            } catch (e: Exception) {}
+                    actions = {
+                        if (!isSearchExpanded) {
+                            IconButton(onClick = { isSearchExpanded = true }) { Icon(Icons.Default.Search, null) }
+                            IconButton(onClick = onThemeToggle) { Icon(if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode, null) }
+                            IconButton(onClick = {}) { Icon(Icons.Default.AccountCircle, null) }
+                        } else {
+                            IconButton(onClick = { isSearchExpanded = false; searchQuery = "" }) { Icon(Icons.Default.Close, null) }
                         }
-                    })
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
                 )
-                IconButton(onClick = onThemeToggle) {
-                    Icon(if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode, null)
-                }
             }
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -179,15 +208,18 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
         }
 
         if (playerState != PlayerState.CLOSED) {
+            // Строгое соответствие высоте экрана (без +100dp)
             val playerHeight by animateDpAsState(
-                targetValue = if (playerState == PlayerState.FULL) config.screenHeightDp.dp + 100.dp else 80.dp,
-                label = ""
+                targetValue = if (playerState == PlayerState.FULL) config.screenHeightDp.dp else 64.dp,
+                label = "playerHeight"
             )
 
             Box(modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(playerHeight)) {
+                .height(playerHeight)
+                .background(MaterialTheme.colorScheme.background)
+            ) {
                 if (playerState == PlayerState.FULL) {
                     CustomVideoPlayer(
                         exoPlayer = exoPlayer,
@@ -210,74 +242,56 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
 
 @Composable
 fun VideoItem(video: SearchResult, onClick: () -> Unit) {
-    Column(modifier = Modifier
-        .fillMaxWidth()
-        .clickable { onClick() }
-        .padding(12.dp)
-    ) {
-        // Обернули превью в Box для наложения текста
+    Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(bottom = 16.dp)) {
         Box(modifier = Modifier.fillMaxWidth()) {
             AsyncImage(
                 model = video.thumbnailUrl,
                 contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16 / 9f)
-                    .background(Color.DarkGray),
+                modifier = Modifier.fillMaxWidth().aspectRatio(16 / 9f).background(Color.DarkGray),
                 contentScale = ContentScale.Crop
             )
-
-            // Отображение длительности в правом нижнем углу
             video.duration?.let { durSeconds ->
                 if (durSeconds > 0) {
                     Surface(
-                        color = Color.Black.copy(alpha = 0.7f),
+                        color = Color.Black.copy(alpha = 0.8f),
                         shape = RoundedCornerShape(4.dp),
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp)
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
                     ) {
                         Text(
                             text = formatDuration(durSeconds.toLong()),
                             color = Color.White,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
                 }
             }
         }
-
-        Text(
-            text = video.title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 2,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        Text(
-            text = "${video.author?.name ?: "Автор"} • Rutube",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-        )
+        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp).fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            AsyncImage(
+                model = video.author?.avatarUrl ?: "https://rutube.ru/static/img/default-avatar.png",
+                contentDescription = null,
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.Gray),
+                contentScale = ContentScale.Crop
+            )
+            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                Text(video.title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground, maxLines = 2, fontWeight = FontWeight.SemiBold, lineHeight = 20.sp)
+                Text("${video.author?.name ?: "Автор"} • Rutube", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), modifier = Modifier.padding(top = 2.dp))
+            }
+            IconButton(onClick = {}, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.MoreVert, null, tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+            }
+        }
     }
 }
 
-/**
- * Хелпер для форматирования секунд в 00:00 или 00:00:00
- */
 fun formatDuration(seconds: Long): String {
     val h = seconds / 3600
     val m = (seconds % 3600) / 60
     val s = seconds % 60
-    return if (h > 0) {
-        String.format("%d:%02d:%02d", h, m, s)
-    } else {
-        String.format("%02d:%02d", m, s)
-    }
+    return if (h > 0) String.format("%d:%02d:%02d", h, m, s) else String.format("%02d:%02d", m, s)
 }
 
-// ... Оставшиеся хелперы (findActivity, setScreenOrientation и т.д.) без изменений
 fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()

@@ -12,7 +12,8 @@ import retrofit2.http.Query
 
 @Serializable
 data class RutubeResponse(
-    @SerialName("video_balancer") val videoBalancer: VideoBalancer? = null
+    @SerialName("video_balancer") val videoBalancer: VideoBalancer? = null,
+    @SerialName("thumbnail_url") val thumbnailUrl: String? = null
 )
 
 @Serializable
@@ -35,7 +36,10 @@ data class SearchResult(
 )
 
 @Serializable
-data class Author(val name: String)
+data class Author(
+    val name: String,
+    @SerialName("avatar_url") val avatarUrl: String? = null
+)
 
 interface RutubeApi {
     @GET("api/search/video/?format=json")
@@ -57,17 +61,5 @@ object RetrofitClient {
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(RutubeApi::class.java)
-    }
-}
-
-fun formatDuration(seconds: Int?): String {
-    if (seconds == null || seconds <= 0) return ""
-    val h = seconds / 3600
-    val m = (seconds % 3600) / 60
-    val s = seconds % 60
-    return if (h > 0) {
-        String.format("%d:%02d:%02d", h, m, s)
-    } else {
-        String.format("%02d:%02d", m, s)
     }
 }
