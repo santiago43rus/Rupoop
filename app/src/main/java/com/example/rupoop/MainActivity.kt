@@ -5,10 +5,13 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,7 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,6 +50,8 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.openid.appauth.AuthorizationException
+import net.openid.appauth.AuthorizationResponse
 
 enum class PlayerState { CLOSED, MINI, FULL }
 
@@ -77,6 +84,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme(colorScheme = colorScheme) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     RutubeApp(
+                        settingsManager = settingsManager,
                         isDarkTheme = isDarkTheme,
                         onThemeToggle = {
                             isDarkTheme = !isDarkTheme
@@ -91,11 +99,72 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
+fun RutubeApp(settingsManager: SettingsManager, isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val config = LocalConfiguration.current
     val focusManager = LocalFocusManager.current
+
+    val authManager = remember { GitHubAuthManager(context) }
+    val syncManager = remember { GistSyncManager(RetrofitClient.gistApi) }
+    
+    var isAuthenticating by remember { mutableStateOf(false) }
+    var isAuthenticated by remember { mutableStateOf(settingsManager.accessToken != null) }
+    var githubUser by remember { mutableStateOf<GitHubUser?>(null) }
+    var syncData by remember { mutableStateOf<SyncData?>(null) }
+    var isAccountMenuExpanded by remember { mutableStateOf(false) }
+
+    // Автоматическая синхронизация при запуске
+    LaunchedEffect(Unit) {
+        val savedToken = settingsManager.accessToken
+        if (savedToken != null) {
+            scope.launch {
+                isAuthenticating = true
+                try {
+                    val authHeader = "Bearer $savedToken"
+                    githubUser = withContext(Dispatchers.IO) { RetrofitClient.gitHubApi.getUser(authHeader) }
+                    syncData = withContext(Dispatchers.IO) { syncManager.sync(savedToken) }
+                    Log.d("RupoopAuth", "Auto-sync success: ${githubUser?.login}, ${syncData?.favoriteVideoUrls?.size ?: 0} favorites")
+                    isAuthenticated = true
+                } catch (e: Exception) {
+                    Log.e("RupoopAuth", "Auto-sync error", e)
+                } finally {
+                    isAuthenticating = false
+                }
+            }
+        }
+    }
+
+    val authLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data
+            if (data != null) {
+                val response = AuthorizationResponse.fromIntent(data)
+                val ex = AuthorizationException.fromIntent(data)
+                if (response != null) {
+                    Log.d("RupoopAuth", "Authorization code received")
+                    scope.launch {
+                        isAuthenticating = true
+                        try {
+                            val token = authManager.exchangeCodeForToken(response)
+                            settingsManager.accessToken = token
+                            val authHeader = "Bearer $token"
+                            githubUser = withContext(Dispatchers.IO) { RetrofitClient.gitHubApi.getUser(authHeader) }
+                            syncData = withContext(Dispatchers.IO) { syncManager.sync(token) }
+                            Log.d("RupoopAuth", "Sync success: ${githubUser?.login}")
+                            isAuthenticated = true
+                        } catch (e: Exception) {
+                            Log.e("RupoopAuth", "Sync error", e)
+                        } finally {
+                            isAuthenticating = false
+                        }
+                    }
+                } else {
+                    Log.e("RupoopAuth", "Auth error: ${ex?.errorDescription}")
+                }
+            }
+        }
+    }
 
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
@@ -134,7 +203,6 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            // Верхняя панель скрывается при полном плеере
             if (playerState != PlayerState.FULL) {
                 TopAppBar(
                     modifier = Modifier.statusBarsPadding(),
@@ -176,7 +244,56 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
                         if (!isSearchExpanded) {
                             IconButton(onClick = { isSearchExpanded = true }) { Icon(Icons.Default.Search, null) }
                             IconButton(onClick = onThemeToggle) { Icon(if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode, null) }
-                            IconButton(onClick = {}) { Icon(Icons.Default.AccountCircle, null) }
+                            Box {
+                                IconButton(
+                                    onClick = { 
+                                        if (!isAuthenticated && !isAuthenticating) {
+                                            authLauncher.launch(authManager.createAuthIntent())
+                                        } else if (isAuthenticated) {
+                                            isAccountMenuExpanded = true
+                                        }
+                                    }
+                                ) {
+                                    if (isAuthenticating) {
+                                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(
+                                            if (isAuthenticated) Icons.Default.AccountCircle else Icons.Outlined.AccountCircle,
+                                            contentDescription = "Sync",
+                                            tint = if (isAuthenticated) Color(0xFF4CAF50) else LocalContentColor.current
+                                        )
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = isAccountMenuExpanded,
+                                    onDismissRequest = { isAccountMenuExpanded = false }
+                                ) {
+                                    githubUser?.let { user ->
+                                        DropdownMenuItem(
+                                            text = { 
+                                                Column {
+                                                    Text(user.login, fontWeight = FontWeight.Bold)
+                                                    Text("GitHub Account", style = MaterialTheme.typography.bodySmall)
+                                                }
+                                            },
+                                            onClick = { },
+                                            enabled = false
+                                        )
+                                        HorizontalDivider()
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text("Выйти") },
+                                        onClick = {
+                                            isAccountMenuExpanded = false
+                                            settingsManager.clearAuth()
+                                            isAuthenticated = false
+                                            githubUser = null
+                                            syncData = null
+                                        },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, null) }
+                                    )
+                                }
+                            }
                         } else {
                             IconButton(onClick = { isSearchExpanded = false; searchQuery = "" }) { Icon(Icons.Default.Close, null) }
                         }
@@ -208,7 +325,6 @@ fun RutubeApp(isDarkTheme: Boolean, onThemeToggle: () -> Unit) {
         }
 
         if (playerState != PlayerState.CLOSED) {
-            // Строгое соответствие высоте экрана (без +100dp)
             val playerHeight by animateDpAsState(
                 targetValue = if (playerState == PlayerState.FULL) config.screenHeightDp.dp else 64.dp,
                 label = "playerHeight"

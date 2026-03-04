@@ -1,14 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     namespace = "com.example.rupoop"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.rupoop"
@@ -18,6 +25,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "GH_CLIENT_ID", "\"${localProperties.getProperty("GH_CLIENT_ID") ?: ""}\"")
+        buildConfigField("String", "GH_CLIENT_SECRET", "\"${localProperties.getProperty("GH_CLIENT_SECRET") ?: ""}\"")
+        buildConfigField("String", "PROXY_URL", "\"${localProperties.getProperty("PROXY_URL") ?: ""}\"")
+        manifestPlaceholders["appAuthRedirectScheme"] = "rupoop"
     }
 
     buildTypes {
@@ -35,6 +47,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -48,21 +61,24 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
 
-    // JSON Serialization (Обновлено до 1.7.3)
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    // Auth
+    implementation(libs.appauth)
 
-    // Network & API (Обновлено до 2.11.0)
+    // JSON Serialization
+    implementation(libs.kotlinx.serialization.json)
+
+    // Network & API
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
-    // Video Player (Media3) (Обновлено до 1.5.1)
+    // Video Player (Media3)
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
     implementation("androidx.media3:media3-common:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
 
-    // Иконки и изображения (Обновлено)
+    // Icons
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.compose.material:material-icons-extended:1.7.7")
 
