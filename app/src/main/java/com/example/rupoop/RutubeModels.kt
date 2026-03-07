@@ -50,6 +50,13 @@ data class Author(
 )
 
 @Serializable
+data class Playlist(
+    val id: String,
+    val name: String,
+    val videos: List<SearchResult> = emptyList()
+)
+
+@Serializable
 data class UserRegistry(
     val watchHistory: List<WatchHistoryItem> = emptyList(),
     val searchHistory: List<String> = emptyList(),
@@ -57,6 +64,7 @@ data class UserRegistry(
     val subscriptions: List<Author> = emptyList(),
     val likedVideos: List<SearchResult> = emptyList(),
     val watchLater: List<SearchResult> = emptyList(),
+    val playlists: List<Playlist> = emptyList(),
     val appSettings: AppSettings = AppSettings(),
     val lastSynced: Long = System.currentTimeMillis()
 )

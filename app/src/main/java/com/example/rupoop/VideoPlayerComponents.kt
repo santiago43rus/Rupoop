@@ -159,6 +159,13 @@ fun CustomVideoPlayer(
                         IconButton(onClick = { if (isFullscreen) onToggleFullscreen() else onMinimize() }) {
                             Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
                         }
+                        
+                        // Title and Author overlay (Center-ish top)
+                        Column(Modifier.weight(1f).padding(horizontal = 8.dp), horizontalAlignment = Alignment.Start) {
+                            Text(currentVideo?.title ?: "", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(currentVideo?.author?.name ?: "", color = Color.White.copy(0.7f), fontSize = 12.sp, maxLines = 1)
+                        }
+
                         IconButton(onClick = { showSettings = true }) {
                             Icon(Icons.Default.Settings, null, tint = Color.White)
                         }

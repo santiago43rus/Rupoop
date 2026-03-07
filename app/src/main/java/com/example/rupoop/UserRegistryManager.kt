@@ -21,7 +21,12 @@ class UserRegistryManager(private val context: Context) {
         val updatedHistory = registry.watchHistory.toMutableList()
         updatedHistory.removeAll { it.videoId == item.videoId }
         updatedHistory.add(0, item)
-        updateRegistry(registry.copy(watchHistory = updatedHistory.take(200)))
+        updateRegistry(registry.copy(watchHistory = updatedHistory.take(500)))
+    }
+
+    fun removeFromHistory(videoId: String) {
+        val updatedHistory = registry.watchHistory.filterNot { it.videoId == videoId }
+        updateRegistry(registry.copy(watchHistory = updatedHistory))
     }
 
     fun updateWatchProgress(videoId: String, progress: Long, totalDuration: Long) {
@@ -39,6 +44,48 @@ class UserRegistryManager(private val context: Context) {
             .distinct()
             .take(20)
         updateRegistry(registry.copy(searchHistory = updatedSearch))
+    }
+
+    fun toggleLike(video: SearchResult): Boolean {
+        val liked = registry.likedVideos.toMutableList()
+        val exists = liked.any { it.videoUrl == video.videoUrl }
+        if (exists) liked.removeAll { it.videoUrl == video.videoUrl }
+        else liked.add(0, video)
+        updateRegistry(registry.copy(likedVideos = liked))
+        return !exists
+    }
+
+    fun toggleWatchLater(video: SearchResult): Boolean {
+        val later = registry.watchLater.toMutableList()
+        val exists = later.any { it.videoUrl == video.videoUrl }
+        if (exists) later.removeAll { it.videoUrl == video.videoUrl }
+        else later.add(0, video)
+        updateRegistry(registry.copy(watchLater = later))
+        return !exists
+    }
+
+    fun addToPlaylist(playlistName: String, video: SearchResult) {
+        val playlists = registry.playlists.toMutableList()
+        val index = playlists.indexOfFirst { it.name == playlistName }
+        if (index != -1) {
+            val p = playlists[index]
+            if (!p.videos.any { it.videoUrl == video.videoUrl }) {
+                playlists[index] = p.copy(videos = listOf(video) + p.videos)
+            }
+        } else {
+            playlists.add(Playlist(id = System.currentTimeMillis().toString(), name = playlistName, videos = listOf(video)))
+        }
+        updateRegistry(registry.copy(playlists = playlists))
+    }
+
+    fun removeFromPlaylist(playlistId: String, videoUrl: String) {
+        val playlists = registry.playlists.toMutableList()
+        val index = playlists.indexOfFirst { it.id == playlistId }
+        if (index != -1) {
+            val p = playlists[index]
+            playlists[index] = p.copy(videos = p.videos.filterNot { it.videoUrl == videoUrl })
+            updateRegistry(registry.copy(playlists = playlists))
+        }
     }
 
     fun updateTagWeights(tags: List<String>, weightIncrement: Float) {
@@ -69,14 +116,13 @@ class UserRegistryManager(private val context: Context) {
     fun mergeWith(remote: UserRegistry): UserRegistry {
         val local = registry
         
-        // Merge watch history: union by videoId, keeping one with more progress or later timestamp
         val combinedHistory = (local.watchHistory + remote.watchHistory)
             .groupBy { it.videoId }
             .map { (_, items) ->
                 items.maxByOrNull { it.timestamp }!!
             }
             .sortedByDescending { it.timestamp }
-            .take(200)
+            .take(500)
 
         val combinedSearch = (local.searchHistory + remote.searchHistory)
             .distinct()
@@ -91,6 +137,10 @@ class UserRegistryManager(private val context: Context) {
             watchHistory = combinedHistory,
             searchHistory = combinedSearch,
             tagWeights = combinedWeights,
+            subscriptions = (local.subscriptions + remote.subscriptions).distinctBy { it.name },
+            likedVideos = (local.likedVideos + remote.likedVideos).distinctBy { it.videoUrl },
+            watchLater = (local.watchLater + remote.watchLater).distinctBy { it.videoUrl },
+            playlists = (local.playlists + remote.playlists).distinctBy { it.name },
             appSettings = remote.appSettings,
             lastSynced = System.currentTimeMillis()
         )
