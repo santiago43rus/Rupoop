@@ -13,7 +13,13 @@ import retrofit2.http.*
 @Serializable
 data class RutubeResponse(
     @SerialName("video_balancer") val videoBalancer: VideoBalancer? = null,
-    @SerialName("thumbnail_url") val thumbnailUrl: String? = null
+    @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
+    val tags: List<Tag>? = emptyList()
+)
+
+@Serializable
+data class Tag(
+    val name: String
 )
 
 @Serializable
@@ -32,18 +38,46 @@ data class SearchResult(
     val title: String,
     @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
     val author: Author? = null,
-    val duration: Int? = null
+    val duration: Int? = null,
+    val tags: List<String>? = emptyList()
 )
 
 @Serializable
 data class Author(
+    val id: Long? = null,
     val name: String,
     @SerialName("avatar_url") val avatarUrl: String? = null
 )
 
 @Serializable
-data class SyncData(
-    val favoriteVideoUrls: List<String> = emptyList()
+data class UserRegistry(
+    val watchHistory: List<WatchHistoryItem> = emptyList(),
+    val searchHistory: List<String> = emptyList(),
+    val tagWeights: Map<String, Float> = emptyMap(),
+    val subscriptions: List<Author> = emptyList(),
+    val likedVideos: List<SearchResult> = emptyList(),
+    val watchLater: List<SearchResult> = emptyList(),
+    val appSettings: AppSettings = AppSettings(),
+    val lastSynced: Long = System.currentTimeMillis()
+)
+
+@Serializable
+data class WatchHistoryItem(
+    val videoId: String,
+    val timestamp: Long,
+    val progress: Long,
+    val totalDuration: Long,
+    val title: String? = null,
+    val thumbnailUrl: String? = null,
+    val authorName: String? = null,
+    val videoUrl: String = ""
+)
+
+@Serializable
+data class AppSettings(
+    val theme: String = "dark",
+    val language: String = "ru",
+    val videoQuality: String = "auto"
 )
 
 @Serializable
@@ -77,6 +111,9 @@ interface RutubeApi {
 
     @GET("api/play/options/{id}/?format=json")
     suspend fun getVideoOptions(@Path("id") id: String): RutubeResponse
+    
+    @GET("api/video/person/{id}/?format=json")
+    suspend fun getAuthorVideos(@Path("id") id: String): SearchResponse
 }
 
 interface GistApi {
@@ -88,6 +125,9 @@ interface GistApi {
 
     @POST("gists")
     suspend fun createGist(@Header("Authorization") authHeader: String, @Body request: GistRequest): Gist
+
+    @PATCH("gists/{id}")
+    suspend fun updateGist(@Header("Authorization") authHeader: String, @Path("id") id: String, @Body request: GistRequest): Gist
 }
 
 interface GitHubApi {
@@ -96,7 +136,7 @@ interface GitHubApi {
 }
 
 object RetrofitClient {
-    private val json = Json {
+    val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
     }

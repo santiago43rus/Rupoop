@@ -42,9 +42,7 @@ import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
 
-@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class,
-    ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class
-)
+@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun CustomVideoPlayer(
     exoPlayer: ExoPlayer,
@@ -76,275 +74,200 @@ fun CustomVideoPlayer(
 
     var selectedQuality by remember { mutableStateOf("Авто") }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .then(if (!isFullscreen) Modifier.statusBarsPadding() else Modifier)
-    ) {
-        Box(
-            modifier = Modifier
-                .then(if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16 / 9f))
-                .background(Color.Black)
-                .pointerInput(isFullscreen) {
-                    var totalDragY = 0f
-                    detectDragGestures(
-                        onDragStart = { totalDragY = 0f },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            totalDragY += dragAmount.y
-                        },
-                        onDragEnd = {
-                            if (totalDragY < -150 && !isFullscreen) onToggleFullscreen()
-                            else if (totalDragY > 150) {
-                                if (isFullscreen) onToggleFullscreen() else onMinimize()
-                            }
+    Box(
+        modifier = Modifier
+            .then(if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16 / 9f))
+            .background(Color.Black)
+            .pointerInput(isFullscreen) {
+                var totalDragY = 0f
+                detectDragGestures(
+                    onDragStart = { totalDragY = 0f },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        totalDragY += dragAmount.y
+                    },
+                    onDragEnd = {
+                        if (totalDragY < -150 && !isFullscreen) onToggleFullscreen()
+                        else if (totalDragY > 150) {
+                            if (isFullscreen) onToggleFullscreen() else onMinimize()
                         }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { showControls = !showControls },
-                        onDoubleTap = { offset ->
-                            if (offset.x < size.width / 2) {
-                                exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
-                            } else {
-                                exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration))
-                            }
-                        },
-                        onLongPress = {
-                            isFastForwarding = true
-                            exoPlayer.playbackParameters = PlaybackParameters(2f)
-                        },
-                        onPress = {
-                            tryAwaitRelease()
-                            if (isFastForwarding) {
-                                isFastForwarding = false
-                                exoPlayer.playbackParameters = PlaybackParameters(1f)
-                            }
-                        }
-                    )
-                }
-        ) {
-            AndroidView(
-                factory = { context ->
-                    PlayerView(context).apply {
-                        player = exoPlayer
-                        useController = false
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            // 2x Speed Indicator
-            if (isFastForwarding) {
-                Box(Modifier.align(Alignment.TopCenter).padding(top = 48.dp).background(Color.Black.copy(0.6f), RoundedCornerShape(20.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("2x", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
-                }
+                )
             }
-
-            // Controls Overlay
-            if (showControls || isSeeking) {
-                Box(
-                    modifier = Modifier.fillMaxSize()
-                        .background(if (isSeeking) Color.Transparent else Color.Black.copy(alpha = 0.4f))
-                ) {
-                    if (!isSeeking) {
-                        // Top bar
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .then(if (isFullscreen) Modifier.statusBarsPadding() else Modifier)
-                                .padding(8.dp), 
-                            Arrangement.SpaceBetween, 
-                            Alignment.CenterVertically
-                        ) {
-                            IconButton(onClick = { if (isFullscreen) onToggleFullscreen() else onMinimize() }) {
-                                Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
-                            }
-                            IconButton(onClick = { showSettings = true }) {
-                                Icon(Icons.Default.Settings, null, tint = Color.White)
-                            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { showControls = !showControls },
+                    onDoubleTap = { offset ->
+                        if (offset.x < size.width / 2) {
+                            exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
+                        } else {
+                            exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration))
                         }
-
-                        // Center controls
-                        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { exoPlayer.seekTo(exoPlayer.currentPosition - 10000) }) {
-                                Icon(Icons.Default.FastRewind, null, tint = Color.White, modifier = Modifier.size(48.dp))
-                            }
-                            Spacer(Modifier.width(32.dp))
-                            IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
-                                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(64.dp))
-                            }
-                            Spacer(Modifier.width(32.dp))
-                            IconButton(onClick = { exoPlayer.seekTo(exoPlayer.currentPosition + 10000) }) {
-                                Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(48.dp))
-                            }
+                    },
+                    onLongPress = {
+                        isFastForwarding = true
+                        exoPlayer.playbackParameters = PlaybackParameters(2f)
+                    },
+                    onPress = {
+                        tryAwaitRelease()
+                        if (isFastForwarding) {
+                            isFastForwarding = false
+                            exoPlayer.playbackParameters = PlaybackParameters(1f)
                         }
                     }
+                )
+            }
+    ) {
+        AndroidView(
+            factory = { context ->
+                PlayerView(context).apply {
+                    player = exoPlayer
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
 
-                    // Bottom bar
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .then(if (isFullscreen) Modifier.navigationBarsPadding() else Modifier)
-                            .padding(bottom = if (isFullscreen) 12.dp else 4.dp)
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // YouTube Style Seeking Bubble
-                        if (isSeeking && draggingPos != null) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(bottom = 12.dp)
-                                    .background(Color.Black.copy(0.8f), RoundedCornerShape(20.dp))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = "${formatTime(draggingPos!!)} ${currentVideo?.title?.take(20) ?: ""}...",
-                                    color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-
-                        Row(
-                            Modifier
-                                .fillMaxWidth(if (isFullscreen) 0.9f else 1f)
-                                .padding(horizontal = if (isFullscreen) 0.dp else 16.dp)
-                                .offset(y = 12.dp),
-                            Arrangement.SpaceBetween,
-                            Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${formatTime(draggingPos ?: currentTime)} / ${formatTime(duration)}",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                            if (!isSeeking) {
-                                IconButton(onClick = onToggleFullscreen, modifier = Modifier.size(32.dp)) {
-                                    Icon(
-                                        if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                        null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
-                        }
-                        
-                        Slider(
-                            value = if (duration > 0) (draggingPos ?: currentTime).toFloat() / duration else 0f,
-                            onValueChange = { isSeeking = true; draggingPos = (it * duration).toLong() },
-                            onValueChangeFinished = { isSeeking = false; exoPlayer.seekTo(draggingPos!!); draggingPos = null },
-                            modifier = Modifier
-                                .fillMaxWidth(if (isFullscreen) 0.9f else 1f)
-                                .height(32.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.Red,
-                                activeTrackColor = Color.Red,
-                                inactiveTrackColor = Color.White.copy(0.3f)
-                            ),
-                            thumb = {
-                                SliderDefaults.Thumb(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    thumbSize = DpSize(12.dp, 12.dp),
-                                    colors = SliderDefaults.colors(thumbColor = Color.Red)
-                                )
-                            },
-                            track = { sliderState ->
-                                SliderDefaults.Track(
-                                    sliderState = sliderState,
-                                    modifier = Modifier.height(2.dp),
-                                    colors = SliderDefaults.colors(
-                                        activeTrackColor = Color.Red,
-                                        inactiveTrackColor = Color.White.copy(0.3f)
-                                    )
-                                )
-                            }
-                        )
-                    }
+        // 2x Speed Indicator
+        if (isFastForwarding) {
+            Box(Modifier.align(Alignment.TopCenter).padding(top = 48.dp).background(Color.Black.copy(0.6f), RoundedCornerShape(20.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("2x", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
         }
 
-        if (!isFullscreen) {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                VideoInfoSection(currentVideo)
+        // Controls Overlay
+        if (showControls || isSeeking) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+                    .background(if (isSeeking) Color.Transparent else Color.Black.copy(alpha = 0.4f))
+            ) {
+                if (!isSeeking) {
+                    // Top bar
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .then(if (isFullscreen) Modifier.statusBarsPadding() else Modifier)
+                            .padding(8.dp), 
+                        Arrangement.SpaceBetween, 
+                        Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { if (isFullscreen) onToggleFullscreen() else onMinimize() }) {
+                            Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
+                        }
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(Icons.Default.Settings, null, tint = Color.White)
+                        }
+                    }
+
+                    // Center controls
+                    Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { exoPlayer.seekTo(exoPlayer.currentPosition - 10000) }) {
+                            Icon(Icons.Default.FastRewind, null, tint = Color.White, modifier = Modifier.size(48.dp))
+                        }
+                        Spacer(Modifier.width(32.dp))
+                        IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
+                            Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(64.dp))
+                        }
+                        Spacer(Modifier.width(32.dp))
+                        IconButton(onClick = { exoPlayer.seekTo(exoPlayer.currentPosition + 10000) }) {
+                            Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(48.dp))
+                        }
+                    }
+                }
+
+                // Bottom bar
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .then(if (isFullscreen) Modifier.navigationBarsPadding() else Modifier)
+                        .padding(bottom = if (isFullscreen) 12.dp else 4.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // YouTube Style Seeking Bubble
+                    if (isSeeking && draggingPos != null) {
+                        Box(
+                            modifier = Modifier
+                                .padding(bottom = 12.dp)
+                                .background(Color.Black.copy(0.8f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "${formatTime(draggingPos!!)} ${currentVideo?.title?.take(20) ?: ""}...",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Row(
+                        Modifier
+                            .fillMaxWidth(if (isFullscreen) 0.9f else 1f)
+                            .padding(horizontal = if (isFullscreen) 0.dp else 16.dp)
+                            .offset(y = 12.dp),
+                        Arrangement.SpaceBetween,
+                        Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${formatTime(draggingPos ?: currentTime)} / ${formatTime(duration)}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        if (!isSeeking) {
+                            IconButton(onClick = onToggleFullscreen, modifier = Modifier.size(32.dp)) {
+                                Icon(
+                                    if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                    null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                    
+                    Slider(
+                        value = if (duration > 0) (draggingPos ?: currentTime).toFloat() / duration else 0f,
+                        onValueChange = { isSeeking = true; draggingPos = (it * duration).toLong() },
+                        onValueChangeFinished = { isSeeking = false; exoPlayer.seekTo(draggingPos!!); draggingPos = null },
+                        modifier = Modifier
+                            .fillMaxWidth(if (isFullscreen) 0.9f else 1f)
+                            .height(32.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color.Red,
+                            activeTrackColor = Color.Red,
+                            inactiveTrackColor = Color.White.copy(0.3f)
+                        ),
+                        thumb = {
+                            SliderDefaults.Thumb(
+                                interactionSource = remember { MutableInteractionSource() },
+                                thumbSize = DpSize(12.dp, 12.dp),
+                                colors = SliderDefaults.colors(thumbColor = Color.Red)
+                            )
+                        },
+                        track = { sliderState ->
+                            SliderDefaults.Track(
+                                sliderState = sliderState,
+                                modifier = Modifier.height(2.dp),
+                                colors = SliderDefaults.colors(
+                                    activeTrackColor = Color.Red,
+                                    inactiveTrackColor = Color.White.copy(0.3f)
+                                )
+                            )
+                        }
+                    )
+                }
             }
         }
     }
 
     if (showSettings) {
         SettingsDialog(exoPlayer, selectedQuality, { selectedQuality = it }, { showSettings = false })
-    }
-}
-
-@Composable
-fun VideoInfoSection(video: SearchResult?) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Text(
-            text = video?.title ?: "", 
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 18.sp), 
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(
-                model = video?.author?.avatarUrl ?: "https://rutube.ru/static/img/default-avatar.png",
-                contentDescription = null,
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.Gray),
-                contentScale = ContentScale.Crop
-            )
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text(video?.author?.name ?: "Автор", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onBackground)
-                Text("1.2 млн подписчиков", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onBackground.copy(0.6f))
-            }
-            Spacer(Modifier.weight(1f))
-            Surface(
-                color = MaterialTheme.colorScheme.onBackground, 
-                shape = RoundedCornerShape(20.dp), 
-                modifier = Modifier.clickable { }
-            ) {
-                Text("Подписаться", color = MaterialTheme.colorScheme.background, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            ActionChip(Icons.Default.ThumbUp, "1.2K")
-            ActionChip(Icons.Default.ThumbDown, "")
-            ActionChip(Icons.Default.Share, "Поделиться")
-            ActionChip(Icons.Default.Download, "Скачать")
-        }
-        
-        Spacer(Modifier.height(16.dp))
-        // Placeholder for comments
-        Box(Modifier.fillMaxWidth().height(100.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(12.dp)) {
-            Text("Комментарии", style = MaterialTheme.typography.titleSmall)
-        }
-        Spacer(Modifier.height(16.dp))
-        repeat(5) {
-            Box(Modifier.fillMaxWidth().height(120.dp).padding(vertical = 4.dp).background(Color.Gray.copy(0.1f), RoundedCornerShape(8.dp)))
-        }
-    }
-}
-
-@Composable
-fun ActionChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
-    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(24.dp), modifier = Modifier.height(36.dp)) {
-        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, modifier = Modifier.size(20.dp))
-            if (text.isNotEmpty()) { Spacer(Modifier.width(6.dp)); Text(text, style = MaterialTheme.typography.labelMedium) }
-        }
     }
 }
 
