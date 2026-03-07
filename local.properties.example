@@ -1,0 +1,12 @@
+## Это пример файла конфигурации. 
+## Скопируйте это содержимое в новый файл local.properties и подставьте свои значения.
+
+# Путь к Android SDK (обычно прописывается студией автоматически)
+# sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
+
+# Ключи для авторизации через GitHub
+GH_CLIENT_ID=your_client_id_here
+GH_CLIENT_SECRET=your_client_secret_here
+
+# URL вашего прокси на Cloudflare Workers
+PROXY_URL=https://your-proxy-name.workers.dev/
