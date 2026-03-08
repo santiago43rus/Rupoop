@@ -14,7 +14,8 @@ import retrofit2.http.*
 data class RutubeResponse(
     @SerialName("video_balancer") val videoBalancer: VideoBalancer? = null,
     @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
-    val tags: List<Tag>? = emptyList()
+    val tags: List<Tag>? = emptyList(),
+    val duration: Int? = null
 )
 
 @Serializable
@@ -39,7 +40,8 @@ data class SearchResult(
     @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
     val author: Author? = null,
     val duration: Int? = null,
-    val tags: List<String>? = emptyList()
+    val tags: List<String>? = emptyList(),
+    @SerialName("created_ts") val createdTs: String? = null
 )
 
 @Serializable
@@ -78,6 +80,8 @@ data class WatchHistoryItem(
     val title: String? = null,
     val thumbnailUrl: String? = null,
     val authorName: String? = null,
+    @SerialName("author_avatar_url") val authorAvatarUrl: String? = null,
+    @SerialName("author_id") val authorId: Long? = null,
     val videoUrl: String = ""
 )
 
@@ -115,13 +119,19 @@ data class GitHubUser(
 
 interface RutubeApi {
     @GET("api/search/video/?format=json")
-    suspend fun searchVideos(@Query("query") query: String): SearchResponse
+    suspend fun searchVideos(
+        @Query("query") query: String,
+        @Query("ordering") ordering: String? = null
+    ): SearchResponse
 
     @GET("api/play/options/{id}/?format=json")
     suspend fun getVideoOptions(@Path("id") id: String): RutubeResponse
     
     @GET("api/video/person/{id}/?format=json")
-    suspend fun getAuthorVideos(@Path("id") id: String): SearchResponse
+    suspend fun getAuthorVideos(
+        @Path("id") id: String,
+        @Query("ordering") ordering: String? = "-created_ts"
+    ): SearchResponse
 }
 
 interface GistApi {

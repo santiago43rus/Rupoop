@@ -160,7 +160,6 @@ fun CustomVideoPlayer(
                             Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
                         }
                         
-                        // Title and Author overlay (Center-ish top)
                         Column(Modifier.weight(1f).padding(horizontal = 8.dp), horizontalAlignment = Alignment.Start) {
                             Text(currentVideo?.title ?: "", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(currentVideo?.author?.name ?: "", color = Color.White.copy(0.7f), fontSize = 12.sp, maxLines = 1)
@@ -173,16 +172,16 @@ fun CustomVideoPlayer(
 
                     // Center controls
                     Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { exoPlayer.seekTo(exoPlayer.currentPosition - 10000) }) {
-                            Icon(Icons.Default.FastRewind, null, tint = Color.White, modifier = Modifier.size(48.dp))
+                        IconButton(onClick = { /* Handle Prev Video */ }) {
+                            Icon(Icons.Default.SkipPrevious, null, tint = Color.White, modifier = Modifier.size(48.dp))
                         }
                         Spacer(Modifier.width(32.dp))
                         IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
                             Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(64.dp))
                         }
                         Spacer(Modifier.width(32.dp))
-                        IconButton(onClick = { exoPlayer.seekTo(exoPlayer.currentPosition + 10000) }) {
-                            Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(48.dp))
+                        IconButton(onClick = { /* Handle Next Video */ }) {
+                            Icon(Icons.Default.SkipNext, null, tint = Color.White, modifier = Modifier.size(48.dp))
                         }
                     }
                 }

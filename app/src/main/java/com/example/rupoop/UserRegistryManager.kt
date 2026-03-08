@@ -29,6 +29,10 @@ class UserRegistryManager(private val context: Context) {
         updateRegistry(registry.copy(watchHistory = updatedHistory))
     }
 
+    fun clearWatchHistory() {
+        updateRegistry(registry.copy(watchHistory = emptyList()))
+    }
+
     fun updateWatchProgress(videoId: String, progress: Long, totalDuration: Long) {
         val updatedHistory = registry.watchHistory.map {
             if (it.videoId == videoId) {
@@ -44,6 +48,15 @@ class UserRegistryManager(private val context: Context) {
             .distinct()
             .take(20)
         updateRegistry(registry.copy(searchHistory = updatedSearch))
+    }
+
+    fun removeSearchQuery(query: String) {
+        val updatedSearch = registry.searchHistory.filterNot { it == query }
+        updateRegistry(registry.copy(searchHistory = updatedSearch))
+    }
+
+    fun clearSearchHistory() {
+        updateRegistry(registry.copy(searchHistory = emptyList()))
     }
 
     fun toggleLike(video: SearchResult): Boolean {
@@ -86,6 +99,11 @@ class UserRegistryManager(private val context: Context) {
             playlists[index] = p.copy(videos = p.videos.filterNot { it.videoUrl == videoUrl })
             updateRegistry(registry.copy(playlists = playlists))
         }
+    }
+
+    fun deletePlaylist(playlistId: String) {
+        val updatedPlaylists = registry.playlists.filterNot { it.id == playlistId }
+        updateRegistry(registry.copy(playlists = updatedPlaylists))
     }
 
     fun updateTagWeights(tags: List<String>, weightIncrement: Float) {
