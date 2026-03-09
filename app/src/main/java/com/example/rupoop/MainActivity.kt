@@ -256,7 +256,19 @@ fun RutubeApp(
                 try {
                     // Start fetching options and related videos in parallel
                     val optionsDeferred = async(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
-                    val relatedDeferred = async(Dispatchers.IO) { RetrofitClient.api.searchVideos(video.title.take(15)) }
+                    val relatedDeferred = async(Dispatchers.IO) { 
+                        val queries = recommendationEngine.getSearchQueries(video)
+                        val allResults = mutableListOf<SearchResult>()
+                        // Проходимся по сгенерированным запросам (След. серия -> След. сезон -> База)
+                        for (q in queries) {
+                            try {
+                                val res = RetrofitClient.api.searchVideos(q).results
+                                allResults.addAll(res)
+                                if (allResults.size > 20) break // Чтобы не грузить сеть
+                            } catch (e: Exception) {}
+                        }
+                        allResults.distinctBy { it.videoUrl }
+                    }
 
                     val opt = optionsDeferred.await()
                     opt.videoBalancer?.m3u8?.let { url ->
@@ -267,14 +279,12 @@ fun RutubeApp(
                         if ((historyItem?.progress ?: 0) > 0) {
                             exoPlayer.seekTo(historyItem!!.progress)
                         }
-                        // Don't auto-play immediately if you want to avoid sound-first-sync issues,
-                        // but usually prepare() followed by play() is correct.
                         exoPlayer.play()
                         playerState = PlayerState.FULL
                     }
                     
-                    val relatedResp = relatedDeferred.await()
-                    relatedVideos = recommendationEngine.recommendRelated(video, relatedResp.results)
+                    val relatedResults = relatedDeferred.await()
+                    relatedVideos = recommendationEngine.recommendRelated(video, relatedResults)
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Play error", e)
                 }
@@ -325,10 +335,19 @@ fun RutubeApp(
         scope.launch {
             isRefreshingHome = true
             try {
-                val movieQueries = listOf("фильмы 2024", "боевики", "комедии", "ужасы", "фантастика")
-                val query = movieQueries.random()
+                val queries = mutableListOf<String>()
+                if (settingsManager.adultContentEnabled) {
+                    queries.addAll(listOf("фильмы новинки", "сериалы зарубежные", "боевики", "комедии", "фантастика фильм"))
+                }
+                if (settingsManager.kidsContentEnabled) {
+                    queries.addAll(listOf("полнометражные мультфильмы", "мультсериалы", "disney мультик", "пиксар"))
+                }
+                if (queries.isEmpty()) queries.add("популярное")
+
+                val query = queries.random()
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query) }
-                homeVideos = resp.results.shuffled()
+                // Пропускаем через движок рекомендаций для лучшей сортировки
+                homeVideos = recommendationEngine.recommend(resp.results)
             } catch (e: Exception) {
                 Log.e("Rupoop", "Error loading home", e)
             } finally {
@@ -510,6 +529,17 @@ fun RutubeApp(
             exoPlayer.stop() 
             pushToGitHub()
         }
+    }
+
+    var showOnboarding by remember { mutableStateOf(settingsManager.isFirstLaunch) }
+    if (showOnboarding) {
+        ContentSelectionDialog(
+            settingsManager = settingsManager,
+            onDismiss = { 
+                showOnboarding = false
+                loadHome() // Обновляем ленту с новыми фильтрами
+            }
+        )
     }
 
     Scaffold(
@@ -843,9 +873,52 @@ fun RutubeApp(
 }
 
 @Composable
+fun ContentSelectionDialog(
+    settingsManager: SettingsManager,
+    onDismiss: () -> Unit
+) {
+    var adultEnabled by remember { mutableStateOf(settingsManager.adultContentEnabled) }
+    var kidsEnabled by remember { mutableStateOf(settingsManager.kidsContentEnabled) }
+
+    AlertDialog(
+        onDismissRequest = { /* Нельзя закрыть мимо кнопок */ },
+        title = { Text("Что вам интересно?") },
+        text = {
+            Column {
+                Text("Выберите, что вы планируете смотреть. Это поможет нам настроить рекомендации.", modifier = Modifier.padding(bottom = 16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { adultEnabled = !adultEnabled }) {
+                    Checkbox(checked = adultEnabled, onCheckedChange = { adultEnabled = it })
+                    Text("Фильмы и Сериалы")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { kidsEnabled = !kidsEnabled }) {
+                    Checkbox(checked = kidsEnabled, onCheckedChange = { kidsEnabled = it })
+                    Text("Мультфильмы и Детское")
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    // Если сняли обе галочки, принудительно оставляем фильмы
+                    if (!adultEnabled && !kidsEnabled) adultEnabled = true 
+                    settingsManager.adultContentEnabled = adultEnabled
+                    settingsManager.kidsContentEnabled = kidsEnabled
+                    settingsManager.isFirstLaunch = false
+                    onDismiss()
+                }
+            ) {
+                Text("Сохранить")
+            }
+        }
+    )
+}
+
+@Composable
 fun SettingsScreen(settingsManager: SettingsManager, onThemeToggle: () -> Unit, registryManager: UserRegistryManager, onRegistryUpdate: (UserRegistry) -> Unit) {
     var downloadQuality by remember { mutableStateOf(settingsManager.downloadQuality) }
     var syncFreq by remember { mutableStateOf(settingsManager.syncFrequencyHours.toString()) }
+    var adultEnabled by remember { mutableStateOf(settingsManager.adultContentEnabled) }
+    var kidsEnabled by remember { mutableStateOf(settingsManager.kidsContentEnabled) }
 
     LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
         item {
@@ -853,6 +926,11 @@ fun SettingsScreen(settingsManager: SettingsManager, onThemeToggle: () -> Unit, 
             ListItem(headlineContent = { Text("Темная тема") }, trailingContent = { Switch(checked = settingsManager.isDarkTheme, onCheckedChange = { onThemeToggle() }) })
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             
+            Text("Рекомендации контента", style = MaterialTheme.typography.titleMedium, color = Color.Red)
+            ListItem(headlineContent = { Text("Фильмы и Сериалы") }, trailingContent = { Switch(checked = adultEnabled, onCheckedChange = { adultEnabled = it; settingsManager.adultContentEnabled = it }) })
+            ListItem(headlineContent = { Text("Мультфильмы и Детское") }, trailingContent = { Switch(checked = kidsEnabled, onCheckedChange = { kidsEnabled = it; settingsManager.kidsContentEnabled = it }) })
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
             Text("Загрузка", style = MaterialTheme.typography.titleMedium, color = Color.Red)
             Text("Качество видео для скачивания", style = MaterialTheme.typography.labelMedium)
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {

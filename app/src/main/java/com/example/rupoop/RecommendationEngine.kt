@@ -1,93 +1,119 @@
 package com.example.rupoop
 
-import kotlin.math.max
-
 class RecommendationEngine(private val registryManager: UserRegistryManager) {
-    
+
     private val PERSONALIZATION_THRESHOLD = 3
 
     fun recommend(results: List<SearchResult>): List<SearchResult> {
         val registry = registryManager.registry
         val historySize = registry.watchHistory.size
-        
-        return results.shuffled().sortedWith(compareByDescending<SearchResult> { 
+
+        return results.shuffled().sortedWith(compareByDescending<SearchResult> {
             calculateScore(it, registry)
-        }.thenByDescending { 
+        }.thenByDescending {
             if (historySize < PERSONALIZATION_THRESHOLD) isMovie(it) else false
         })
     }
 
     fun recommendRelated(video: SearchResult, pool: List<SearchResult>): List<SearchResult> {
         val registry = registryManager.registry
-        
+
         return pool.filter { it.videoUrl != video.videoUrl }
-            .shuffled()
             .sortedWith(compareByDescending<SearchResult> { candidate ->
                 var score = 0f
-                val commonTags = candidate.tags?.intersect((video.tags ?: emptyList()).toSet())?.size ?: 0
-                score += commonTags * 5.0f
-                
                 val sequelStatus = getSequelStatus(candidate, video)
                 when (sequelStatus) {
-                    SequelStatus.NEXT_EPISODE -> score += 150.0f
-                    SequelStatus.NEXT_SEASON_FIRST_EP -> score += 120.0f
-                    SequelStatus.SAME_SEASON_FUTURE -> score += 50.0f
-                    SequelStatus.OTHER_SEASON -> score -= 20.0f // Penalize wrong seasons
+                    SequelStatus.NEXT_EPISODE -> score += 50000.0f // Огромный приоритет следующей серии
+                    SequelStatus.NEXT_SEASON_FIRST_EP -> score += 40000.0f // Приоритет следующему сезону
+                    SequelStatus.SAME_SEASON_FUTURE -> score += 5000.0f
+                    SequelStatus.SAME_SERIES_OTHER -> score += 1000.0f
+                    SequelStatus.PAST_EPISODE -> score -= 50000.0f // Жестко штрафуем старые серии (1, 2 и т.д.)
                     SequelStatus.NONE -> {}
                 }
-                
+
                 score += calculateScore(candidate, registry)
-                if (candidate.author?.name == video.author?.name) score += 10.0f
+                if (candidate.author?.name == video.author?.name) score += 50.0f
                 score
-            }).take(20)
+            })
     }
 
-    private enum class SequelStatus { NEXT_EPISODE, NEXT_SEASON_FIRST_EP, SAME_SEASON_FUTURE, OTHER_SEASON, NONE }
+    // Генерируем массив запросов: 1. Точная след. серия 2. След. сезон 3. Базовое название
+    fun getSearchQueries(video: SearchResult): List<String> {
+        val parsed = parseTitle(video.title)
+        val queries = mutableListOf<String>()
+        val base = parsed.base.take(50).trim()
+
+        if (parsed.season != null && parsed.episode != null) {
+            queries.add("$base сезон ${parsed.season} серия ${parsed.episode + 1}") // Ищем следующую серию
+            queries.add("$base сезон ${parsed.season + 1} серия 1") // Ищем следующий сезон
+        } else if (parsed.episode != null) {
+            queries.add("$base серия ${parsed.episode + 1}")
+        } else if (parsed.part != null) {
+            queries.add("$base часть ${parsed.part + 1}")
+        }
+        queries.add(base) // Базовый запрос, если точные не сработают
+        return queries
+    }
+
+    private enum class SequelStatus { NEXT_EPISODE, NEXT_SEASON_FIRST_EP, SAME_SEASON_FUTURE, SAME_SERIES_OTHER, PAST_EPISODE, NONE }
+
+    data class VideoParsed(val base: String, val season: Int?, val episode: Int?, val part: Int?)
+
+    private fun parseTitle(title: String): VideoParsed {
+        val sRegex = Regex("(?:сезон|season|s)\\s*(\\d+)", RegexOption.IGNORE_CASE)
+        val eRegex = Regex("(?:серия|эпизод|выпуск|episode|ep|e|сер|вып)\\s*(\\d+)", RegexOption.IGNORE_CASE)
+        val pRegex = Regex("(?:часть|part|ч|p|фильм)\\s*(\\d+)", RegexOption.IGNORE_CASE)
+
+        val sMatch = sRegex.find(title)
+        val eMatch = eRegex.find(title)
+        val pMatch = pRegex.find(title)
+
+        val season = sMatch?.groupValues?.get(1)?.toIntOrNull()
+        val episode = eMatch?.groupValues?.get(1)?.toIntOrNull()
+        val part = pMatch?.groupValues?.get(1)?.toIntOrNull()
+
+        var base = title
+        listOfNotNull(sMatch, eMatch, pMatch).forEach { match ->
+            base = base.replace(match.value, "", ignoreCase = true)
+        }
+
+        base = base.replace(Regex("[^a-zA-Zа-яА-Я0-9\\s]"), " ").replace(Regex("\\s+"), " ").trim()
+
+        return VideoParsed(base, season, episode, part)
+    }
 
     private fun getSequelStatus(candidate: SearchResult, original: SearchResult): SequelStatus {
-        val cTitle = candidate.title.lowercase()
-        val oTitle = original.title.lowercase()
+        val c = parseTitle(candidate.title)
+        val o = parseTitle(original.title)
 
-        data class VideoInfo(val season: Int, val episode: Int?, val part: Int?, val base: String)
-        
-        fun parse(title: String): VideoInfo {
-            val sRegex = Regex("(?:сезон|season|с|s)\\s*(\\d+)", RegexOption.IGNORE_CASE)
-            val eRegex = Regex("(?:серия|эпизод|выпуск|episode|ep|e)\\s*(\\d+)", RegexOption.IGNORE_CASE)
-            val pRegex = Regex("(?:часть|part|ч|p)\\s*(\\d+)", RegexOption.IGNORE_CASE)
-            
-            val sMatch = sRegex.find(title)
-            val eMatch = eRegex.find(title)
-            val pMatch = pRegex.find(title)
-            
-            val s = sMatch?.groupValues?.get(1)?.toIntOrNull() ?: 1
-            val e = eMatch?.groupValues?.get(1)?.toIntOrNull()
-            val p = pMatch?.groupValues?.get(1)?.toIntOrNull()
-            
-            var base = title
-            listOf(sMatch, eMatch, pMatch).forEach { it?.let { base = base.replace(it.value, "") } }
-            base = base.replace(Regex("[\\d\\W]+"), " ").trim()
-            
-            return VideoInfo(s, e, p, base)
-        }
-        
-        val c = parse(cTitle)
-        val o = parse(oTitle)
-        
-        if (c.base.isEmpty() || o.base.isEmpty()) return SequelStatus.NONE
-        val baseSimilarity = c.base.startsWith(o.base.take(8)) || o.base.startsWith(c.base.take(8))
-        if (!baseSimilarity) return SequelStatus.NONE
-
-        if (c.season == o.season) {
-            if (o.episode != null && c.episode == o.episode + 1) return SequelStatus.NEXT_EPISODE
-            if (o.episode != null && c.episode != null && c.episode > o.episode) return SequelStatus.SAME_SEASON_FUTURE
-            if (o.part != null && c.part == o.part + 1) return SequelStatus.NEXT_EPISODE
+        if (c.base.length < 3 || o.base.length < 3 ||
+            (!c.base.contains(o.base, true) && !o.base.contains(c.base, true))) {
             return SequelStatus.NONE
-        } else if (c.season == o.season + 1) {
+        }
+
+        val origSeason = o.season ?: 1
+        val candSeason = c.season ?: 1
+
+        if (candSeason < origSeason) return SequelStatus.PAST_EPISODE
+
+        if (candSeason == origSeason) {
+            if (o.episode != null && c.episode != null) {
+                if (c.episode == o.episode + 1) return SequelStatus.NEXT_EPISODE
+                if (c.episode < o.episode) return SequelStatus.PAST_EPISODE
+                if (c.episode > o.episode) return SequelStatus.SAME_SEASON_FUTURE
+            }
+            if (o.part != null && c.part != null) {
+                if (c.part == o.part + 1) return SequelStatus.NEXT_EPISODE
+                if (c.part < o.part) return SequelStatus.PAST_EPISODE
+                if (c.part > o.part) return SequelStatus.SAME_SEASON_FUTURE
+            }
+            return SequelStatus.SAME_SERIES_OTHER
+        } else if (candSeason == origSeason + 1) {
             if (c.episode == null || c.episode == 1) return SequelStatus.NEXT_SEASON_FIRST_EP
             return SequelStatus.SAME_SEASON_FUTURE
-        } else {
-            return SequelStatus.OTHER_SEASON
         }
+
+        return SequelStatus.NONE
     }
 
     private fun isMovie(video: SearchResult): Boolean {
@@ -98,15 +124,16 @@ class RecommendationEngine(private val registryManager: UserRegistryManager) {
         var score = 0f
         video.tags?.forEach { tag -> score += registry.tagWeights[tag] ?: 0f }
         if (registry.subscriptions.any { it.name == video.author?.name }) score += 15.0f
-        
-        val historyItem = registry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+
+        val historyId = extractId(video.videoUrl)
+        val historyItem = registry.watchHistory.find { historyId == it.videoId }
         if (historyItem != null) {
             val progressPercent = if (historyItem.totalDuration > 0) historyItem.progress.toFloat() / historyItem.totalDuration else 1f
-            if (progressPercent > 0.9f) score -= 40.0f 
-            else if (progressPercent > 0.05f) score += 30.0f 
+            if (progressPercent > 0.9f) score -= 40.0f
+            else if (progressPercent > 0.05f) score += 30.0f
         }
         return score
     }
-    
+
     private fun extractId(url: String): String = url.split("/").lastOrNull { it.isNotEmpty() } ?: ""
 }

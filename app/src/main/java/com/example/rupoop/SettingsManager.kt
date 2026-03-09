@@ -30,6 +30,18 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("cached_gist_id", null)
         set(value) = prefs.edit().putString("cached_gist_id", value).apply()
 
+    var isFirstLaunch: Boolean
+        get() = prefs.getBoolean("is_first_launch", true)
+        set(value) = prefs.edit().putBoolean("is_first_launch", value).apply()
+
+    var adultContentEnabled: Boolean
+        get() = prefs.getBoolean("adult_content", true)
+        set(value) = prefs.edit().putBoolean("adult_content", value).apply()
+
+    var kidsContentEnabled: Boolean
+        get() = prefs.getBoolean("kids_content", true)
+        set(value) = prefs.edit().putBoolean("kids_content", value).apply()
+
     fun clearAuth() {
         prefs.edit().remove("access_token").remove("cached_gist_id").apply()
     }
