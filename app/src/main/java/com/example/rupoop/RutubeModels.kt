@@ -68,7 +68,9 @@ data class UserRegistry(
     val watchLater: List<SearchResult> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
     val appSettings: AppSettings = AppSettings(),
-    val lastSynced: Long = System.currentTimeMillis()
+    val lastSynced: Long = System.currentTimeMillis(),
+    val watchHistoryClearedAt: Long = 0,
+    val searchHistoryClearedAt: Long = 0
 )
 
 @Serializable

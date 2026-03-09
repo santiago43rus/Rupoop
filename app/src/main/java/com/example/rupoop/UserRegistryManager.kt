@@ -1,6 +1,7 @@
 package com.example.rupoop
 
 import android.content.Context
+import android.util.Log
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -30,16 +31,20 @@ class UserRegistryManager(private val context: Context) {
     }
 
     fun clearWatchHistory() {
-        updateRegistry(registry.copy(watchHistory = emptyList()))
+        updateRegistry(registry.copy(watchHistory = emptyList(), watchHistoryClearedAt = System.currentTimeMillis()))
     }
 
     fun updateWatchProgress(videoId: String, progress: Long, totalDuration: Long) {
-        val updatedHistory = registry.watchHistory.map {
-            if (it.videoId == videoId) {
-                it.copy(progress = progress, totalDuration = totalDuration, timestamp = System.currentTimeMillis())
-            } else it
+        val updatedHistory = registry.watchHistory.toMutableList()
+        val index = updatedHistory.indexOfFirst { it.videoId == videoId }
+        if (index != -1) {
+            val item = updatedHistory.removeAt(index)
+            updatedHistory.add(0, item.copy(progress = progress, totalDuration = totalDuration, timestamp = System.currentTimeMillis()))
+            updateRegistry(registry.copy(watchHistory = updatedHistory))
+        } else {
+            // If item not found (e.g. was removed from history while playing), don't add it back here
+            // addWatchHistory should have been called when playback started.
         }
-        updateRegistry(registry.copy(watchHistory = updatedHistory))
     }
 
     fun addSearchQuery(query: String) {
@@ -56,7 +61,7 @@ class UserRegistryManager(private val context: Context) {
     }
 
     fun clearSearchHistory() {
-        updateRegistry(registry.copy(searchHistory = emptyList()))
+        updateRegistry(registry.copy(searchHistory = emptyList(), searchHistoryClearedAt = System.currentTimeMillis()))
     }
 
     fun toggleLike(video: SearchResult): Boolean {
@@ -120,6 +125,7 @@ class UserRegistryManager(private val context: Context) {
             try {
                 json.decodeFromString(registryFile.readText())
             } catch (e: Exception) {
+                Log.e("UserRegistry", "Load error", e)
                 UserRegistry()
             }
         } else {
@@ -128,13 +134,21 @@ class UserRegistryManager(private val context: Context) {
     }
 
     private fun saveLocal(data: UserRegistry) {
-        registryFile.writeText(json.encodeToString(data))
+        try {
+            registryFile.writeText(json.encodeToString(data))
+        } catch (e: Exception) {
+            Log.e("UserRegistry", "Save error", e)
+        }
     }
 
     fun mergeWith(remote: UserRegistry): UserRegistry {
         val local = registry
         
+        val maxWatchClearedAt = maxOf(local.watchHistoryClearedAt, remote.watchHistoryClearedAt)
+        val maxSearchClearedAt = maxOf(local.searchHistoryClearedAt, remote.searchHistoryClearedAt)
+
         val combinedHistory = (local.watchHistory + remote.watchHistory)
+            .filter { it.timestamp > maxWatchClearedAt }
             .groupBy { it.videoId }
             .map { (_, items) ->
                 items.maxByOrNull { it.timestamp }!!
@@ -142,9 +156,13 @@ class UserRegistryManager(private val context: Context) {
             .sortedByDescending { it.timestamp }
             .take(500)
 
-        val combinedSearch = (local.searchHistory + remote.searchHistory)
-            .distinct()
-            .take(20)
+        val combinedSearch = if (local.searchHistoryClearedAt > remote.lastSynced && local.searchHistoryClearedAt > remote.searchHistoryClearedAt) {
+            local.searchHistory
+        } else if (remote.searchHistoryClearedAt > local.lastSynced && remote.searchHistoryClearedAt > local.searchHistoryClearedAt) {
+            remote.searchHistory
+        } else {
+            (local.searchHistory + remote.searchHistory).distinct().take(20)
+        }
 
         val combinedWeights = local.tagWeights.toMutableMap()
         remote.tagWeights.forEach { (tag, weight) ->
@@ -160,7 +178,9 @@ class UserRegistryManager(private val context: Context) {
             watchLater = (local.watchLater + remote.watchLater).distinctBy { it.videoUrl },
             playlists = (local.playlists + remote.playlists).distinctBy { it.name },
             appSettings = remote.appSettings,
-            lastSynced = System.currentTimeMillis()
+            lastSynced = System.currentTimeMillis(),
+            watchHistoryClearedAt = maxWatchClearedAt,
+            searchHistoryClearedAt = maxSearchClearedAt
         )
         
         updateRegistry(merged)

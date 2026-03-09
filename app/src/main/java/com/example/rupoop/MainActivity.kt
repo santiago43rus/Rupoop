@@ -56,10 +56,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import coil.compose.AsyncImage
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import net.openid.appauth.AuthorizationResponse
 import java.util.Locale
 
@@ -159,7 +156,7 @@ fun RutubeApp(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val authManager = remember { GitHubAuthManager(context) }
-    val syncManager = remember { GistSyncManager(RetrofitClient.gistApi, registryManager) }
+    val syncManager = remember { GistSyncManager(RetrofitClient.gistApi, registryManager, settingsManager) }
     
     var isAuthenticating by remember { mutableStateOf(false) }
     var isAuthenticated by remember { mutableStateOf(settingsManager.accessToken != null) }
@@ -168,6 +165,7 @@ fun RutubeApp(
     var isAccountMenuExpanded by remember { mutableStateOf(false) }
 
     var currentNav by remember { mutableStateOf(NavItem.HOME) }
+    var previousNav by remember { mutableStateOf(NavItem.HOME) }
     var currentLibSub by remember { mutableStateOf(LibrarySubScreen.NONE) }
     var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
     var selectedAuthor by remember { mutableStateOf<Author?>(null) }
@@ -187,6 +185,15 @@ fun RutubeApp(
     
     var showPlaylistDialog by remember { mutableStateOf<SearchResult?>(null) }
 
+    val pushToGitHub = {
+        val token = settingsManager.accessToken
+        if (token != null) {
+            scope.launch {
+                syncManager.push(token, registryManager.registry)
+            }
+        }
+    }
+
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             playWhenReady = true
@@ -195,9 +202,83 @@ fun RutubeApp(
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY && currentVideo != null) {
                         registryManager.updateWatchProgress(extractId(currentVideo!!.videoUrl), contentPosition, duration)
+                        userRegistry = registryManager.registry
+                    }
+                    if (state == Player.STATE_ENDED && currentVideo != null) {
+                        registryManager.updateWatchProgress(extractId(currentVideo!!.videoUrl), duration, duration)
+                        userRegistry = registryManager.registry
+                        pushToGitHub()
                     }
                 }
             })
+        }
+    }
+
+    // Periodic progress saving & syncing
+    LaunchedEffect(isPlaying, currentVideo) {
+        if (isPlaying && currentVideo != null) {
+            while (true) {
+                delay(15000)
+                extractId(currentVideo!!.videoUrl).let { id ->
+                    registryManager.updateWatchProgress(id, exoPlayer.currentPosition, exoPlayer.duration)
+                    userRegistry = registryManager.registry
+                    pushToGitHub()
+                }
+            }
+        }
+    }
+
+    var videoLoadingJob by remember { mutableStateOf<Job?>(null) }
+
+    val playVideo: (SearchResult) -> Unit = { video ->
+        videoLoadingJob?.cancel()
+        focusManager.clearFocus()
+        currentVideo = video
+        extractRutubeId(video.videoUrl)?.let { id ->
+            val historyItem = userRegistry.watchHistory.find { it.videoId == id }
+            
+            registryManager.addWatchHistory(WatchHistoryItem(
+                videoId = id,
+                timestamp = System.currentTimeMillis(),
+                progress = historyItem?.progress ?: 0,
+                totalDuration = video.duration?.toLong()?.times(1000) ?: historyItem?.totalDuration ?: 0,
+                title = video.title,
+                thumbnailUrl = video.thumbnailUrl,
+                authorName = video.author?.name,
+                authorAvatarUrl = video.author?.avatarUrl,
+                authorId = video.author?.id,
+                videoUrl = video.videoUrl
+            ))
+            userRegistry = registryManager.registry
+            pushToGitHub()
+
+            videoLoadingJob = scope.launch {
+                try {
+                    // Start fetching options and related videos in parallel
+                    val optionsDeferred = async(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
+                    val relatedDeferred = async(Dispatchers.IO) { RetrofitClient.api.searchVideos(video.title.take(15)) }
+
+                    val opt = optionsDeferred.await()
+                    opt.videoBalancer?.m3u8?.let { url ->
+                        exoPlayer.stop()
+                        exoPlayer.clearMediaItems()
+                        exoPlayer.setMediaItem(MediaItem.fromUri(url))
+                        exoPlayer.prepare()
+                        if ((historyItem?.progress ?: 0) > 0) {
+                            exoPlayer.seekTo(historyItem!!.progress)
+                        }
+                        // Don't auto-play immediately if you want to avoid sound-first-sync issues,
+                        // but usually prepare() followed by play() is correct.
+                        exoPlayer.play()
+                        playerState = PlayerState.FULL
+                    }
+                    
+                    val relatedResp = relatedDeferred.await()
+                    relatedVideos = recommendationEngine.recommendRelated(video, relatedResp.results)
+                } catch (e: Exception) {
+                    Log.e("Rupoop", "Play error", e)
+                }
+            }
         }
     }
 
@@ -279,6 +360,7 @@ fun RutubeApp(
         scope.launch {
             isRefreshingAuthor = true
             selectedAuthor = author
+            if (currentNav != NavItem.LIBRARY) previousNav = currentNav
             currentNav = NavItem.LIBRARY
             currentLibSub = LibrarySubScreen.AUTHOR
             try {
@@ -290,47 +372,6 @@ fun RutubeApp(
                 authorVideos = resp.results.filter { it.author?.name == author.name }.sortedByDescending { it.createdTs }
             } catch (e: Exception) {}
             isRefreshingAuthor = false
-        }
-    }
-
-    val playVideo: (SearchResult) -> Unit = { video ->
-        focusManager.clearFocus()
-        currentVideo = video
-        extractRutubeId(video.videoUrl)?.let { id ->
-            val historyItem = userRegistry.watchHistory.find { it.videoId == id }
-            
-            registryManager.addWatchHistory(WatchHistoryItem(
-                videoId = id,
-                timestamp = System.currentTimeMillis(),
-                progress = historyItem?.progress ?: 0,
-                // Rutube API duration is in seconds, store as milliseconds
-                totalDuration = video.duration?.toLong()?.times(1000) ?: historyItem?.totalDuration ?: 0,
-                title = video.title,
-                thumbnailUrl = video.thumbnailUrl,
-                authorName = video.author?.name,
-                authorAvatarUrl = video.author?.avatarUrl,
-                authorId = video.author?.id,
-                videoUrl = video.videoUrl
-            ))
-            userRegistry = registryManager.registry
-
-            scope.launch {
-                try {
-                    val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
-                    opt.videoBalancer?.m3u8?.let { url ->
-                        exoPlayer.setMediaItem(MediaItem.fromUri(url))
-                        exoPlayer.prepare()
-                        if ((historyItem?.progress ?: 0) > 0) {
-                            exoPlayer.seekTo(historyItem!!.progress)
-                        }
-                        exoPlayer.play()
-                        playerState = PlayerState.FULL
-                        
-                        val relatedResp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(video.title.take(10)) }
-                        relatedVideos = relatedResp.results.filter { it.videoUrl != video.videoUrl }.shuffled()
-                    }
-                } catch (e: Exception) {}
-            }
         }
     }
 
@@ -370,15 +411,6 @@ fun RutubeApp(
             }
         }
     }
-    
-    val pushToGitHub = {
-        val token = settingsManager.accessToken
-        if (token != null) {
-            scope.launch {
-                syncManager.push(token, registryManager.registry)
-            }
-        }
-    }
 
     LaunchedEffect(Unit) {
         val savedToken = settingsManager.accessToken
@@ -392,7 +424,7 @@ fun RutubeApp(
                     val now = System.currentTimeMillis()
                     val lastSync = settingsManager.lastSyncTime
                     val freqMs = settingsManager.syncFrequencyHours * 3600000L
-                    if (now - lastSync > freqMs) {
+                    if (now - lastSync > freqMs || userRegistry.watchHistory.isEmpty()) {
                         userRegistry = withContext(Dispatchers.IO) { syncManager.sync(savedToken) }
                         settingsManager.lastSyncTime = now
                     } else {
@@ -432,6 +464,7 @@ fun RutubeApp(
         focusManager.clearFocus()
         registryManager.addSearchQuery(query)
         userRegistry = registryManager.registry
+        pushToGitHub()
         scope.launch {
             try {
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query) }
@@ -460,6 +493,9 @@ fun RutubeApp(
             searchQuery = ""
         }
         else if (currentLibSub != LibrarySubScreen.NONE) {
+            if (currentLibSub == LibrarySubScreen.AUTHOR && currentNav == NavItem.LIBRARY && previousNav != NavItem.LIBRARY) {
+                currentNav = previousNav
+            }
             currentLibSub = LibrarySubScreen.NONE
         }
         else if (isInSearchMode) { 
@@ -472,6 +508,7 @@ fun RutubeApp(
         else { 
             playerState = PlayerState.CLOSED
             exoPlayer.stop() 
+            pushToGitHub()
         }
     }
 
@@ -486,7 +523,12 @@ fun RutubeApp(
                                 if (isInSearchMode || currentLibSub != LibrarySubScreen.NONE || currentNav != NavItem.HOME) {
                                     IconButton(onClick = { 
                                         if (isInSearchMode) { isInSearchMode = false; searchQuery = "" }
-                                        else if (currentLibSub != LibrarySubScreen.NONE) currentLibSub = LibrarySubScreen.NONE
+                                        else if (currentLibSub != LibrarySubScreen.NONE) {
+                                            if (currentLibSub == LibrarySubScreen.AUTHOR && currentNav == NavItem.LIBRARY && previousNav != NavItem.LIBRARY) {
+                                                currentNav = previousNav
+                                            }
+                                            currentLibSub = LibrarySubScreen.NONE
+                                        }
                                         else currentNav = NavItem.HOME
                                     }) {
                                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
@@ -771,7 +813,7 @@ fun RutubeApp(
                             }
                         }
                     } else {
-                        MiniPlayer(currentVideo, isPlaying, exoPlayer, onClose = { playerState = PlayerState.CLOSED; exoPlayer.stop() }, onClick = { playerState = PlayerState.FULL })
+                        MiniPlayer(currentVideo, isPlaying, exoPlayer, onClose = { playerState = PlayerState.CLOSED; exoPlayer.stop(); pushToGitHub() }, onClick = { playerState = PlayerState.FULL })
                     }
                 }
             }

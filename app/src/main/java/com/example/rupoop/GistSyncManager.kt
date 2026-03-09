@@ -6,22 +6,29 @@ import kotlinx.serialization.json.Json
 
 class GistSyncManager(
     private val gistApi: GistApi,
-    private val registryManager: UserRegistryManager
+    private val registryManager: UserRegistryManager,
+    private val settingsManager: SettingsManager
 ) {
     private val SYNC_FILE_NAME = "rupoop_user_registry_v2.json"
     private val json = RetrofitClient.json
 
     suspend fun sync(token: String): UserRegistry {
         val authHeader = "Bearer $token"
-        Log.d("RupoopAuth", "Searching for $SYNC_FILE_NAME in Gists")
+        Log.d("RupoopAuth", "Starting Gist Sync")
         
         return try {
-            val gists = gistApi.listGists(authHeader)
-            val syncGistMeta = gists.find { it.files.containsKey(SYNC_FILE_NAME) }
+            var gistId = settingsManager.cachedGistId
+            if (gistId == null) {
+                Log.d("RupoopAuth", "Searching for $SYNC_FILE_NAME in Gists")
+                val gists = gistApi.listGists(authHeader)
+                val syncGistMeta = gists.find { it.files.containsKey(SYNC_FILE_NAME) }
+                gistId = syncGistMeta?.id
+                settingsManager.cachedGistId = gistId
+            }
 
-            if (syncGistMeta != null) {
-                Log.d("RupoopAuth", "Gist found: ${syncGistMeta.id}, fetching content")
-                val syncGist = gistApi.getGist(authHeader, syncGistMeta.id)
+            if (gistId != null) {
+                Log.d("RupoopAuth", "Gist found: $gistId, fetching content")
+                val syncGist = gistApi.getGist(authHeader, gistId)
                 val file = syncGist.files[SYNC_FILE_NAME]
                 val content = file?.content ?: "{}"
                 val remoteRegistry = try {
@@ -32,7 +39,7 @@ class GistSyncManager(
                 
                 val mergedRegistry = registryManager.mergeWith(remoteRegistry)
                 
-                push(token, mergedRegistry, syncGistMeta.id)
+                push(token, mergedRegistry, gistId)
                 mergedRegistry
             } else {
                 Log.d("RupoopAuth", "Gist not found, creating new one")
@@ -49,10 +56,11 @@ class GistSyncManager(
     suspend fun push(token: String, registry: UserRegistry, gistId: String? = null) {
         val authHeader = "Bearer $token"
         try {
-            var targetGistId = gistId
+            var targetGistId = gistId ?: settingsManager.cachedGistId
             if (targetGistId == null) {
                 val gists = gistApi.listGists(authHeader)
                 targetGistId = gists.find { it.files.containsKey(SYNC_FILE_NAME) }?.id
+                settingsManager.cachedGistId = targetGistId
             }
 
             val request = GistRequest(
@@ -64,7 +72,8 @@ class GistSyncManager(
             if (targetGistId != null) {
                 gistApi.updateGist(authHeader, targetGistId, request)
             } else {
-                gistApi.createGist(authHeader, request)
+                val newGist = gistApi.createGist(authHeader, request)
+                settingsManager.cachedGistId = newGist.id
             }
         } catch (e: Exception) {
             Log.e("RupoopAuth", "Push failed", e)

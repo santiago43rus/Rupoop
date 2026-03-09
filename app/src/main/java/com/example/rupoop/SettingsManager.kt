@@ -26,7 +26,11 @@ class SettingsManager(context: Context) {
         get() = prefs.getLong("last_sync_time", 0)
         set(value) = prefs.edit().putLong("last_sync_time", value).apply()
 
+    var cachedGistId: String?
+        get() = prefs.getString("cached_gist_id", null)
+        set(value) = prefs.edit().putString("cached_gist_id", value).apply()
+
     fun clearAuth() {
-        prefs.edit().remove("access_token").apply()
+        prefs.edit().remove("access_token").remove("cached_gist_id").apply()
     }
 }
