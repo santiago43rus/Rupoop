@@ -8,7 +8,9 @@ class RecommendationEngine(private val registryManager: UserRegistryManager) {
         val registry = registryManager.registry
         val historySize = registry.watchHistory.size
 
-        return results.shuffled().sortedWith(compareByDescending<SearchResult> {
+        return results.filter { !it.title.contains("мультик", ignoreCase = true) }
+            .filter { (it.duration ?: 0) >= 900 } // Minimum 15 minutes (900 seconds)
+            .shuffled().sortedWith(compareByDescending<SearchResult> {
             calculateScore(it, registry)
         }.thenByDescending {
             if (historySize < PERSONALIZATION_THRESHOLD) isMovie(it) else false
@@ -17,17 +19,29 @@ class RecommendationEngine(private val registryManager: UserRegistryManager) {
 
     fun recommendRelated(video: SearchResult, pool: List<SearchResult>): List<SearchResult> {
         val registry = registryManager.registry
+        val originalTitleParsed = parseTitle(video.title)
 
         return pool.filter { it.videoUrl != video.videoUrl }
+            .filter { !it.title.contains("мультик", ignoreCase = true) }
+            .filter { (it.duration ?: 0) >= 900 } // Minimum 15 minutes
+            .filter { candidate ->
+                val status = getSequelStatus(candidate, video)
+                if (status == SequelStatus.NONE) {
+                    val candidateParsed = parseTitle(candidate.title)
+                    !isTooSimilar(candidateParsed.base, originalTitleParsed.base)
+                } else {
+                    true
+                }
+            }
             .sortedWith(compareByDescending<SearchResult> { candidate ->
                 var score = 0f
                 val sequelStatus = getSequelStatus(candidate, video)
                 when (sequelStatus) {
-                    SequelStatus.NEXT_EPISODE -> score += 50000.0f // Огромный приоритет следующей серии
-                    SequelStatus.NEXT_SEASON_FIRST_EP -> score += 40000.0f // Приоритет следующему сезону
+                    SequelStatus.NEXT_EPISODE -> score += 50000.0f
+                    SequelStatus.NEXT_SEASON_FIRST_EP -> score += 40000.0f
                     SequelStatus.SAME_SEASON_FUTURE -> score += 5000.0f
                     SequelStatus.SAME_SERIES_OTHER -> score += 1000.0f
-                    SequelStatus.PAST_EPISODE -> score -= 50000.0f // Жестко штрафуем старые серии (1, 2 и т.д.)
+                    SequelStatus.PAST_EPISODE -> score -= 50000.0f
                     SequelStatus.NONE -> {}
                 }
 
@@ -37,21 +51,32 @@ class RecommendationEngine(private val registryManager: UserRegistryManager) {
             })
     }
 
-    // Генерируем массив запросов: 1. Точная след. серия 2. След. сезон 3. Базовое название
+    private fun isTooSimilar(s1: String, s2: String): Boolean {
+        if (s1.isEmpty() || s2.isEmpty()) return false
+        val s1l = s1.lowercase()
+        val s2l = s2.lowercase()
+        if (s1l == s2l) return true
+        if (s1l.contains(s2l) || s2l.contains(s1l)) {
+             val ratio = s1.length.toFloat() / s2.length.toFloat()
+             if (ratio > 0.7f && ratio < 1.4f) return true
+        }
+        return false
+    }
+
     fun getSearchQueries(video: SearchResult): List<String> {
         val parsed = parseTitle(video.title)
         val queries = mutableListOf<String>()
         val base = parsed.base.take(50).trim()
 
         if (parsed.season != null && parsed.episode != null) {
-            queries.add("$base сезон ${parsed.season} серия ${parsed.episode + 1}") // Ищем следующую серию
-            queries.add("$base сезон ${parsed.season + 1} серия 1") // Ищем следующий сезон
+            queries.add("$base сезон ${parsed.season} серия ${parsed.episode + 1}")
+            queries.add("$base сезон ${parsed.season + 1} серия 1")
         } else if (parsed.episode != null) {
             queries.add("$base серия ${parsed.episode + 1}")
         } else if (parsed.part != null) {
             queries.add("$base часть ${parsed.part + 1}")
         }
-        queries.add(base) // Базовый запрос, если точные не сработают
+        queries.add(base)
         return queries
     }
 

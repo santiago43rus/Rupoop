@@ -91,7 +91,11 @@ data class WatchHistoryItem(
 data class AppSettings(
     val theme: String = "dark",
     val language: String = "ru",
-    val videoQuality: String = "auto"
+    val videoQuality: String = "auto",
+    val adultContentEnabled: Boolean = true,
+    val kidsContentEnabled: Boolean = true,
+    val downloadQuality: String = "1080",
+    val syncFrequencyHours: Int = 24
 )
 
 @Serializable
@@ -123,7 +127,8 @@ interface RutubeApi {
     @GET("api/search/video/?format=json")
     suspend fun searchVideos(
         @Query("query") query: String,
-        @Query("ordering") ordering: String? = null
+        @Query("ordering") ordering: String? = null,
+        @Query("page") page: Int = 1
     ): SearchResponse
 
     @GET("api/play/options/{id}/?format=json")
@@ -132,7 +137,8 @@ interface RutubeApi {
     @GET("api/video/person/{id}/?format=json")
     suspend fun getAuthorVideos(
         @Path("id") id: String,
-        @Query("ordering") ordering: String? = "-created_ts"
+        @Query("ordering") ordering: String? = "-created_ts",
+        @Query("page") page: Int = 1
     ): SearchResponse
 }
 

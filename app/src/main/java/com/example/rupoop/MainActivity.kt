@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -61,8 +62,9 @@ import net.openid.appauth.AuthorizationResponse
 import java.util.Locale
 
 enum class PlayerState { CLOSED, MINI, FULL }
+enum class OverlayState { SEARCH, AUTHOR }
 enum class NavItem { HOME, SUBSCRIPTIONS, LIBRARY, SETTINGS }
-enum class LibrarySubScreen { NONE, LIKED, WATCH_LATER, PLAYLISTS, PLAYLIST_DETAIL, HISTORY, AUTHOR }
+enum class LibrarySubScreen { NONE, LIKED, WATCH_LATER, PLAYLISTS, PLAYLIST_DETAIL, HISTORY }
 
 class MainActivity : ComponentActivity() {
     private lateinit var settingsManager: SettingsManager
@@ -110,7 +112,6 @@ class MainActivity : ComponentActivity() {
                         settingsManager = settingsManager,
                         registryManager = registryManager,
                         recommendationEngine = recommendationEngine,
-                        isDarkTheme = isDarkTheme,
                         onThemeToggle = {
                             isDarkTheme = !isDarkTheme
                             settingsManager.isDarkTheme = isDarkTheme
@@ -144,7 +145,6 @@ fun RutubeApp(
     settingsManager: SettingsManager,
     registryManager: UserRegistryManager,
     recommendationEngine: RecommendationEngine,
-    isDarkTheme: Boolean,
     onThemeToggle: () -> Unit,
     deepLinkVideoUrl: String?,
     onDeepLinkConsumed: () -> Unit
@@ -165,7 +165,6 @@ fun RutubeApp(
     var isAccountMenuExpanded by remember { mutableStateOf(false) }
 
     var currentNav by remember { mutableStateOf(NavItem.HOME) }
-    var previousNav by remember { mutableStateOf(NavItem.HOME) }
     var currentLibSub by remember { mutableStateOf(LibrarySubScreen.NONE) }
     var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
     var selectedAuthor by remember { mutableStateOf<Author?>(null) }
@@ -176,14 +175,32 @@ fun RutubeApp(
     var searchResults by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     var subscriptionVideos by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
     var relatedVideos by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+    
+    var currentVideoList by remember { mutableStateOf<List<SearchResult>>(emptyList()) }
+    var currentVideoIndex by remember { mutableIntStateOf(-1) }
+    
     var playerState by remember { mutableStateOf(PlayerState.CLOSED) }
     var currentVideo by remember { mutableStateOf<SearchResult?>(null) }
     var isFullscreenVideo by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
-    var isInSearchMode by remember { mutableStateOf(false) }
     
     var showPlaylistDialog by remember { mutableStateOf<SearchResult?>(null) }
+
+    // Pagination states
+    var isHomeLoadingMore by remember { mutableStateOf(false) }
+    var isAuthorLoadingMore by remember { mutableStateOf(false) }
+    var authorPage by remember { mutableIntStateOf(1) }
+    var hasMoreAuthorVideos by remember { mutableStateOf(true) }
+
+    var isSearchVisible by remember { mutableStateOf(false) }
+    var isAuthorVisible by remember { mutableStateOf(false) }
+    var overlayOrder by remember { mutableStateOf(listOf(OverlayState.SEARCH, OverlayState.AUTHOR)) }
+
+    // Для пагинации подписок
+    var subsPage by remember { mutableIntStateOf(1) }
+    var hasMoreSubsVideos by remember { mutableStateOf(true) }
+    var isSubsLoadingMore by remember { mutableStateOf(false) }
 
     val pushToGitHub = {
         val token = settingsManager.accessToken
@@ -201,13 +218,17 @@ fun RutubeApp(
                 override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY && currentVideo != null) {
-                        registryManager.updateWatchProgress(extractId(currentVideo!!.videoUrl), contentPosition, duration)
-                        userRegistry = registryManager.registry
+                        extractId(currentVideo!!.videoUrl)?.let { id ->
+                            registryManager.updateWatchProgress(id, contentPosition, duration)
+                            userRegistry = registryManager.registry
+                        }
                     }
                     if (state == Player.STATE_ENDED && currentVideo != null) {
-                        registryManager.updateWatchProgress(extractId(currentVideo!!.videoUrl), duration, duration)
-                        userRegistry = registryManager.registry
-                        pushToGitHub()
+                        extractId(currentVideo!!.videoUrl)?.let { id ->
+                            registryManager.updateWatchProgress(id, duration, duration)
+                            userRegistry = registryManager.registry
+                            pushToGitHub()
+                        }
                     }
                 }
             })
@@ -219,7 +240,7 @@ fun RutubeApp(
         if (isPlaying && currentVideo != null) {
             while (true) {
                 delay(15000)
-                extractId(currentVideo!!.videoUrl).let { id ->
+                extractId(currentVideo!!.videoUrl)?.let { id ->
                     registryManager.updateWatchProgress(id, exoPlayer.currentPosition, exoPlayer.duration)
                     userRegistry = registryManager.registry
                     pushToGitHub()
@@ -230,11 +251,26 @@ fun RutubeApp(
 
     var videoLoadingJob by remember { mutableStateOf<Job?>(null) }
 
-    val playVideo: (SearchResult) -> Unit = { video ->
+    val playVideo: (SearchResult, List<SearchResult>?) -> Unit = { video, list ->
         videoLoadingJob?.cancel()
         focusManager.clearFocus()
+        
+        val isExplicitPlaylist = currentLibSub != LibrarySubScreen.NONE
+        
+        // FIX for "Previous" video support:
+        // If the video is already in the current playback queue, just move the index.
+        val existingIndex = currentVideoList.indexOfFirst { it.videoUrl == video.videoUrl }
+        if (existingIndex != -1 && (list == relatedVideos || list == null)) {
+            currentVideoIndex = existingIndex
+        } else {
+            val effectiveList = list ?: listOf(video)
+            currentVideoList = effectiveList
+            currentVideoIndex = effectiveList.indexOfFirst { it.videoUrl == video.videoUrl }
+        }
+        
         currentVideo = video
-        extractRutubeId(video.videoUrl)?.let { id ->
+        
+        extractId(video.videoUrl)?.let { id ->
             val historyItem = userRegistry.watchHistory.find { it.videoId == id }
             
             registryManager.addWatchHistory(WatchHistoryItem(
@@ -254,17 +290,15 @@ fun RutubeApp(
 
             videoLoadingJob = scope.launch {
                 try {
-                    // Start fetching options and related videos in parallel
                     val optionsDeferred = async(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
                     val relatedDeferred = async(Dispatchers.IO) { 
                         val queries = recommendationEngine.getSearchQueries(video)
                         val allResults = mutableListOf<SearchResult>()
-                        // Проходимся по сгенерированным запросам (След. серия -> След. сезон -> База)
                         for (q in queries) {
                             try {
                                 val res = RetrofitClient.api.searchVideos(q).results
                                 allResults.addAll(res)
-                                if (allResults.size > 20) break // Чтобы не грузить сеть
+                                if (allResults.size > 20) break
                             } catch (e: Exception) {}
                         }
                         allResults.distinctBy { it.videoUrl }
@@ -284,11 +318,39 @@ fun RutubeApp(
                     }
                     
                     val relatedResults = relatedDeferred.await()
-                    relatedVideos = recommendationEngine.recommendRelated(video, relatedResults)
+                    val filteredRelated = recommendationEngine.recommendRelated(video, relatedResults)
+                    relatedVideos = filteredRelated
+                    
+                    // If not in a strict playlist, and we just played a "fresh" video (not from within current list)
+                    if (!isExplicitPlaylist && (list == null || list == homeVideos || list == searchResults)) {
+                         currentVideoList = listOf(video) + filteredRelated
+                         currentVideoIndex = 0
+                    }
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Play error", e)
                 }
             }
+        }
+    }
+
+    // Deep Link Handling
+    LaunchedEffect(deepLinkVideoUrl) {
+        if (deepLinkVideoUrl != null) {
+            val video = SearchResult(videoUrl = deepLinkVideoUrl, title = "Загрузка...")
+            playVideo(video, null)
+            onDeepLinkConsumed()
+        }
+    }
+
+    val playNext = {
+        if (currentVideoIndex < currentVideoList.size - 1) {
+            playVideo(currentVideoList[currentVideoIndex + 1], currentVideoList)
+        }
+    }
+
+    val playPrevious = {
+        if (currentVideoIndex > 0) {
+            playVideo(currentVideoList[currentVideoIndex - 1], currentVideoList)
         }
     }
 
@@ -331,9 +393,11 @@ fun RutubeApp(
     var isRefreshingSubs by remember { mutableStateOf(false) }
     var isRefreshingAuthor by remember { mutableStateOf(false) }
 
-    val loadHome = {
+    val loadHome: (Boolean) -> Unit = { isLoadMore ->
         scope.launch {
-            isRefreshingHome = true
+            if (isLoadMore) isHomeLoadingMore = true 
+            else { isRefreshingHome = true; homeVideos = emptyList() }
+            
             try {
                 val queries = mutableListOf<String>()
                 if (settingsManager.adultContentEnabled) {
@@ -345,59 +409,114 @@ fun RutubeApp(
                 if (queries.isEmpty()) queries.add("популярное")
 
                 val query = queries.random()
-                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query) }
-                // Пропускаем через движок рекомендаций для лучшей сортировки
-                homeVideos = recommendationEngine.recommend(resp.results)
+                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, page = 1) }
+                val newVideos = recommendationEngine.recommend(resp.results)
+                
+                homeVideos = if (isLoadMore) (homeVideos + newVideos).distinctBy { it.videoUrl } else newVideos
             } catch (e: Exception) {
                 Log.e("Rupoop", "Error loading home", e)
             } finally {
                 isRefreshingHome = false
+                isHomeLoadingMore = false
             }
         }
     }
 
-    val loadSubscriptions = {
+    val loadSubscriptions: (Boolean) -> Unit = { isLoadMore ->
         scope.launch {
-            isRefreshingSubs = true
+            if (isLoadMore) {
+                isSubsLoadingMore = true
+                subsPage++
+            } else {
+                isRefreshingSubs = true
+                subsPage = 1
+                hasMoreSubsVideos = true
+                subscriptionVideos = emptyList()
+            }
+
             if (userRegistry.subscriptions.isNotEmpty()) {
                 try {
                     val allSubsVideos = mutableListOf<SearchResult>()
                     userRegistry.subscriptions.forEach { author ->
-                        val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, ordering = "-created_ts") }
-                        allSubsVideos.addAll(resp.results.filter { it.author?.name == author.name })
+                        val resp = if (author.id != null) {
+                            withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), page = subsPage) }
+                        } else {
+                            withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, page = subsPage) }
+                        }
+                        allSubsVideos.addAll(resp.results.filter { 
+                            it.author?.name?.equals(author.name, ignoreCase = true) == true 
+                        })
                     }
-                    subscriptionVideos = allSubsVideos.distinctBy { it.videoUrl }.sortedByDescending { it.createdTs }
-                } catch (e: Exception) {}
+                    
+                    if (allSubsVideos.isEmpty()) {
+                        hasMoreSubsVideos = false
+                    } else {
+                        val sortedNewVideos = allSubsVideos.sortedByDescending { it.createdTs ?: "" }
+                        subscriptionVideos = if (isLoadMore) {
+                            (subscriptionVideos + sortedNewVideos).distinctBy { it.videoUrl }
+                        } else {
+                            sortedNewVideos.distinctBy { it.videoUrl }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("Rupoop", "Subs load error", e)
+                    if (isLoadMore) subsPage--
+                }
             } else {
                 subscriptionVideos = emptyList()
+                hasMoreSubsVideos = false
             }
             isRefreshingSubs = false
+            isSubsLoadingMore = false
         }
     }
 
-    val loadAuthorVideos = { author: Author ->
-        scope.launch {
-            isRefreshingAuthor = true
-            selectedAuthor = author
-            if (currentNav != NavItem.LIBRARY) previousNav = currentNav
-            currentNav = NavItem.LIBRARY
-            currentLibSub = LibrarySubScreen.AUTHOR
-            try {
-                val resp = if (author.id != null) {
-                    withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString()) }
+    val loadAuthorVideos: (Author, Boolean) -> Unit = { author, isLoadMore ->
+        if (!isLoadMore || hasMoreAuthorVideos) {
+            scope.launch {
+                if (isLoadMore) {
+                    isAuthorLoadingMore = true
+                    authorPage++
                 } else {
-                    withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, ordering = "-created_ts") }
+                    isRefreshingAuthor = true
+                    authorPage = 1
+                    hasMoreAuthorVideos = true
+                    selectedAuthor = author
+                    authorVideos = emptyList()
+                    
+                    // Включаем канал, переносим его на верхний слой и сворачиваем плеер
+                    isAuthorVisible = true
+                    overlayOrder = overlayOrder.filter { it != OverlayState.AUTHOR } + OverlayState.AUTHOR
+                    if (playerState == PlayerState.FULL) playerState = PlayerState.MINI
                 }
-                authorVideos = resp.results.filter { it.author?.name == author.name }.sortedByDescending { it.createdTs }
-            } catch (e: Exception) {}
-            isRefreshingAuthor = false
+                try {
+                    val resp = if (author.id != null) {
+                        withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), page = authorPage) }
+                    } else {
+                        withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, page = authorPage) }
+                    }
+                    
+                    if (resp.results.isEmpty()) {
+                        hasMoreAuthorVideos = false
+                    } else {
+                        val newVideos = resp.results
+                        authorVideos = if (isLoadMore) (authorVideos + newVideos).distinctBy { it.videoUrl } else newVideos
+                    }
+                } catch (e: Exception) {
+                    Log.e("Rupoop", "Author videos error", e)
+                    if (isLoadMore) authorPage--
+                } finally {
+                    isRefreshingAuthor = false
+                    isAuthorLoadingMore = false
+                }
+            }
         }
     }
 
     val startDownload = { video: SearchResult ->
         scope.launch {
             snackbarHostState.showSnackbar("Скачивание начато: ${video.title}")
-            extractRutubeId(video.videoUrl)?.let { id ->
+            extractId(video.videoUrl)?.let { id ->
                 try {
                     val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
                     opt.videoBalancer?.m3u8?.let { m3u8Url ->
@@ -454,17 +573,17 @@ fun RutubeApp(
                     Log.e("RupoopAuth", "Auth error", e)
                 } finally {
                     isAuthenticating = false
-                    loadHome()
+                    loadHome(false)
                 }
             }
         } else {
-            loadHome()
+            loadHome(false)
         }
     }
     
     LaunchedEffect(currentNav) {
-        if (currentNav == NavItem.SUBSCRIPTIONS) loadSubscriptions()
-        if (currentNav == NavItem.HOME && homeVideos.isEmpty()) loadHome()
+        if (currentNav == NavItem.SUBSCRIPTIONS) loadSubscriptions(false)
+        if (currentNav == NavItem.HOME && homeVideos.isEmpty()) loadHome(false)
     }
 
     val shareVideo = { video: SearchResult ->
@@ -479,7 +598,12 @@ fun RutubeApp(
     val performSearch = { query: String ->
         searchQuery = query
         isSearchExpanded = false
-        isInSearchMode = true
+        
+        // Включаем поиск, переносим его на верхний слой и сворачиваем плеер
+        isSearchVisible = true
+        overlayOrder = overlayOrder.filter { it != OverlayState.SEARCH } + OverlayState.SEARCH
+        if (playerState == PlayerState.FULL) playerState = PlayerState.MINI
+
         focusManager.clearFocus()
         registryManager.addSearchQuery(query)
         userRegistry = registryManager.registry
@@ -487,8 +611,10 @@ fun RutubeApp(
         scope.launch {
             try {
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query) }
-                searchResults = resp.results
-            } catch (e: Exception) {}
+                searchResults = resp.results 
+            } catch (e: Exception) {
+                Log.e("Rupoop", "Search error", e)
+            }
         }
     }
 
@@ -504,30 +630,29 @@ fun RutubeApp(
         }
     }
 
-    BackHandler(enabled = playerState != PlayerState.CLOSED || isInSearchMode || isSearchExpanded || currentLibSub != LibrarySubScreen.NONE || currentNav != NavItem.HOME) {
+    BackHandler(enabled = playerState != PlayerState.CLOSED || isSearchExpanded || isSearchVisible || isAuthorVisible || currentLibSub != LibrarySubScreen.NONE || currentNav != NavItem.HOME) {
         if (isFullscreenVideo) toggleFullscreen(false)
         else if (playerState == PlayerState.FULL) playerState = PlayerState.MINI
         else if (isSearchExpanded) {
             isSearchExpanded = false
             searchQuery = ""
         }
-        else if (currentLibSub != LibrarySubScreen.NONE) {
-            if (currentLibSub == LibrarySubScreen.AUTHOR && currentNav == NavItem.LIBRARY && previousNav != NavItem.LIBRARY) {
-                currentNav = previousNav
+        else {
+            // Находим, какой оверлей сейчас на самом верху
+            val topVisible = overlayOrder.lastOrNull { 
+                (it == OverlayState.SEARCH && isSearchVisible) || 
+                (it == OverlayState.AUTHOR && isAuthorVisible) 
             }
-            currentLibSub = LibrarySubScreen.NONE
-        }
-        else if (isInSearchMode) { 
-            isInSearchMode = false
-            searchQuery = ""
-        }
-        else if (currentNav != NavItem.HOME) { 
-            currentNav = NavItem.HOME
-        }
-        else { 
-            playerState = PlayerState.CLOSED
-            exoPlayer.stop() 
-            pushToGitHub()
+            
+            if (topVisible == OverlayState.SEARCH) isSearchVisible = false
+            else if (topVisible == OverlayState.AUTHOR) isAuthorVisible = false
+            else if (currentLibSub != LibrarySubScreen.NONE) currentLibSub = LibrarySubScreen.NONE
+            else if (currentNav != NavItem.HOME) currentNav = NavItem.HOME
+            else { 
+                playerState = PlayerState.CLOSED
+                exoPlayer.stop() 
+                pushToGitHub()
+            }
         }
     }
 
@@ -537,7 +662,7 @@ fun RutubeApp(
             settingsManager = settingsManager,
             onDismiss = { 
                 showOnboarding = false
-                loadHome() // Обновляем ленту с новыми фильтрами
+                loadHome(false)
             }
         )
     }
@@ -549,16 +674,17 @@ fun RutubeApp(
                 TopAppBar(
                     title = {
                         if (!isSearchExpanded) {
+                            val topVisible = overlayOrder.lastOrNull { 
+                                (it == OverlayState.SEARCH && isSearchVisible) || 
+                                (it == OverlayState.AUTHOR && isAuthorVisible) 
+                            }
+
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isInSearchMode || currentLibSub != LibrarySubScreen.NONE || currentNav != NavItem.HOME) {
+                                if (topVisible != null || currentLibSub != LibrarySubScreen.NONE || currentNav != NavItem.HOME) {
                                     IconButton(onClick = { 
-                                        if (isInSearchMode) { isInSearchMode = false; searchQuery = "" }
-                                        else if (currentLibSub != LibrarySubScreen.NONE) {
-                                            if (currentLibSub == LibrarySubScreen.AUTHOR && currentNav == NavItem.LIBRARY && previousNav != NavItem.LIBRARY) {
-                                                currentNav = previousNav
-                                            }
-                                            currentLibSub = LibrarySubScreen.NONE
-                                        }
+                                        if (topVisible == OverlayState.SEARCH) isSearchVisible = false
+                                        else if (topVisible == OverlayState.AUTHOR) isAuthorVisible = false
+                                        else if (currentLibSub != LibrarySubScreen.NONE) currentLibSub = LibrarySubScreen.NONE
                                         else currentNav = NavItem.HOME
                                     }) {
                                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
@@ -566,13 +692,14 @@ fun RutubeApp(
                                 }
                                 Icon(Icons.Default.PlayCircleFilled, null, tint = Color.Red, modifier = Modifier.size(32.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text(when(currentLibSub) {
-                                    LibrarySubScreen.LIKED -> "Понравившиеся"
-                                    LibrarySubScreen.WATCH_LATER -> "Смотреть позже"
-                                    LibrarySubScreen.PLAYLISTS -> "Плейлисты"
-                                    LibrarySubScreen.PLAYLIST_DETAIL -> selectedPlaylist?.name ?: "Плейлист"
-                                    LibrarySubScreen.HISTORY -> "История просмотра"
-                                    LibrarySubScreen.AUTHOR -> selectedAuthor?.name ?: "Канал"
+                                Text(when {
+                                    topVisible == OverlayState.AUTHOR -> selectedAuthor?.name ?: "Канал"
+                                    topVisible == OverlayState.SEARCH -> "Результаты поиска"
+                                    currentLibSub == LibrarySubScreen.LIKED -> "Понравившиеся"
+                                    currentLibSub == LibrarySubScreen.WATCH_LATER -> "Смотреть позже"
+                                    currentLibSub == LibrarySubScreen.PLAYLISTS -> "Плейлисты"
+                                    currentLibSub == LibrarySubScreen.PLAYLIST_DETAIL -> selectedPlaylist?.name ?: "Плейлист"
+                                    currentLibSub == LibrarySubScreen.HISTORY -> "История просмотра"
                                     else -> when(currentNav) {
                                         NavItem.SUBSCRIPTIONS -> "Подписки"
                                         NavItem.LIBRARY -> "Библиотека"
@@ -630,9 +757,9 @@ fun RutubeApp(
         bottomBar = {
             if (playerState != PlayerState.FULL && !isFullscreenVideo) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
-                    NavigationBarItem(selected = currentNav == NavItem.HOME, onClick = { currentNav = NavItem.HOME; currentLibSub = LibrarySubScreen.NONE; isInSearchMode = false; searchQuery = "" }, icon = { Icon(if(currentNav == NavItem.HOME) Icons.Filled.Home else Icons.Outlined.Home, "Home") }, label = { Text("Главная") })
-                    NavigationBarItem(selected = currentNav == NavItem.SUBSCRIPTIONS, onClick = { currentNav = NavItem.SUBSCRIPTIONS; currentLibSub = LibrarySubScreen.NONE }, icon = { Icon(if(currentNav == NavItem.SUBSCRIPTIONS) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs") }, label = { Text("Подписки") })
-                    NavigationBarItem(selected = currentNav == NavItem.LIBRARY, onClick = { currentNav = NavItem.LIBRARY; currentLibSub = LibrarySubScreen.NONE }, icon = { Icon(if(currentNav == NavItem.LIBRARY) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib") }, label = { Text("Библиотека") })
+                    NavigationBarItem(selected = currentNav == NavItem.HOME, onClick = { currentNav = NavItem.HOME; currentLibSub = LibrarySubScreen.NONE; isSearchVisible = false; isAuthorVisible = false; searchQuery = ""; }, icon = { Icon(if(currentNav == NavItem.HOME) Icons.Filled.Home else Icons.Outlined.Home, "Home") }, label = { Text("Главная") })
+                    NavigationBarItem(selected = currentNav == NavItem.SUBSCRIPTIONS, onClick = { currentNav = NavItem.SUBSCRIPTIONS; currentLibSub = LibrarySubScreen.NONE; isSearchVisible = false; isAuthorVisible = false; }, icon = { Icon(if(currentNav == NavItem.SUBSCRIPTIONS) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs") }, label = { Text("Подписки") })
+                    NavigationBarItem(selected = currentNav == NavItem.LIBRARY, onClick = { currentNav = NavItem.LIBRARY; currentLibSub = LibrarySubScreen.NONE; isSearchVisible = false; isAuthorVisible = false; }, icon = { Icon(if(currentNav == NavItem.LIBRARY) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib") }, label = { Text("Библиотека") })
                 }
             }
         }
@@ -640,14 +767,14 @@ fun RutubeApp(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (currentNav) {
                 NavItem.HOME -> {
-                    PullToRefreshBox(isRefreshing = isRefreshingHome, onRefresh = { loadHome() }, state = rememberPullToRefreshState()) {
-                        val videos = if (isInSearchMode) searchResults else homeVideos
+                    PullToRefreshBox(isRefreshing = isRefreshingHome, onRefresh = { loadHome(false) }, state = rememberPullToRefreshState()) {
+                        val videos = homeVideos
                         LazyColumn(Modifier.fillMaxSize()) {
-                            items(videos) { video ->
+                            itemsIndexed(videos) { index, video ->
                                 val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
                                 VideoItem(video, history, 
-                                    onClick = { playVideo(video) }, 
-                                    onAuthorClick = { loadAuthorVideos(it) },
+                                    onClick = { playVideo(video, videos) }, 
+                                    onAuthorClick = { loadAuthorVideos(it, false) },
                                     onMoreClick = { action ->
                                         when(action) {
                                             "later" -> { val added = registryManager.toggleWatchLater(video); userRegistry = registryManager.registry; pushToGitHub(); scope.launch { snackbarHostState.showSnackbar(if(added) "Добавлено в Смотреть позже" else "Удалено из Смотреть позже") } }
@@ -657,12 +784,23 @@ fun RutubeApp(
                                         }
                                     }
                                 )
+                                
+                                if (index == videos.lastIndex && !isHomeLoadingMore) {
+                                    LaunchedEffect(video.videoUrl) { loadHome(true) }
+                                }
+                            }
+                            if (isHomeLoadingMore) {
+                                item {
+                                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(color = Color.Red)
+                                    }
+                                }
                             }
                         }
                     }
                 }
                 NavItem.SUBSCRIPTIONS -> {
-                    PullToRefreshBox(isRefreshing = isRefreshingSubs, onRefresh = { loadSubscriptions() }, state = rememberPullToRefreshState()) {
+                    PullToRefreshBox(isRefreshing = isRefreshingSubs, onRefresh = { loadSubscriptions(false) }, state = rememberPullToRefreshState()) {
                         if (userRegistry.subscriptions.isEmpty()) {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("У вас пока нет подписок") }
                         } else {
@@ -670,7 +808,7 @@ fun RutubeApp(
                                 item {
                                     LazyRow(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
                                         items(userRegistry.subscriptions) { author ->
-                                            Column(Modifier.padding(end = 16.dp).width(70.dp).clickable { loadAuthorVideos(author) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Column(Modifier.padding(end = 16.dp).width(70.dp).clickable { loadAuthorVideos(author, false) }, horizontalAlignment = Alignment.CenterHorizontally) {
                                                 AsyncImage(model = author.avatarUrl ?: "", contentDescription = null, modifier = Modifier.size(50.dp).clip(CircleShape).background(Color.Gray))
                                                 Text(author.name, maxLines = 1, style = MaterialTheme.typography.labelSmall, overflow = TextOverflow.Ellipsis)
                                             }
@@ -678,11 +816,11 @@ fun RutubeApp(
                                     }
                                     HorizontalDivider()
                                 }
-                                items(subscriptionVideos) { video ->
+                                itemsIndexed(subscriptionVideos) { index, video ->
                                     val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
                                     VideoItem(video, history, 
-                                        onClick = { playVideo(video) }, 
-                                        onAuthorClick = { loadAuthorVideos(it) },
+                                        onClick = { playVideo(video, subscriptionVideos) }, 
+                                        onAuthorClick = { loadAuthorVideos(it, false) },
                                         onMoreClick = { action ->
                                             when(action) {
                                                 "later" -> { val added = registryManager.toggleWatchLater(video); userRegistry = registryManager.registry; pushToGitHub(); scope.launch { snackbarHostState.showSnackbar(if(added) "Добавлено в Смотреть позже" else "Удалено из Смотреть позже") } }
@@ -692,6 +830,16 @@ fun RutubeApp(
                                             }
                                         }
                                     )
+                                    if (index == subscriptionVideos.lastIndex && !isSubsLoadingMore && hasMoreSubsVideos) {
+                                        LaunchedEffect(video.videoUrl) { loadSubscriptions(true) }
+                                    }
+                                }
+                                if (isSubsLoadingMore) {
+                                    item {
+                                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                            CircularProgressIndicator(color = Color.Red)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -701,8 +849,8 @@ fun RutubeApp(
                     when (currentLibSub) {
                         LibrarySubScreen.NONE -> {
                             LibraryScreen(userRegistry, 
-                                onVideoClick = { item -> playVideo(SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl))) },
-                                onAuthorClick = { loadAuthorVideos(it) },
+                                onVideoClick = { item -> playVideo(SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl)), userRegistry.watchHistory.map { SearchResult(videoUrl = it.videoUrl, title = it.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl)) }) },
+                                onAuthorClick = { loadAuthorVideos(it, false) },
                                 onMoreClick = { item, action ->
                                     val video = SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl))
                                     when(action) {
@@ -725,23 +873,28 @@ fun RutubeApp(
                         }
                         LibrarySubScreen.HISTORY -> {
                             LazyColumn(Modifier.fillMaxSize()) {
+                                val historyVideos = userRegistry.watchHistory.map { item ->
+                                    SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl), duration = (item.totalDuration / 1000).toInt())
+                                }
                                 items(userRegistry.watchHistory) { item ->
                                     val video = SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl), duration = (item.totalDuration / 1000).toInt())
                                     VideoItem(video, item, 
-                                        onClick = { playVideo(video) }, 
-                                        onAuthorClick = { loadAuthorVideos(it) },
+                                        onClick = { playVideo(video, historyVideos) }, 
+                                        onAuthorClick = { loadAuthorVideos(it, false) },
                                         onMoreClick = { action ->
-                                            if (action == "remove") { registryManager.removeFromHistory(item.videoId); userRegistry = registryManager.registry; pushToGitHub() }
-                                            else if (action == "share") shareVideo(video)
-                                            else if (action == "download") startDownload(video)
+                                            when (action) {
+                                                "remove" -> { registryManager.removeFromHistory(item.videoId); userRegistry = registryManager.registry; pushToGitHub() }
+                                                "share" -> shareVideo(video)
+                                                "download" -> startDownload(video)
+                                            }
                                         }, 
                                         isEditMode = true
                                     )
                                 }
                             }
                         }
-                        LibrarySubScreen.LIKED -> { VideoListScreen(userRegistry.likedVideos, userRegistry, playVideo, { loadAuthorVideos(it) }, { shareVideo(it) }, { video -> registryManager.toggleLike(video); userRegistry = registryManager.registry; pushToGitHub() }, { startDownload(it) }) }
-                        LibrarySubScreen.WATCH_LATER -> { VideoListScreen(userRegistry.watchLater, userRegistry, playVideo, { loadAuthorVideos(it) }, { shareVideo(it) }, { video -> registryManager.toggleWatchLater(video); userRegistry = registryManager.registry; pushToGitHub() }, { startDownload(it) }) }
+                        LibrarySubScreen.LIKED -> { VideoListScreen(userRegistry.likedVideos, { v -> playVideo(v, userRegistry.likedVideos) }, { loadAuthorVideos(it, false) }, { shareVideo(it) }, { video -> registryManager.toggleLike(video); userRegistry = registryManager.registry; pushToGitHub() }, { startDownload(it) }) }
+                        LibrarySubScreen.WATCH_LATER -> { VideoListScreen(userRegistry.watchLater, { v -> playVideo(v, userRegistry.watchLater) }, { loadAuthorVideos(it, false) }, { shareVideo(it) }, { video -> registryManager.toggleWatchLater(video); userRegistry = registryManager.registry; pushToGitHub() }, { startDownload(it) }) }
                         LibrarySubScreen.PLAYLISTS -> {
                             LazyColumn(Modifier.fillMaxSize()) {
                                 items(userRegistry.playlists) { playlist ->
@@ -752,32 +905,102 @@ fun RutubeApp(
                                 }
                             }
                         }
-                        LibrarySubScreen.PLAYLIST_DETAIL -> { VideoListScreen(selectedPlaylist?.videos ?: emptyList(), userRegistry, playVideo, { loadAuthorVideos(it) }, { shareVideo(it) }, { video -> selectedPlaylist?.let { registryManager.removeFromPlaylist(it.id, video.videoUrl); userRegistry = registryManager.registry; selectedPlaylist = userRegistry.playlists.find { p -> p.id == it.id }; pushToGitHub() } }, { startDownload(it) }) }
-                        LibrarySubScreen.AUTHOR -> {
-                            PullToRefreshBox(isRefreshing = isRefreshingAuthor, onRefresh = { selectedAuthor?.let { loadAuthorVideos(it) } }, state = rememberPullToRefreshState()) {
-                                LazyColumn(Modifier.fillMaxSize()) {
-                                    items(authorVideos) { video ->
-                                        val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                                        VideoItem(video, history, 
-                                            onClick = { playVideo(video) }, 
-                                            onAuthorClick = { loadAuthorVideos(it) },
-                                            onMoreClick = { action ->
-                                                when(action) {
-                                                    "later" -> { registryManager.toggleWatchLater(video); userRegistry = registryManager.registry; pushToGitHub() }
-                                                    "playlist" -> { showPlaylistDialog = video }
-                                                    "share" -> shareVideo(video)
-                                                    "download" -> startDownload(video)
-                                                }
+                        LibrarySubScreen.PLAYLIST_DETAIL -> { VideoListScreen(selectedPlaylist?.videos ?: emptyList(), { v -> playVideo(v, selectedPlaylist?.videos) }, { loadAuthorVideos(it, false) }, { shareVideo(it) }, { video -> selectedPlaylist?.let { registryManager.removeFromPlaylist(it.id, video.videoUrl); userRegistry = registryManager.registry; selectedPlaylist = userRegistry.playlists.find { p -> p.id == it.id }; pushToGitHub() } }, { startDownload(it) }) }
+                    }
+                }
+                NavItem.SETTINGS -> {
+                    SettingsScreen(settingsManager, onThemeToggle, registryManager, onRegistryUpdate = { userRegistry = it; pushToGitHub() })
+                }
+            }
+
+            overlayOrder.forEach { overlay ->
+                if (overlay == OverlayState.SEARCH && isSearchVisible) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        LazyColumn(Modifier.fillMaxSize()) {
+                            items(searchResults) { video ->
+                                val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                                VideoItem(video, history, 
+                                    onClick = { playVideo(video, searchResults) }, 
+                                    onAuthorClick = { loadAuthorVideos(it, false) },
+                                    onMoreClick = { action ->
+                                        when(action) {
+                                            "later" -> { val added = registryManager.toggleWatchLater(video); userRegistry = registryManager.registry; pushToGitHub(); scope.launch { snackbarHostState.showSnackbar(if(added) "Добавлено в Смотреть позже" else "Удалено из Смотреть позже") } }
+                                            "playlist" -> { showPlaylistDialog = video }
+                                            "share" -> shareVideo(video)
+                                            "download" -> startDownload(video)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                if (overlay == OverlayState.AUTHOR && isAuthorVisible) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        PullToRefreshBox(
+                            isRefreshing = isRefreshingAuthor, 
+                            onRefresh = { selectedAuthor?.let { loadAuthorVideos(it, false) } }, 
+                            state = rememberPullToRefreshState()
+                        ) {
+                            LazyColumn(Modifier.fillMaxSize()) {
+                                item {
+                                    selectedAuthor?.let { author ->
+                                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            AsyncImage(model = author.avatarUrl ?: "", contentDescription = null, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray))
+                                            Spacer(Modifier.width(12.dp))
+                                            Text(author.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                            val isSubbed = userRegistry.subscriptions.any { it.name.equals(author.name, ignoreCase = true) }
+                                            Button(
+                                                onClick = {
+                                                    val subs = userRegistry.subscriptions.toMutableList()
+                                                    if (isSubbed) subs.removeAll { it.name.equals(author.name, ignoreCase = true) }
+                                                    else subs.add(author)
+                                                    registryManager.updateRegistry(userRegistry.copy(subscriptions = subs))
+                                                    userRegistry = registryManager.registry
+                                                    pushToGitHub()
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = if(isSubbed) Color.Gray else Color.Red),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(32.dp)
+                                            ) {
+                                                Text(if(isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
                                             }
-                                        )
+                                        }
+                                        HorizontalDivider()
+                                    }
+                                }
+                                itemsIndexed(authorVideos) { index, video ->
+                                    val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                                    VideoItem(video, history, 
+                                        onClick = { playVideo(video, authorVideos) }, 
+                                        onAuthorClick = { loadAuthorVideos(it, false) },
+                                        onMoreClick = { action ->
+                                            when(action) {
+                                                "later" -> { registryManager.toggleWatchLater(video); userRegistry = registryManager.registry; pushToGitHub() }
+                                                "playlist" -> { showPlaylistDialog = video }
+                                                "share" -> shareVideo(video)
+                                                "download" -> startDownload(video)
+                                            }
+                                        }
+                                    )
+                                    
+                                    if (index == authorVideos.lastIndex && !isAuthorLoadingMore && hasMoreAuthorVideos) {
+                                        LaunchedEffect(video.videoUrl) { 
+                                            selectedAuthor?.let { loadAuthorVideos(it, true) } 
+                                        }
+                                    }
+                                }
+                                if (isAuthorLoadingMore) {
+                                    item {
+                                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                            CircularProgressIndicator(color = Color.Red)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                NavItem.SETTINGS -> {
-                    SettingsScreen(settingsManager, onThemeToggle, registryManager, onRegistryUpdate = { userRegistry = it; pushToGitHub() })
                 }
             }
 
@@ -803,15 +1026,28 @@ fun RutubeApp(
                 Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(playerHeight).background(MaterialTheme.colorScheme.background)) {
                     if (playerState == PlayerState.FULL) {
                         Column {
-                            CustomVideoPlayer(exoPlayer, isPlaying, isFullscreenVideo, currentVideo, onMinimize = { playerState = PlayerState.MINI }, onToggleFullscreen = { toggleFullscreen(!isFullscreenVideo) })
+                            CustomVideoPlayer(
+                                exoPlayer = exoPlayer,
+                                isPlaying = isPlaying,
+                                isFullscreen = isFullscreenVideo,
+                                currentVideo = currentVideo,
+                                relatedVideos = relatedVideos,
+                                onMinimize = { playerState = PlayerState.MINI },
+                                onToggleFullscreen = { toggleFullscreen(!isFullscreenVideo) },
+                                onNext = playNext,
+                                onPrevious = playPrevious,
+                                isFirstVideo = currentVideoIndex <= 0,
+                                isLastVideo = currentVideoIndex >= currentVideoList.size - 1,
+                                onPlayRelated = { playVideo(it, relatedVideos) }
+                            )
                             if (!isFullscreenVideo) {
                                 LazyColumn(Modifier.weight(1f)) {
                                     item {
                                         VideoDetails(currentVideo, userRegistry, 
-                                            onAuthorClick = { loadAuthorVideos(it) },
+                                            onAuthorClick = { loadAuthorVideos(it, false) },
                                             onToggleSub = { author -> 
                                                 val subs = userRegistry.subscriptions.toMutableList()
-                                                if (subs.any { it.name == author.name }) subs.removeAll { it.name == author.name }
+                                                if (subs.any { it.name.equals(author.name, ignoreCase = true) }) subs.removeAll { it.name.equals(author.name, ignoreCase = true) }
                                                 else subs.add(author)
                                                 registryManager.updateRegistry(userRegistry.copy(subscriptions = subs))
                                                 userRegistry = registryManager.registry
@@ -827,8 +1063,8 @@ fun RutubeApp(
                                     items(relatedVideos) { video ->
                                         val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
                                         VideoItem(video, history, 
-                                            onClick = { playVideo(video) }, 
-                                            onAuthorClick = { loadAuthorVideos(it) },
+                                            onClick = { playVideo(video, relatedVideos) }, 
+                                            onAuthorClick = { loadAuthorVideos(it, false) },
                                             onMoreClick = { action ->
                                                 when(action) {
                                                     "later" -> { registryManager.toggleWatchLater(video); userRegistry = registryManager.registry; pushToGitHub() }
@@ -881,7 +1117,7 @@ fun ContentSelectionDialog(
     var kidsEnabled by remember { mutableStateOf(settingsManager.kidsContentEnabled) }
 
     AlertDialog(
-        onDismissRequest = { /* Нельзя закрыть мимо кнопок */ },
+        onDismissRequest = { },
         title = { Text("Что вам интересно?") },
         text = {
             Column {
@@ -899,7 +1135,6 @@ fun ContentSelectionDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    // Если сняли обе галочки, принудительно оставляем фильмы
                     if (!adultEnabled && !kidsEnabled) adultEnabled = true 
                     settingsManager.adultContentEnabled = adultEnabled
                     settingsManager.kidsContentEnabled = kidsEnabled
@@ -927,15 +1162,15 @@ fun SettingsScreen(settingsManager: SettingsManager, onThemeToggle: () -> Unit, 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             
             Text("Рекомендации контента", style = MaterialTheme.typography.titleMedium, color = Color.Red)
-            ListItem(headlineContent = { Text("Фильмы и Сериалы") }, trailingContent = { Switch(checked = adultEnabled, onCheckedChange = { adultEnabled = it; settingsManager.adultContentEnabled = it }) })
-            ListItem(headlineContent = { Text("Мультфильмы и Детское") }, trailingContent = { Switch(checked = kidsEnabled, onCheckedChange = { kidsEnabled = it; settingsManager.kidsContentEnabled = it }) })
+            ListItem(headlineContent = { Text("Фильмы и Сериалы") }, trailingContent = { Switch(checked = adultEnabled, onCheckedChange = { adultEnabled = it; settingsManager.adultContentEnabled = it; registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(adultContentEnabled = it))); onRegistryUpdate(registryManager.registry) }) })
+            ListItem(headlineContent = { Text("Мультфильмы и Детское") }, trailingContent = { Switch(checked = kidsEnabled, onCheckedChange = { kidsEnabled = it; settingsManager.kidsContentEnabled = it; registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(kidsContentEnabled = it))); onRegistryUpdate(registryManager.registry) }) })
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             Text("Загрузка", style = MaterialTheme.typography.titleMedium, color = Color.Red)
             Text("Качество видео для скачивания", style = MaterialTheme.typography.labelMedium)
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
                 listOf("360", "480", "720", "1080").forEach { q ->
-                    FilterChip(selected = downloadQuality == q, onClick = { downloadQuality = q; settingsManager.downloadQuality = q }, label = { Text(q + "p") })
+                    FilterChip(selected = downloadQuality == q, onClick = { downloadQuality = q; settingsManager.downloadQuality = q; registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(downloadQuality = q))); onRegistryUpdate(registryManager.registry) }, label = { Text(q + "p") })
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -952,7 +1187,14 @@ fun SettingsScreen(settingsManager: SettingsManager, onThemeToggle: () -> Unit, 
 
             Text("GitHub Синхронизация", style = MaterialTheme.typography.titleMedium, color = Color.Red)
             ListItem(headlineContent = { Text("Периодичность (в часах)") }, trailingContent = {
-                TextField(value = syncFreq, onValueChange = { syncFreq = it; it.toIntOrNull()?.let { settingsManager.syncFrequencyHours = it } }, modifier = Modifier.width(60.dp), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                TextField(value = syncFreq, onValueChange = { newValue -> 
+                    syncFreq = newValue
+                    newValue.toIntOrNull()?.let { hours -> 
+                        settingsManager.syncFrequencyHours = hours
+                        registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = hours)))
+                        onRegistryUpdate(registryManager.registry) 
+                    } 
+                }, modifier = Modifier.width(60.dp), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
             })
         }
     }
@@ -980,15 +1222,17 @@ fun PlaylistSelectionDialog(playlists: List<Playlist>, onDismiss: () -> Unit, on
 }
 
 @Composable
-fun VideoListScreen(videos: List<SearchResult>, registry: UserRegistry, onVideoClick: (SearchResult) -> Unit, onAuthorClick: (Author) -> Unit, onShare: (SearchResult) -> Unit, onRemove: (SearchResult) -> Unit, onDownload: (SearchResult) -> Unit) {
+fun VideoListScreen(videos: List<SearchResult>, onVideoClick: (SearchResult) -> Unit, onAuthorClick: (Author) -> Unit, onShare: (SearchResult) -> Unit, onRemove: (SearchResult) -> Unit, onDownload: (SearchResult) -> Unit) {
     if (videos.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Список пуст") }
     else {
         LazyColumn(Modifier.fillMaxSize()) {
             items(videos) { video ->
                 VideoItem(video, null, onClick = { onVideoClick(video) }, onAuthorClick = onAuthorClick, onMoreClick = { action ->
-                    if (action == "remove") onRemove(video)
-                    else if (action == "share") onShare(video)
-                    else if (action == "download") onDownload(video)
+                    when (action) {
+                        "remove" -> onRemove(video)
+                        "share" -> onShare(video)
+                        "download" -> onDownload(video)
+                    }
                 }, isEditMode = true)
             }
         }
@@ -1000,16 +1244,21 @@ fun VideoDetails(video: SearchResult?, registry: UserRegistry, onAuthorClick: (A
     Column(Modifier.padding(12.dp)) {
         Text(video?.title ?: "", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(model = video?.author?.avatarUrl ?: "", contentDescription = null, modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.Gray).clickable { video?.author?.let { onAuthorClick(it) } })
-            Spacer(Modifier.width(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(48.dp)) {
+            AsyncImage(model = video?.author?.avatarUrl ?: "", contentDescription = null, modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.Gray).clickable { video?.author?.let { onAuthorClick(it) } })
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f).clickable { video?.author?.let { onAuthorClick(it) } }) {
-                Text(video?.author?.name ?: "Автор", fontWeight = FontWeight.Bold)
+                Text(video?.author?.name ?: "Автор", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text("Rutube", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
-            val isSubbed = registry.subscriptions.any { it.name == video?.author?.name }
-            Button(onClick = { video?.author?.let { onToggleSub(it) } }, colors = ButtonDefaults.buttonColors(containerColor = if(isSubbed) Color.Gray else Color.Red)) {
-                Text(if(isSubbed) "Вы подписаны" else "Подписаться")
+            val isSubbed = registry.subscriptions.any { it.name.equals(video?.author?.name, ignoreCase = true) }
+            Button(
+                onClick = { video?.author?.let { onToggleSub(it) } }, 
+                colors = ButtonDefaults.buttonColors(containerColor = if(isSubbed) Color.Gray else Color.Red),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                modifier = Modifier.height(32.dp)
+            ) {
+                Text(if(isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -1026,7 +1275,7 @@ fun VideoDetails(video: SearchResult?, registry: UserRegistry, onAuthorClick: (A
 @Composable
 fun DetailAction(icon: ImageVector, label: String, color: Color = LocalContentColor.current, onClick: () -> Unit = {}) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onClick() }) {
-        Icon(icon, null, tint = color); Text(label, style = MaterialTheme.typography.labelSmall)
+        Icon(icon, null, tint = color, modifier = Modifier.size(20.dp)); Text(label, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -1140,5 +1389,4 @@ fun Context.findActivity(): Activity? = when (this) { is Activity -> this; is Co
 fun setScreenOrientation(context: Context, orientation: Int) { context.findActivity()?.requestedOrientation = orientation }
 fun hideSystemBars(activity: Activity) { WindowCompat.setDecorFitsSystemWindows(activity.window, false); WindowInsetsControllerCompat(activity.window, activity.window.decorView).hide(WindowInsetsCompat.Type.systemBars()) }
 fun showSystemBars(activity: Activity) { WindowCompat.setDecorFitsSystemWindows(activity.window, true); WindowInsetsControllerCompat(activity.window, activity.window.decorView).show(WindowInsetsCompat.Type.systemBars()) }
-fun extractId(url: String): String = url.split("/").lastOrNull { it.isNotEmpty() } ?: ""
-fun extractRutubeId(url: String): String? = url.split("/").lastOrNull { it.isNotEmpty() }
+fun extractId(url: String): String? = url.split("/").lastOrNull { it.isNotEmpty() }

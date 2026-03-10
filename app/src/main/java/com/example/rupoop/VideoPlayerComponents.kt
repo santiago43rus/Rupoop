@@ -10,6 +10,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -49,8 +51,14 @@ fun CustomVideoPlayer(
     isPlaying: Boolean,
     isFullscreen: Boolean,
     currentVideo: SearchResult?,
+    relatedVideos: List<SearchResult> = emptyList(),
     onMinimize: () -> Unit,
-    onToggleFullscreen: () -> Unit
+    onToggleFullscreen: () -> Unit,
+    onNext: () -> Unit = {},
+    onPrevious: () -> Unit = {},
+    isFirstVideo: Boolean = false,
+    isLastVideo: Boolean = false,
+    onPlayRelated: (SearchResult) -> Unit = {}
 ) {
     var showControls by remember { mutableStateOf(true) }
     var currentTime by remember { mutableLongStateOf(0L) }
@@ -59,6 +67,7 @@ fun CustomVideoPlayer(
     var draggingPos by remember { mutableStateOf<Long?>(null) }
     var isSeeking by remember { mutableStateOf(false) }
     var isFastForwarding by remember { mutableStateOf(false) }
+    var showMoreVideos by remember { mutableStateOf(false) }
 
     LaunchedEffect(exoPlayer) {
         exoPlayer.setSeekParameters(SeekParameters.CLOSEST_SYNC)
@@ -87,9 +96,14 @@ fun CustomVideoPlayer(
                         totalDragY += dragAmount.y
                     },
                     onDragEnd = {
-                        if (totalDragY < -150 && !isFullscreen) onToggleFullscreen()
+                        if (totalDragY < -150) {
+                            if (!isFullscreen) onToggleFullscreen()
+                            else showMoreVideos = true
+                        }
                         else if (totalDragY > 150) {
-                            if (isFullscreen) onToggleFullscreen() else onMinimize()
+                            if (showMoreVideos) showMoreVideos = false
+                            else if (isFullscreen) onToggleFullscreen() 
+                            else onMinimize()
                         }
                     }
                 )
@@ -141,7 +155,7 @@ fun CustomVideoPlayer(
         }
 
         // Controls Overlay
-        if (showControls || isSeeking) {
+        if ((showControls || isSeeking) && !showMoreVideos) {
             Box(
                 modifier = Modifier.fillMaxSize()
                     .background(if (isSeeking) Color.Transparent else Color.Black.copy(alpha = 0.4f))
@@ -172,16 +186,32 @@ fun CustomVideoPlayer(
 
                     // Center controls
                     Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { /* Handle Prev Video */ }) {
-                            Icon(Icons.Default.SkipPrevious, null, tint = Color.White, modifier = Modifier.size(48.dp))
+                        IconButton(
+                            onClick = onPrevious,
+                            enabled = !isFirstVideo
+                        ) {
+                            Icon(
+                                Icons.Default.SkipPrevious, 
+                                null, 
+                                tint = if (isFirstVideo) Color.Gray else Color.White, 
+                                modifier = Modifier.size(48.dp)
+                            )
                         }
                         Spacer(Modifier.width(32.dp))
                         IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
                             Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(64.dp))
                         }
                         Spacer(Modifier.width(32.dp))
-                        IconButton(onClick = { /* Handle Next Video */ }) {
-                            Icon(Icons.Default.SkipNext, null, tint = Color.White, modifier = Modifier.size(48.dp))
+                        IconButton(
+                            onClick = onNext,
+                            enabled = !isLastVideo
+                        ) {
+                            Icon(
+                                Icons.Default.SkipNext, 
+                                null, 
+                                tint = if (isLastVideo) Color.Gray else Color.White, 
+                                modifier = Modifier.size(48.dp)
+                            )
                         }
                     }
                 }
@@ -267,6 +297,96 @@ fun CustomVideoPlayer(
                             )
                         }
                     )
+                }
+            }
+        }
+
+        // More Videos Overlay
+        AnimatedVisibility(
+            visible = showMoreVideos,
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it }),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(0.9f))
+                    .padding(16.dp)
+            ) {
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        Arrangement.SpaceBetween,
+                        Alignment.CenterVertically
+                    ) {
+                        Text("Ещё видео", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        IconButton(onClick = { showMoreVideos = false }) {
+                            Icon(Icons.Default.Close, null, tint = Color.White)
+                        }
+                    }
+                    
+                    // Filter Chips (as in screenshot)
+                    Row(Modifier.padding(vertical = 8.dp)) {
+                        FilterChip(selected = true, onClick = {}, label = { Text("Все видео") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedContainerColor = Color.White.copy(0.2f)))
+                        Spacer(Modifier.width(8.dp))
+                        FilterChip(selected = false, onClick = {}, label = { Text("Автор: ${currentVideo?.author?.name ?: "Автор"}") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White))
+                    }
+
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(relatedVideos) { video ->
+                            Column(
+                                modifier = Modifier
+                                    .width(240.dp)
+                                    .clickable { 
+                                        onPlayRelated(video)
+                                        showMoreVideos = false 
+                                    }
+                            ) {
+                                Box {
+                                    AsyncImage(
+                                        model = video.thumbnailUrl,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(16 / 9f)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    video.duration?.let { dur ->
+                                        Surface(
+                                            color = Color.Black.copy(0.8f),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
+                                        ) {
+                                            Text(
+                                                formatTime(dur.toLong() * 1000),
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Row {
+                                    AsyncImage(
+                                        model = video.author?.avatarUrl ?: "",
+                                        contentDescription = null,
+                                        modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.Gray)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column {
+                                        Text(video.title, color = Color.White, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                                        Text("${video.author?.name} • Rutube", color = Color.White.copy(0.6f), fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
