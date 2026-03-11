@@ -1,8 +1,7 @@
-package com.example.rupoop
+package com.santiago43rus.rupoop
 
 import android.util.Log
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 class GistSyncManager(
     private val gistApi: GistApi,

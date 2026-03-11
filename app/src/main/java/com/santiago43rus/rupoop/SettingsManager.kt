@@ -1,4 +1,4 @@
-package com.example.rupoop
+package com.santiago43rus.rupoop
 
 import android.content.Context
 import android.content.SharedPreferences

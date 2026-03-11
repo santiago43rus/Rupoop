@@ -1,9 +1,8 @@
-package com.example.rupoop
+package com.santiago43rus.rupoop
 
 import android.app.*
 import android.content.Intent
 import android.media.MediaScannerConnection
-import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.util.Log

@@ -14,7 +14,7 @@ val localProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.example.rupoop"
+    namespace = "com.santiago43rus.rupoop"
     compileSdk = 36
 
     defaultConfig {

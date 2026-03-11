@@ -1,4 +1,4 @@
-package com.example.rupoop
+package com.santiago43rus.rupoop
 
 import android.Manifest
 import android.app.Activity

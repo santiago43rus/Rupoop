@@ -1,9 +1,8 @@
-package com.example.rupoop
+package com.santiago43rus.rupoop
 
 import android.content.Context
 import android.util.Log
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.io.File
 
 class UserRegistryManager(private val context: Context) {
