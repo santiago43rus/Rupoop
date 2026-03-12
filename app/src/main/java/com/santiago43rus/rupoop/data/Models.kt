@@ -82,7 +82,11 @@ data class AppSettings(
     val adultContentEnabled: Boolean = true,
     val kidsContentEnabled: Boolean = true,
     val downloadQuality: String = "1080",
-    val syncFrequencyHours: Int = 24
+    val syncFrequencyHours: Int = 24,
+    val enabledGenres: List<String> = listOf(
+        "аниме", "боевики", "комедии", "фантастика", "ужасы",
+        "драма", "документальные", "мультфильмы", "сериалы", "музыка"
+    )
 )
 
 @Serializable

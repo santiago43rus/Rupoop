@@ -121,6 +121,7 @@ fun LibraryScreen(
             LibraryRow(Icons.Default.ThumbUp, "Ваши лайки", registry.likedVideos.size.toString()) { onActionClick("liked") }
             LibraryRow(Icons.Default.Schedule, "Смотреть позже", registry.watchLater.size.toString()) { onActionClick("later") }
             LibraryRow(Icons.AutoMirrored.Filled.PlaylistPlay, "Ваши плейлисты", registry.playlists.size.toString()) { onActionClick("playlists") }
+            LibraryRow(Icons.Default.Download, "Загрузки", "") { onActionClick("downloads") }
         }
     }
 }

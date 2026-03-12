@@ -7,59 +7,116 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.content.FileProvider
+import com.santiago43rus.rupoop.data.DownloadItem
+import com.santiago43rus.rupoop.data.DownloadStatus
+import com.santiago43rus.rupoop.data.DownloadTracker
+import com.santiago43rus.rupoop.util.isNetworkAvailable
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.abs
 
 class DownloadService : Service() {
     private val CHANNEL_ID = "download_channel"
-    private val NOTIFICATION_ID = 1
+    private val CHANNEL_COMPLETE_ID = "download_complete_channel"
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var downloadJob: Job? = null
     
     private val client = OkHttpClient()
+    private lateinit var downloadTracker: DownloadTracker
     
     private var currentTitle: String = ""
     private var currentUrl: String = ""
+    private var currentVideoId: String = ""
     private var targetQuality: String = "1080"
     private var isPaused = false
     private var downloadedSegments = 0
     private var totalSegments = 0
     private var outputFile: File? = null
 
+    private fun getNotificationId(): Int {
+        return if (currentVideoId.isNotEmpty()) currentVideoId.hashCode().let { if (it == 0) 1 else abs(it) } else 1
+    }
+
+    companion object {
+        const val ACTION_DOWNLOAD_COMPLETE = "com.santiago43rus.rupoop.DOWNLOAD_COMPLETE"
+        const val ACTION_DOWNLOAD_ERROR = "com.santiago43rus.rupoop.DOWNLOAD_ERROR"
+        const val ACTION_DOWNLOAD_CANCELLED = "com.santiago43rus.rupoop.DOWNLOAD_CANCELLED"
+        const val ACTION_DOWNLOAD_PAUSED = "com.santiago43rus.rupoop.DOWNLOAD_PAUSED"
+        const val ACTION_DOWNLOAD_RESUMED = "com.santiago43rus.rupoop.DOWNLOAD_RESUMED"
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        downloadTracker = DownloadTracker(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         Log.d("DownloadService", "onStartCommand action: $action")
         
+        // Read videoId from action intents
+        val actionVideoId = intent?.getStringExtra("VIDEO_ID")
+        
         when (action) {
             "CANCEL" -> {
-                cancelDownload()
+                // Must call startForeground before processing if service not yet foreground
+                if (currentVideoId.isEmpty() && actionVideoId != null) {
+                    currentVideoId = actionVideoId
+                }
+                try { startForeground(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0)) } catch (_: Exception) {}
+                if (actionVideoId == null || actionVideoId == currentVideoId) {
+                    cancelDownload()
+                } else {
+                    stopSelf()
+                }
                 return START_NOT_STICKY
             }
             "PAUSE" -> {
-                pauseDownload()
+                try { startForeground(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0)) } catch (_: Exception) {}
+                if (actionVideoId == null || actionVideoId == currentVideoId) {
+                    pauseDownload()
+                }
                 return START_NOT_STICKY
             }
             "RESUME" -> {
-                resumeDownload()
+                try { startForeground(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0)) } catch (_: Exception) {}
+                if (actionVideoId == null || actionVideoId == currentVideoId) {
+                    resumeDownload()
+                }
                 return START_NOT_STICKY
             }
         }
 
         currentUrl = intent?.getStringExtra("VIDEO_URL") ?: return START_NOT_STICKY
         currentTitle = intent.getStringExtra("TITLE") ?: "Video"
+        currentVideoId = intent.getStringExtra("VIDEO_ID") ?: ""
         targetQuality = intent.getStringExtra("QUALITY") ?: "1080"
+        downloadedSegments = 0
+        totalSegments = 0
+        isPaused = false
 
-        startForeground(NOTIFICATION_ID, createNotification(currentTitle, 0))
+        // Check network before starting
+        if (!isNetworkAvailable(this)) {
+            downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Нет подключения к интернету")
+            sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", "Нет интернета"))
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        // Track this download
+        downloadTracker.addDownload(DownloadItem(
+            videoId = currentVideoId,
+            title = currentTitle,
+            thumbnailUrl = intent.getStringExtra("THUMBNAIL_URL"),
+            status = DownloadStatus.DOWNLOADING
+        ))
+
+        startForeground(getNotificationId(), createNotification(currentTitle, 0))
         startDownload()
         
         return START_NOT_STICKY
@@ -69,6 +126,15 @@ class DownloadService : Service() {
         isPaused = false
         downloadJob = serviceScope.launch {
             try {
+                // Re-check network
+                if (!isNetworkAvailable(this@DownloadService)) {
+                    downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Нет подключения к интернету")
+                    sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", "Нет интернета"))
+                    stopForeground(STOP_FOREGROUND_DETACH)
+                    stopSelf()
+                    return@launch
+                }
+
                 val mediaPlaylistUrl = resolveMediaPlaylist(currentUrl, targetQuality)
                 val segments = fetchSegments(mediaPlaylistUrl)
                 totalSegments = segments.size
@@ -82,6 +148,17 @@ class DownloadService : Service() {
                 
                 for (i in downloadedSegments until totalSegments) {
                     if (!isActive || isPaused) break
+
+                    // Check network periodically
+                    if (i % 10 == 0 && !isNetworkAvailable(this@DownloadService)) {
+                        fos.close()
+                        downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Соединение потеряно")
+                        sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", "Соединение потеряно"))
+                        updateNotification(currentTitle, 0, false, "Ошибка: Нет интернета")
+                        stopForeground(STOP_FOREGROUND_DETACH)
+                        stopSelf()
+                        return@launch
+                    }
                     
                     val segmentUrl = segments[i]
                     downloadSegment(segmentUrl, fos)
@@ -89,6 +166,7 @@ class DownloadService : Service() {
                     downloadedSegments++
                     val progress = (downloadedSegments * 100) / totalSegments
                     updateNotification(currentTitle, progress, false)
+                    downloadTracker.updateProgress(currentVideoId, progress)
                 }
                 
                 fos.close()
@@ -97,11 +175,15 @@ class DownloadService : Service() {
                     MediaScannerConnection.scanFile(this@DownloadService, arrayOf(outputFile!!.absolutePath), arrayOf("video/mp4")) { path, uri ->
                         Log.d("DownloadService", "Scanned $path: uri=$uri")
                     }
+                    downloadTracker.updateStatus(currentVideoId, DownloadStatus.COMPLETED, filePath = outputFile!!.absolutePath)
+                    sendBroadcast(Intent(ACTION_DOWNLOAD_COMPLETE).putExtra("title", currentTitle))
                     onDownloadComplete()
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) return@launch
                 Log.e("RupoopDownload", "Download error", e)
+                downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, e.message)
+                sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", e.message))
                 updateNotification(currentTitle, 0, false, "Ошибка: ${e.message}")
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
@@ -110,9 +192,40 @@ class DownloadService : Service() {
     }
 
     private fun onDownloadComplete() {
+        // Remove the progress notification
+        stopForeground(STOP_FOREGROUND_REMOVE)
+
+        // Post a separate completion notification with a different ID
         val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(NOTIFICATION_ID, createNotification(currentTitle, 100, true))
-        stopForeground(STOP_FOREGROUND_DETACH)
+        val completeNotifId = getNotificationId() + 10000
+
+        val builder = NotificationCompat.Builder(this, CHANNEL_COMPLETE_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("Загрузка завершена")
+            .setContentText(currentTitle)
+            .setAutoCancel(true)
+            .setOngoing(false)
+
+        // Create intent to open app and play the local file
+        try {
+            val playIntent = Intent(this, Class.forName("com.santiago43rus.rupoop.MainActivity")).apply {
+                action = "PLAY_LOCAL_FILE"
+                putExtra("FILE_PATH", outputFile?.absolutePath)
+                putExtra("TITLE", currentTitle)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            val viewPendingIntent = PendingIntent.getActivity(
+                this,
+                completeNotifId,
+                playIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.setContentIntent(viewPendingIntent)
+        } catch (e: Exception) {
+            Log.e("DownloadService", "Error creating play intent for completion notification", e)
+        }
+
+        manager?.notify(completeNotifId, builder.build())
         stopSelf()
     }
 
@@ -174,11 +287,18 @@ class DownloadService : Service() {
     private fun pauseDownload() {
         isPaused = true
         downloadJob?.cancel()
+        downloadTracker.updateStatus(currentVideoId, DownloadStatus.PAUSED)
+        sendBroadcast(Intent(ACTION_DOWNLOAD_PAUSED).putExtra("title", currentTitle))
         updateNotification(currentTitle, (downloadedSegments * 100) / totalSegments.coerceAtLeast(1), false, "Приостановлено")
     }
 
     private fun resumeDownload() {
         if (isPaused) {
+            if (!isNetworkAvailable(this)) {
+                downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Нет подключения к интернету")
+                return
+            }
+            sendBroadcast(Intent(ACTION_DOWNLOAD_RESUMED).putExtra("title", currentTitle))
             startDownload()
         }
     }
@@ -186,15 +306,16 @@ class DownloadService : Service() {
     private fun cancelDownload() {
         Log.d("DownloadService", "Cancelling download...")
         downloadJob?.cancel()
-        serviceJob.cancel()
         
-        // Delete partial file
         outputFile?.let {
             if (it.exists()) it.delete()
         }
         
+        downloadTracker.updateStatus(currentVideoId, DownloadStatus.CANCELLED)
+        sendBroadcast(Intent(ACTION_DOWNLOAD_CANCELLED).putExtra("title", currentTitle))
+        
         val manager = getSystemService(NotificationManager::class.java)
-        manager.cancel(NOTIFICATION_ID)
+        manager.cancel(getNotificationId())
         
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -202,64 +323,59 @@ class DownloadService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val serviceChannel = NotificationChannel(CHANNEL_ID, "Download Service", NotificationManager.IMPORTANCE_LOW)
             val manager = getSystemService(NotificationManager::class.java)
+            val serviceChannel = NotificationChannel(CHANNEL_ID, "Download Service", NotificationManager.IMPORTANCE_LOW)
             manager?.createNotificationChannel(serviceChannel)
+            val completeChannel = NotificationChannel(CHANNEL_COMPLETE_ID, "Download Complete", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Уведомления о завершении загрузки"
+            }
+            manager?.createNotificationChannel(completeChannel)
         }
     }
 
     private fun createNotification(title: String, progress: Int, isComplete: Boolean = false, statusText: String? = null): Notification {
-        val cancelIntent = Intent(this, DownloadService::class.java).apply { action = "CANCEL" }
-        // Use a different request code and FLAG_CANCEL_CURRENT to ensure it's delivered promptly
-        val cancelPendingIntent = PendingIntent.getService(this, System.currentTimeMillis().toInt(), cancelIntent, PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val vidHash = currentVideoId.hashCode()
+        
+        val cancelIntent = Intent(this, DownloadService::class.java).apply {
+            action = "CANCEL"
+            putExtra("VIDEO_ID", currentVideoId)
+        }
+        val cancelPendingIntent = PendingIntent.getService(this, vidHash + 1, cancelIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(if (isComplete) "Загрузка завершена: $title" else statusText ?: "Загрузка: $title")
-            .setOngoing(!isComplete && statusText == null)
+            .setContentTitle(statusText ?: "Загрузка: $title")
+            .setOngoing(statusText == null)
             .setProgress(100, progress, false)
-            .setSilent(true) // Reduce noise during updates
+            .setSilent(true)
 
-        if (!isComplete && statusText == null) {
+        if (statusText == null) {
             val pauseAction = if (isPaused) {
-                val resumeIntent = Intent(this, DownloadService::class.java).apply { action = "RESUME" }
-                val resumePendingIntent = PendingIntent.getService(this, 2, resumeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                val resumeIntent = Intent(this, DownloadService::class.java).apply {
+                    action = "RESUME"
+                    putExtra("VIDEO_ID", currentVideoId)
+                }
+                val resumePendingIntent = PendingIntent.getService(this, vidHash + 2, resumeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
                 NotificationCompat.Action(android.R.drawable.ic_media_play, "Возобновить", resumePendingIntent)
             } else {
-                val pauseIntent = Intent(this, DownloadService::class.java).apply { action = "PAUSE" }
-                val pausePendingIntent = PendingIntent.getService(this, 3, pauseIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                val pauseIntent = Intent(this, DownloadService::class.java).apply {
+                    action = "PAUSE"
+                    putExtra("VIDEO_ID", currentVideoId)
+                }
+                val pausePendingIntent = PendingIntent.getService(this, vidHash + 3, pauseIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
                 NotificationCompat.Action(android.R.drawable.ic_media_pause, "Пауза", pausePendingIntent)
             }
             builder.addAction(pauseAction)
             builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Отмена", cancelPendingIntent)
         }
 
-        if (isComplete && outputFile != null) {
-            try {
-                val uri = FileProvider.getUriForFile(this, "${packageName}.provider", outputFile!!)
-                val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "video/*")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                val viewPendingIntent = PendingIntent.getActivity(this, 4, viewIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-
-                builder.setContentIntent(viewPendingIntent)
-                builder.setSmallIcon(android.R.drawable.stat_sys_download_done)
-                builder.setProgress(0, 0, false)
-                builder.setAutoCancel(true)
-                builder.setOngoing(false)
-                builder.clearActions()
-            } catch (e: Exception) {
-                Log.e("DownloadService", "Error creating completion notification", e)
-            }
-        }
 
         return builder.build()
     }
 
     private fun updateNotification(title: String, progress: Int, isComplete: Boolean, statusText: String? = null) {
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(NOTIFICATION_ID, createNotification(title, progress, isComplete, statusText))
+        manager?.notify(getNotificationId(), createNotification(title, progress, isComplete, statusText))
     }
 
     override fun onDestroy() {

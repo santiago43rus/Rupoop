@@ -15,10 +15,12 @@
 .cxx
 local.properties
 
-# Специфично для Android Studio
+# IDE
+.idea/
 *.iws
 *.ipr
 /out
+.kotlin/
 
 # Кэши и логи
 .artifacts
@@ -26,3 +28,29 @@ local.properties
 
 # Файлы эмуляторов и тестов
 *.hprof
+
+# APK / AAR / AAB
+*.apk
+*.aar
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Keystore files
+*.jks
+*.keystore
+
+# Screenshots folder
+screenshots/
+
+# OS files
+Thumbs.db
+
+# Proguard
+proguard/
+
+# Gradle
+.gradle/
+build/
+app/build/

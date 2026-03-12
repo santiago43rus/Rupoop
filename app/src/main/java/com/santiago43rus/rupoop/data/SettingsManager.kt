@@ -42,6 +42,22 @@ class SettingsManager(context: Context) {
         get() = prefs.getBoolean("kids_content", true)
         set(value) = prefs.edit().putBoolean("kids_content", value).apply()
 
+    var appIcon: String
+        get() = prefs.getString("app_icon", "default") ?: "default"
+        set(value) = prefs.edit().putString("app_icon", value).apply()
+
+    var autoPlayNext: Boolean
+        get() = prefs.getBoolean("auto_play_next", true)
+        set(value) = prefs.edit().putBoolean("auto_play_next", value).apply()
+
+    // Sub-genre categories stored as comma-separated string
+    var enabledGenres: Set<String>
+        get() = prefs.getStringSet("enabled_genres", null) ?: setOf(
+            "аниме", "боевики", "комедии", "фантастика", "ужасы",
+            "драма", "документальные", "мультфильмы", "сериалы", "музыка"
+        )
+        set(value) = prefs.edit().putStringSet("enabled_genres", value).apply()
+
     fun clearAuth() {
         prefs.edit().remove("access_token").remove("cached_gist_id").apply()
     }

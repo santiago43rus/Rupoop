@@ -32,6 +32,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val recommendationEngine = RecommendationEngine(registryManager)
     val authManager = GitHubAuthManager(context)
     val syncManager = GistSyncManager(RetrofitClient.gistApi, registryManager, settingsManager)
+    val downloadTracker = DownloadTracker(context)
 
     // ── Snackbar events ──
     private val _snackbarMessage = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -69,10 +70,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Search ──
     var searchQuery by mutableStateOf("")
     var isSearchExpanded by mutableStateOf(false)
+    var searchSortOrder by mutableStateOf<String?>(null) // null = default, "-created_ts" = newest
+    var authorSortOrder by mutableStateOf("-created_ts") // default newest
 
     // ── Overlays ──
     var isSearchVisible by mutableStateOf(false)
     var isAuthorVisible by mutableStateOf(false)
+    var isSettingsVisible by mutableStateOf(false)
     var overlayOrder by mutableStateOf(listOf(OverlayState.SEARCH, OverlayState.AUTHOR))
 
     // ── Dialogs ──
@@ -123,6 +127,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private var videoLoadingJob: Job? = null
     private var progressSavingJob: Job? = null
+    private var pushJob: Job? = null
 
     // ── Periodic progress saving ──
     fun startProgressSaving() {
@@ -145,10 +150,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         progressSavingJob?.cancel()
     }
 
-    // ── Push to GitHub ──
+    // ── Push to GitHub (debounced) ──
     fun pushToGitHub() {
         val token = settingsManager.accessToken ?: return
-        viewModelScope.launch {
+        if (!isNetworkAvailable(context)) return
+        pushJob?.cancel()
+        pushJob = viewModelScope.launch {
+            delay(5000) // debounce 5 seconds
             syncManager.push(token, registryManager.registry)
         }
     }
@@ -244,6 +252,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ── Play local file ──
+    fun playLocalFile(filePath: String, title: String) {
+        videoLoadingJob?.cancel()
+        val file = java.io.File(filePath)
+        if (!file.exists()) return
+        currentVideo = SearchResult(videoUrl = filePath, title = title)
+        currentVideoList = listOf(currentVideo!!)
+        currentVideoIndex = 0
+        relatedVideos = emptyList()
+        exoPlayer.stop()
+        exoPlayer.clearMediaItems()
+        exoPlayer.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
+        exoPlayer.prepare()
+        exoPlayer.play()
+        playerState = PlayerState.FULL
+    }
+
     // ── Deep link ──
     fun handleDeepLink(url: String) {
         val video = SearchResult(videoUrl = url, title = "Загрузка...")
@@ -258,12 +283,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             try {
                 val queries = mutableListOf<String>()
-                if (settingsManager.adultContentEnabled) {
-                    queries.addAll(listOf("фильмы новинки", "сериалы зарубежные", "боевики", "комедии", "фантастика фильм"))
-                }
-                if (settingsManager.kidsContentEnabled) {
-                    queries.addAll(listOf("полнометражные мультфильмы", "мультсериалы", "disney мультик", "пиксар"))
-                }
+                // Use enabled genres for home feed
+                val genres = settingsManager.enabledGenres
+                genres.forEach { genre -> queries.add(genre) }
                 if (queries.isEmpty()) queries.add("популярное")
 
                 val query = queries.random()
@@ -350,9 +372,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 try {
                     val resp = if (author.id != null) {
-                        withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), page = authorPage) }
+                        withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), ordering = authorSortOrder, page = authorPage) }
                     } else {
-                        withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, page = authorPage) }
+                        withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, ordering = authorSortOrder, page = authorPage) }
                     }
 
                     if (resp.results.isEmpty()) {
@@ -375,6 +397,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Download ──
     fun startDownload(video: SearchResult) {
         viewModelScope.launch {
+            if (!isNetworkAvailable(context)) {
+                _snackbarMessage.emit("Нет подключения к интернету")
+                return@launch
+            }
             _snackbarMessage.emit("Скачивание начато: ${video.title}")
             extractId(video.videoUrl)?.let { id ->
                 try {
@@ -383,6 +409,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         val serviceIntent = Intent(context, DownloadService::class.java).apply {
                             putExtra("VIDEO_URL", m3u8Url)
                             putExtra("TITLE", video.title)
+                            putExtra("VIDEO_ID", id)
+                            putExtra("THUMBNAIL_URL", video.thumbnailUrl)
                             putExtra("QUALITY", settingsManager.downloadQuality)
                         }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
@@ -390,6 +418,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } catch (e: Exception) {
                     Log.e("RupoopDownload", "Error starting download", e)
+                    _snackbarMessage.emit("Ошибка начала загрузки")
                 }
             }
         }
@@ -466,7 +495,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Search ──
-    fun performSearch(query: String) {
+    fun performSearch(query: String, ordering: String? = searchSortOrder) {
         searchQuery = query
         isSearchExpanded = false
 
@@ -479,7 +508,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         pushToGitHub()
         viewModelScope.launch {
             try {
-                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query) }
+                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, ordering = ordering) }
                 searchResults = resp.results
             } catch (e: Exception) {
                 Log.e("Rupoop", "Search error", e)
@@ -595,6 +624,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun handleBack(): Boolean {
         if (isFullscreenVideo) { toggleFullscreen(false); return true }
         if (playerState == PlayerState.FULL) { playerState = PlayerState.MINI; return true }
+        if (isSettingsVisible) { isSettingsVisible = false; return true }
         if (isSearchExpanded) { isSearchExpanded = false; searchQuery = ""; return true }
 
         val topVisible = overlayOrder.lastOrNull {

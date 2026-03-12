@@ -11,12 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.santiago43rus.rupoop.ui.theme.RupoopTheme
 
 class MainActivity : ComponentActivity() {
     private var deepLinkVideoUrl by mutableStateOf<String?>(null)
+    private var pendingLocalFilePath by mutableStateOf<String?>(null)
+    private var pendingLocalFileTitle by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,29 +28,22 @@ class MainActivity : ComponentActivity() {
             val vm: AppViewModel = viewModel()
             var isDarkTheme by remember { mutableStateOf(vm.settingsManager.isDarkTheme) }
 
+            // Handle pending local file playback
+            LaunchedEffect(pendingLocalFilePath) {
+                pendingLocalFilePath?.let { path ->
+                    vm.playLocalFile(path, pendingLocalFileTitle ?: "Видео")
+                    pendingLocalFilePath = null
+                    pendingLocalFileTitle = null
+                }
+            }
+
             SideEffect {
                 val window = (this as Activity).window
                 val insetsController = WindowCompat.getInsetsController(window, window.decorView)
                 insetsController.isAppearanceLightStatusBars = !isDarkTheme
             }
 
-            val colorScheme = if (isDarkTheme) darkColorScheme(
-                background = Color(0xFF0F0F0F),
-                surface = Color(0xFF212121),
-                onBackground = Color.White,
-                onSurface = Color.White,
-                surfaceVariant = Color(0xFF272727),
-                onSurfaceVariant = Color.White
-            ) else lightColorScheme(
-                background = Color.White,
-                surface = Color(0xFFF2F2F2),
-                onBackground = Color.Black,
-                onSurface = Color.Black,
-                surfaceVariant = Color(0xFFF2F2F2),
-                onSurfaceVariant = Color.Black
-            )
-
-            MaterialTheme(colorScheme = colorScheme) {
+            RupoopTheme(darkTheme = isDarkTheme) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     RutubeApp(
                         vm = vm,
@@ -70,7 +65,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == Intent.ACTION_VIEW) {
+        if (intent?.action == "PLAY_LOCAL_FILE") {
+            pendingLocalFilePath = intent.getStringExtra("FILE_PATH")
+            pendingLocalFileTitle = intent.getStringExtra("TITLE")
+        } else if (intent?.action == Intent.ACTION_VIEW) {
             val data: Uri? = intent.data
             if (data != null && data.host == "rutube.ru" && data.path?.startsWith("/video/") == true) {
                 deepLinkVideoUrl = data.toString()

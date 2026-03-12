@@ -3,8 +3,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Letter R - white for dark theme -->
+    <!-- Letter R - black for light theme -->
     <path
-        android:fillColor="#FFFFFF"
+        android:fillColor="#1A1A1A"
         android:pathData="M38,30 L38,78 L46,78 L46,58 L52,58 L62,78 L71,78 L60,56.5 C65.5,54.5 69,49.5 69,43.5 C69,35.5 63,30 54,30 Z M46,37 L53,37 C59,37 61,40 61,43.5 C61,47 59,50.5 53,50.5 L46,50.5 Z" />
 </vector>

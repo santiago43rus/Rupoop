@@ -37,7 +37,9 @@ fun AuthorScreen(
     onVideoClick: (SearchResult, List<SearchResult>) -> Unit,
     onAuthorClick: (Author) -> Unit,
     onToggleSubscription: (Author) -> Unit,
-    onMoreClick: (SearchResult, String) -> Unit
+    onMoreClick: (SearchResult, String) -> Unit,
+    currentSort: String = "-created_ts",
+    onSortChange: (String) -> Unit = {}
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         PullToRefreshBox(
@@ -72,6 +74,24 @@ fun AuthorScreen(
                             }
                         }
                         HorizontalDivider()
+                    }
+                }
+                // Sort chips
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = currentSort == "-created_ts",
+                            onClick = { onSortChange("-created_ts") },
+                            label = { Text("Новые") }
+                        )
+                        FilterChip(
+                            selected = currentSort == "created_ts",
+                            onClick = { onSortChange("created_ts") },
+                            label = { Text("Старые") }
+                        )
                     }
                 }
                 itemsIndexed(authorVideos) { index, video ->

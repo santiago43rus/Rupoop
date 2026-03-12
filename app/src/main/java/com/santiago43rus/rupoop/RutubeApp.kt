@@ -4,16 +4,23 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -27,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -40,6 +48,7 @@ import com.santiago43rus.rupoop.screen.*
 import com.santiago43rus.rupoop.util.*
 import kotlinx.coroutines.launch
 import net.openid.appauth.AuthorizationResponse
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,7 +118,7 @@ fun RutubeApp(
 
     // Back handler
     BackHandler(
-        enabled = vm.playerState != PlayerState.CLOSED || vm.isSearchExpanded || vm.isSearchVisible || vm.isAuthorVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME
+        enabled = vm.playerState != PlayerState.CLOSED || vm.isSearchExpanded || vm.isSearchVisible || vm.isAuthorVisible || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME
     ) {
         focusManager.clearFocus()
         vm.handleBack()
@@ -129,32 +138,83 @@ fun RutubeApp(
         },
         bottomBar = {
             if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp
+                ) {
+                    val navItemColors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.onBackground,
+                        selectedTextColor = MaterialTheme.colorScheme.onBackground,
+                        unselectedIconColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        unselectedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                     NavigationBarItem(
                         selected = vm.currentNav == NavItem.HOME,
-                        onClick = { vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE; vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.searchQuery = "" },
+                        onClick = {
+                            if (vm.currentNav == NavItem.HOME) {
+                                // Already on home — close any open overlays/sub-sections
+                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                else if (vm.isSearchVisible) vm.isSearchVisible = false
+                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
+                                // else: already at root — scroll to top handled by LazyColumn state
+                            } else {
+                                vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE
+                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                            }
+                        },
                         icon = { Icon(if (vm.currentNav == NavItem.HOME) Icons.Filled.Home else Icons.Outlined.Home, "Home") },
-                        label = { Text("Главная") }
+                        label = { Text("Главная") },
+                        colors = navItemColors
                     )
                     NavigationBarItem(
                         selected = vm.currentNav == NavItem.SUBSCRIPTIONS,
-                        onClick = { vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE; vm.isSearchVisible = false; vm.isAuthorVisible = false },
+                        onClick = {
+                            if (vm.currentNav == NavItem.SUBSCRIPTIONS) {
+                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                else if (vm.isSearchVisible) vm.isSearchVisible = false
+                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                            } else {
+                                vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE
+                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
+                            }
+                        },
                         icon = { Icon(if (vm.currentNav == NavItem.SUBSCRIPTIONS) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs") },
-                        label = { Text("Подписки") }
+                        label = { Text("Подписки") },
+                        colors = navItemColors
                     )
                     NavigationBarItem(
                         selected = vm.currentNav == NavItem.LIBRARY,
-                        onClick = { vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE; vm.isSearchVisible = false; vm.isAuthorVisible = false },
+                        onClick = {
+                            if (vm.currentNav == NavItem.LIBRARY) {
+                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                else if (vm.isSearchVisible) vm.isSearchVisible = false
+                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
+                            } else {
+                                vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE
+                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
+                            }
+                        },
                         icon = { Icon(if (vm.currentNav == NavItem.LIBRARY) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib") },
-                        label = { Text("Библиотека") }
+                        label = { Text("Библиотека") },
+                        colors = navItemColors
                     )
                 }
             }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // Main content by nav
-            when (vm.currentNav) {
+            // Main content by nav with animated transitions
+            AnimatedContent(
+                targetState = vm.currentNav,
+                transitionSpec = {
+                    fadeIn(tween(200)) togetherWith fadeOut(tween(200))
+                },
+                label = "nav_animation"
+            ) { targetNav ->
+                when (targetNav) {
                 NavItem.HOME -> {
                     HomeScreen(
                         homeVideos = vm.homeVideos, userRegistry = vm.userRegistry,
@@ -176,15 +236,23 @@ fun RutubeApp(
                     )
                 }
                 NavItem.LIBRARY -> LibraryContent(vm = vm)
-                NavItem.SETTINGS -> SettingsScreen(vm.settingsManager, onThemeToggle, vm.registryManager, onRegistryUpdate = { vm.onRegistryUpdate(it) })
+                }
             }
 
-            // Overlays
+            // Overlays with animation
             vm.overlayOrder.forEach { overlay ->
-                if (overlay == OverlayState.SEARCH && vm.isSearchVisible) {
+                AnimatedVisibility(
+                    visible = overlay == OverlayState.SEARCH && vm.isSearchVisible,
+                    enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
+                    exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
+                ) {
                     SearchOverlay(vm = vm)
                 }
-                if (overlay == OverlayState.AUTHOR && vm.isAuthorVisible) {
+                AnimatedVisibility(
+                    visible = overlay == OverlayState.AUTHOR && vm.isAuthorVisible,
+                    enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
+                    exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
+                ) {
                     AuthorScreen(
                         author = vm.selectedAuthor, authorVideos = vm.authorVideos, userRegistry = vm.userRegistry,
                         isRefreshing = vm.isRefreshingAuthor, isLoadingMore = vm.isAuthorLoadingMore, hasMoreVideos = vm.hasMoreAuthorVideos,
@@ -193,12 +261,15 @@ fun RutubeApp(
                         onVideoClick = { video, list -> vm.playVideo(video, list) },
                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
                         onToggleSubscription = { vm.toggleSubscription(it) },
-                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
+                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                        currentSort = vm.authorSortOrder,
+                        onSortChange = { newSort ->
+                            vm.authorSortOrder = newSort
+                            vm.selectedAuthor?.let { vm.loadAuthorVideos(it, false) }
+                        }
                     )
                 }
             }
-
-            // Search history overlay
             if (vm.isSearchExpanded && vm.userRegistry.searchHistory.isNotEmpty()) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
                     LazyColumn {
@@ -213,6 +284,17 @@ fun RutubeApp(
                             }
                         }
                     }
+                }
+            }
+
+            // Settings overlay
+            AnimatedVisibility(
+                visible = vm.isSettingsVisible,
+                enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
+                exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
+            ) {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    SettingsScreen(vm.settingsManager, onThemeToggle, vm.registryManager, onRegistryUpdate = { vm.onRegistryUpdate(it) })
                 }
             }
 
@@ -287,6 +369,56 @@ private fun AppTopBar(
     focusManager: androidx.compose.ui.focus.FocusManager,
     authLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
 ) {
+    val context = LocalContext.current
+    var isListening by remember { mutableStateOf(false) }
+
+    // Speech recognizer setup
+    val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
+    DisposableEffect(Unit) {
+        onDispose { speechRecognizer.destroy() }
+    }
+
+    fun startVoiceInput() {
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) return
+        isListening = true
+        vm.isSearchExpanded = true
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() { isListening = false }
+            override fun onError(error: Int) { isListening = false }
+            override fun onResults(results: Bundle?) {
+                isListening = false
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    vm.searchQuery = matches[0]
+                    vm.performSearch(matches[0])
+                }
+            }
+            override fun onPartialResults(partialResults: Bundle?) {
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                if (!matches.isNullOrEmpty()) {
+                    vm.searchQuery = matches[0]
+                }
+            }
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        speechRecognizer.startListening(intent)
+    }
+
+    // Mic permission launcher
+    val micPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startVoiceInput()
+    }
+
     TopAppBar(
         title = {
             if (!vm.isSearchExpanded) {
@@ -295,18 +427,20 @@ private fun AppTopBar(
                     (it == OverlayState.AUTHOR && vm.isAuthorVisible)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (topVisible != null || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME) {
+                    if (topVisible != null || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME) {
                         IconButton(onClick = {
-                            if (topVisible == OverlayState.SEARCH) vm.isSearchVisible = false
+                            if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                            else if (topVisible == OverlayState.SEARCH) vm.isSearchVisible = false
                             else if (topVisible == OverlayState.AUTHOR) vm.isAuthorVisible = false
                             else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
                             else vm.currentNav = NavItem.HOME
                         }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                     }
-                    Icon(Icons.Default.PlayCircleFilled, null, tint = Color.Red, modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.PlayCircleFilled, null, tint = Color(0xFFE53935), modifier = Modifier.size(32.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(
                         when {
+                            vm.isSettingsVisible -> "Настройки"
                             topVisible == OverlayState.AUTHOR -> vm.selectedAuthor?.name ?: "Канал"
                             topVisible == OverlayState.SEARCH -> "Результаты поиска"
                             vm.currentLibSub == LibrarySubScreen.LIKED -> "Понравившиеся"
@@ -314,10 +448,10 @@ private fun AppTopBar(
                             vm.currentLibSub == LibrarySubScreen.PLAYLISTS -> "Плейлисты"
                             vm.currentLibSub == LibrarySubScreen.PLAYLIST_DETAIL -> vm.selectedPlaylist?.name ?: "Плейлист"
                             vm.currentLibSub == LibrarySubScreen.HISTORY -> "История просмотра"
+                            vm.currentLibSub == LibrarySubScreen.DOWNLOADS -> "Загрузки"
                             else -> when (vm.currentNav) {
                                 NavItem.SUBSCRIPTIONS -> "Подписки"
                                 NavItem.LIBRARY -> "Библиотека"
-                                NavItem.SETTINGS -> "Настройки"
                                 else -> "Rupoop"
                             }
                         },
@@ -325,19 +459,69 @@ private fun AppTopBar(
                     )
                 }
             } else {
-                TextField(
-                    value = vm.searchQuery, onValueChange = { vm.searchQuery = it },
-                    modifier = Modifier.fillMaxWidth(), placeholder = { Text("Поиск") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus(); vm.performSearch(vm.searchQuery) }),
-                    colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent)
-                )
+                // Styled search bar
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(end = 4.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    tonalElevation = 2.dp
+                ) {
+                    TextField(
+                        value = vm.searchQuery, onValueChange = { vm.searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus(); vm.performSearch(vm.searchQuery) }),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent
+                        ),
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Search, "Поиск",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                    startVoiceInput()
+                                } else {
+                                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            }) {
+                                Icon(
+                                    if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
+                                    "Голосовой поиск",
+                                    tint = if (isListening) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    )
+                }
             }
         },
         actions = {
             if (!vm.isSearchExpanded) {
                 IconButton(onClick = { vm.isSearchExpanded = true }) { Icon(Icons.Default.Search, null) }
-                IconButton(onClick = { vm.currentNav = NavItem.SETTINGS }) { Icon(Icons.Default.Settings, null) }
+                IconButton(onClick = {
+                    if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        startVoiceInput()
+                    } else {
+                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                }) {
+                    Icon(
+                        if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
+                        "Голосовой поиск",
+                        tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
+                    )
+                }
+                IconButton(onClick = { vm.isSettingsVisible = true }) { Icon(Icons.Default.Settings, null) }
                 Box(contentAlignment = Alignment.Center) {
                     IconButton(onClick = {
                         if (!vm.isAuthenticated && !vm.isAuthenticating) authLauncher.launch(vm.authManager.createAuthIntent())
@@ -414,6 +598,7 @@ private fun LibraryContent(vm: AppViewModel) {
                         "later" -> vm.currentLibSub = LibrarySubScreen.WATCH_LATER
                         "playlists" -> vm.currentLibSub = LibrarySubScreen.PLAYLISTS
                         "history" -> vm.currentLibSub = LibrarySubScreen.HISTORY
+                        "downloads" -> vm.currentLibSub = LibrarySubScreen.DOWNLOADS
                     }
                 }
             )
@@ -460,6 +645,59 @@ private fun LibraryContent(vm: AppViewModel) {
                 { vm.shareVideo(it) },
                 { video -> vm.selectedPlaylist?.let { vm.removeFromPlaylist(it.id, video.videoUrl) } },
                 { vm.startDownload(it) }
+            )
+        }
+        LibrarySubScreen.DOWNLOADS -> {
+            val downloads by vm.downloadTracker.downloads.collectAsState()
+            // Periodically refresh download state from disk
+            LaunchedEffect(Unit) {
+                while (true) {
+                    kotlinx.coroutines.delay(1000)
+                    vm.downloadTracker.refresh()
+                }
+            }
+            DownloadsScreen(
+                downloads = downloads,
+                onPause = { videoId ->
+                    val intent = Intent(vm.getApplication<android.app.Application>(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                        action = "PAUSE"
+                        putExtra("VIDEO_ID", videoId)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vm.getApplication<android.app.Application>().startForegroundService(intent)
+                    else vm.getApplication<android.app.Application>().startService(intent)
+                },
+                onResume = { videoId ->
+                    val intent = Intent(vm.getApplication<android.app.Application>(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                        action = "RESUME"
+                        putExtra("VIDEO_ID", videoId)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vm.getApplication<android.app.Application>().startForegroundService(intent)
+                    else vm.getApplication<android.app.Application>().startService(intent)
+                },
+                onCancel = { videoId ->
+                    val intent = Intent(vm.getApplication<android.app.Application>(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                        action = "CANCEL"
+                        putExtra("VIDEO_ID", videoId)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vm.getApplication<android.app.Application>().startForegroundService(intent)
+                    else vm.getApplication<android.app.Application>().startService(intent)
+                },
+                onDelete = { videoId -> vm.downloadTracker.removeDownload(videoId) },
+                onRetry = { videoId ->
+                    val item = downloads.find { it.videoId == videoId }
+                    if (item != null) {
+                        val video = SearchResult(videoUrl = "https://rutube.ru/video/$videoId/", title = item.title, thumbnailUrl = item.thumbnailUrl)
+                        vm.startDownload(video)
+                    }
+                },
+                onPlay = { item ->
+                    item.filePath?.let { path ->
+                        val file = java.io.File(path)
+                        if (file.exists()) {
+                            vm.playLocalFile(path, item.title)
+                        }
+                    }
+                }
             )
         }
     }

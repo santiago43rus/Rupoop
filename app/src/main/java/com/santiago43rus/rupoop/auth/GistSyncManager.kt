@@ -4,6 +4,8 @@ import android.util.Log
 import com.santiago43rus.rupoop.data.*
 import com.santiago43rus.rupoop.network.GistApi
 import com.santiago43rus.rupoop.network.RetrofitClient
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 
 class GistSyncManager(
@@ -13,6 +15,7 @@ class GistSyncManager(
 ) {
     private val SYNC_FILE_NAME = "rupoop_user_registry_v2.json"
     private val json = RetrofitClient.json
+    private val pushMutex = Mutex()
 
     suspend fun sync(token: String): UserRegistry {
         val authHeader = "Bearer $token"
@@ -55,7 +58,7 @@ class GistSyncManager(
         }
     }
 
-    suspend fun push(token: String, registry: UserRegistry, gistId: String? = null) {
+    suspend fun push(token: String, registry: UserRegistry, gistId: String? = null) = pushMutex.withLock {
         val authHeader = "Bearer $token"
         try {
             var targetGistId = gistId ?: settingsManager.cachedGistId

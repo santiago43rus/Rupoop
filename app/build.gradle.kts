@@ -29,7 +29,20 @@ android {
         buildConfigField("String", "GH_CLIENT_ID", "\"${localProperties.getProperty("GH_CLIENT_ID") ?: ""}\"")
         buildConfigField("String", "GH_CLIENT_SECRET", "\"${localProperties.getProperty("GH_CLIENT_SECRET") ?: ""}\"")
         buildConfigField("String", "PROXY_URL", "\"${localProperties.getProperty("PROXY_URL") ?: ""}\"")
+        buildConfigField("String", "DONATE_URL", "\"${localProperties.getProperty("DONATE_URL") ?: ""}\"")
         manifestPlaceholders["appAuthRedirectScheme"] = "rupoop"
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystoreFile = file("keystore.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: localProperties.getProperty("KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEY_ALIAS") ?: localProperties.getProperty("KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("KEY_PASSWORD") ?: localProperties.getProperty("KEY_PASSWORD") ?: ""
+            }
+        }
     }
 
     buildTypes {
@@ -39,6 +52,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            val keystoreFile = file("keystore.jks")
+            if (keystoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
@@ -87,6 +104,12 @@ dependencies {
     // Icons
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.compose.material:material-icons-extended:1.7.7")
+
+    // WorkManager for background sync
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // Compose animations
+    implementation("androidx.compose.animation:animation:1.7.7")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

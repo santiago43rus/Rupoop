@@ -4,9 +4,12 @@
 # Путь к Android SDK (обычно прописывается студией автоматически)
 # sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
 
-# Ключи для авторизации через GitHub
+# Ключи для авторизации через GitHub (создайте OAuth App на https://github.com/settings/developers)
 GH_CLIENT_ID=your_client_id_here
 GH_CLIENT_SECRET=your_client_secret_here
 
-# URL вашего прокси на Cloudflare Workers
+# URL вашего прокси на Cloudflare Workers (проксирует запросы к api.github.com)
 PROXY_URL=https://your-proxy-name.workers.dev/
+
+# Ссылка на страницу доната (CloudTips / Boosty / любая). Если пустая — кнопка доната не показывается
+DONATE_URL=https://pay.cloudtips.ru/p/your_page_id
