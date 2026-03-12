@@ -1,7 +1,8 @@
-package com.santiago43rus.rupoop
+package com.santiago43rus.rupoop.data
 
 import android.content.Context
 import android.util.Log
+import com.santiago43rus.rupoop.network.RetrofitClient
 import kotlinx.serialization.encodeToString
 import java.io.File
 

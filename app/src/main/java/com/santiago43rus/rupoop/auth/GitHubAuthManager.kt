@@ -1,6 +1,7 @@
-package com.santiago43rus.rupoop
+package com.santiago43rus.rupoop.auth
 
 import android.content.Context
+import com.santiago43rus.rupoop.BuildConfig
 import android.content.Intent
 import android.net.Uri
 import android.util.Log

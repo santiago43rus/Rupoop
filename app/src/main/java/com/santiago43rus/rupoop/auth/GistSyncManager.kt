@@ -1,6 +1,9 @@
-package com.santiago43rus.rupoop
+package com.santiago43rus.rupoop.auth
 
 import android.util.Log
+import com.santiago43rus.rupoop.data.*
+import com.santiago43rus.rupoop.network.GistApi
+import com.santiago43rus.rupoop.network.RetrofitClient
 import kotlinx.serialization.encodeToString
 
 class GistSyncManager(

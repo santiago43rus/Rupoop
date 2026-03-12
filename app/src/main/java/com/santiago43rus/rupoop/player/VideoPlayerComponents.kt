@@ -1,6 +1,6 @@
 @file:kotlin.OptIn(ExperimentalMaterial3Api::class)
 
-package com.santiago43rus.rupoop
+package com.santiago43rus.rupoop.player
 
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
@@ -38,6 +38,7 @@ import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import com.santiago43rus.rupoop.data.SearchResult
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
