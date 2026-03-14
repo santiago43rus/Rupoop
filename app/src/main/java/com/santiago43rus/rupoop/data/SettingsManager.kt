@@ -30,6 +30,7 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("cached_gist_id", null)
         set(value) = prefs.edit().putString("cached_gist_id", value).apply()
 
+
     var isFirstLaunch: Boolean
         get() = prefs.getBoolean("is_first_launch", true)
         set(value) = prefs.edit().putBoolean("is_first_launch", value).apply()

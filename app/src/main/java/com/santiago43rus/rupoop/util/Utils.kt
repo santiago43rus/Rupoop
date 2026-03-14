@@ -44,7 +44,10 @@ fun showSystemBars(activity: Activity) {
     WindowInsetsControllerCompat(activity.window, activity.window.decorView).show(WindowInsetsCompat.Type.systemBars())
 }
 
-fun extractId(url: String): String? = url.split("/").lastOrNull { it.isNotEmpty() }
+fun extractId(url: String): String? {
+    val cleanedUrl = url.substringBefore('?').substringBefore('#').trimEnd('/')
+    return cleanedUrl.split('/').lastOrNull { it.isNotEmpty() }
+}
 
 fun isNetworkAvailable(context: Context): Boolean {
     val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

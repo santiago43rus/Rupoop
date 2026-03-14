@@ -1,5 +1,6 @@
 package com.santiago43rus.rupoop
 
+import android.app.Activity
 import android.app.Application
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -27,12 +28,33 @@ import kotlinx.coroutines.flow.asSharedFlow
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context = application.applicationContext
+    private var hostActivity: Activity? = null
     val settingsManager = SettingsManager(context)
     val registryManager = UserRegistryManager(context)
     val recommendationEngine = RecommendationEngine(registryManager)
     val authManager = GitHubAuthManager(context)
     val syncManager = GistSyncManager(RetrofitClient.gistApi, registryManager, settingsManager)
     val downloadTracker = DownloadTracker(context)
+
+    fun bindActivity(activity: Activity) {
+        hostActivity = activity
+    }
+
+    fun unbindActivity(activity: Activity) {
+        if (hostActivity === activity) hostActivity = null
+    }
+
+    fun forcePortraitForSettings() {
+        val activity = hostActivity ?: context.findActivity()
+        isFullscreenVideo = false
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        activity?.let { showSystemBars(it) }
+    }
+
+    fun releaseOrientationAfterSettings() {
+        val activity = hostActivity ?: context.findActivity()
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
 
     // ── Snackbar events ──
     private val _snackbarMessage = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -269,12 +291,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         playerState = PlayerState.FULL
     }
 
-    // ── Deep link ──
-    fun handleDeepLink(url: String) {
-        val video = SearchResult(videoUrl = url, title = "Загрузка...")
-        playVideo(video, null)
-    }
-
     // ── Load home ──
     fun loadHome(isLoadMore: Boolean) {
         viewModelScope.launch {
@@ -468,6 +484,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             loadHome(false)
         }
+
     }
 
     // ── Auth result ──
@@ -530,12 +547,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Fullscreen ──
     fun toggleFullscreen(fill: Boolean) {
         isFullscreenVideo = fill
-        val activity = context.findActivity()
+        val activity = hostActivity ?: context.findActivity()
         if (fill) {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             activity?.let { hideSystemBars(it) }
         } else {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             activity?.let { showSystemBars(it) }
         }
     }
@@ -658,6 +675,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         playerState = PlayerState.CLOSED
         exoPlayer.stop()
         pushToGitHub()
+    }
+
+    fun pausePlayback() {
+        if (exoPlayer.isPlaying) exoPlayer.pause()
     }
 
     // ── Onboarding ──

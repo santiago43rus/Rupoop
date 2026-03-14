@@ -7,7 +7,6 @@
 <p align="center">
   <a href="https://github.com/santiago43rus/Rupoop/actions"><img src="https://github.com/santiago43rus/Rupoop/workflows/Build%20APK/badge.svg" alt="Build Status"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
-  <a href="https://github.com/santiago43rus/Rupoop/releases"><img src="https://img.shields.io/github/v/release/santiago43rus/Rupoop?include_prereleases" alt="Release"/></a>
 </p>
 
 Современный Android-клиент для [Rutube](https://rutube.ru), вдохновлённый дизайном YouTube. Написан на Kotlin с использованием Jetpack Compose и Material 3.
@@ -203,7 +202,7 @@ base64 -w 0 keystore.jks > keystore_base64.txt
 
 ```
 app/src/main/java/com/santiago43rus/rupoop/
-├── MainActivity.kt            # Entry point, темы, deep links
+├── MainActivity.kt            # Entry point, темы
 ├── AppViewModel.kt            # Основной ViewModel (плеер, навигация, синхронизация)
 ├── RutubeApp.kt               # Root composable, Scaffold, навигация
 ├── RupoopApplication.kt       # Application class (Coil, WorkManager)

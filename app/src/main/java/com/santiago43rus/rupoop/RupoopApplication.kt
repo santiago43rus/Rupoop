@@ -34,6 +34,7 @@ class RupoopApplication : Application(), ImageLoaderFactory {
         setupPeriodicSync()
     }
 
+
     private fun setupPeriodicSync() {
         val settingsManager = SettingsManager(this)
         val hours = settingsManager.syncFrequencyHours.toLong().coerceAtLeast(1)

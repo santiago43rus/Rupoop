@@ -19,7 +19,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -54,14 +56,26 @@ import java.util.Locale
 @Composable
 fun RutubeApp(
     vm: AppViewModel,
-    onThemeToggle: () -> Unit,
-    deepLinkVideoUrl: String?,
-    onDeepLinkConsumed: () -> Unit
+    onThemeToggle: () -> Unit
 ) {
     val config = LocalConfiguration.current
+    val isLandscape = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val homeListState = rememberLazyListState()
+    val subscriptionsListState = rememberLazyListState()
+    val libraryListState = rememberLazyListState()
+    var homeScrollSignal by remember { mutableIntStateOf(0) }
+    var subscriptionsScrollSignal by remember { mutableIntStateOf(0) }
+    var libraryScrollSignal by remember { mutableIntStateOf(0) }
+
+    fun closeTopLayers() {
+        vm.isSettingsVisible = false
+        vm.isSearchVisible = false
+        vm.isAuthorVisible = false
+        vm.searchQuery = ""
+    }
 
     // Collect snackbar events from ViewModel
     LaunchedEffect(Unit) {
@@ -97,14 +111,6 @@ fun RutubeApp(
         if (permissions.isNotEmpty()) permissionLauncher.launch(permissions.toTypedArray())
     }
 
-    // Deep link
-    LaunchedEffect(deepLinkVideoUrl) {
-        if (deepLinkVideoUrl != null) {
-            vm.handleDeepLink(deepLinkVideoUrl)
-            onDeepLinkConsumed()
-        }
-    }
-
     // Initialize app & periodic saving
     LaunchedEffect(Unit) { vm.initializeApp() }
     LaunchedEffect(vm.isPlaying, vm.currentVideo) {
@@ -114,6 +120,11 @@ fun RutubeApp(
     LaunchedEffect(vm.currentNav) {
         if (vm.currentNav == NavItem.SUBSCRIPTIONS) vm.loadSubscriptions(false)
         if (vm.currentNav == NavItem.HOME && vm.homeVideos.isEmpty()) vm.loadHome(false)
+    }
+
+    LaunchedEffect(vm.isSettingsVisible) {
+        if (vm.isSettingsVisible) vm.forcePortraitForSettings()
+        else vm.releaseOrientationAfterSettings()
     }
 
     // Back handler
@@ -132,15 +143,17 @@ fun RutubeApp(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
+            if (!vm.isFullscreenVideo && (isLandscape || vm.playerState != PlayerState.FULL)) {
                 AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher)
             }
         },
         bottomBar = {
-            if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
+            if (!vm.isFullscreenVideo && (isLandscape || vm.playerState != PlayerState.FULL)) {
                 NavigationBar(
+                    modifier = Modifier.height(62.dp),
                     containerColor = MaterialTheme.colorScheme.background,
-                    tonalElevation = 0.dp
+                    tonalElevation = 0.dp,
+                    windowInsets = WindowInsets(0, 0, 0, 0)
                 ) {
                     val navItemColors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.onBackground,
@@ -153,15 +166,12 @@ fun RutubeApp(
                         selected = vm.currentNav == NavItem.HOME,
                         onClick = {
                             if (vm.currentNav == NavItem.HOME) {
-                                // Already on home — close any open overlays/sub-sections
-                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                                // else: already at root — scroll to top handled by LazyColumn state
+                                closeTopLayers()
+                                vm.currentLibSub = LibrarySubScreen.NONE
+                                homeScrollSignal++
                             } else {
                                 vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE
-                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                                closeTopLayers()
                             }
                         },
                         icon = { Icon(if (vm.currentNav == NavItem.HOME) Icons.Filled.Home else Icons.Outlined.Home, "Home") },
@@ -172,12 +182,12 @@ fun RutubeApp(
                         selected = vm.currentNav == NavItem.SUBSCRIPTIONS,
                         onClick = {
                             if (vm.currentNav == NavItem.SUBSCRIPTIONS) {
-                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                closeTopLayers()
+                                vm.currentLibSub = LibrarySubScreen.NONE
+                                subscriptionsScrollSignal++
                             } else {
                                 vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE
-                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
+                                closeTopLayers()
                             }
                         },
                         icon = { Icon(if (vm.currentNav == NavItem.SUBSCRIPTIONS) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs") },
@@ -188,13 +198,12 @@ fun RutubeApp(
                         selected = vm.currentNav == NavItem.LIBRARY,
                         onClick = {
                             if (vm.currentNav == NavItem.LIBRARY) {
-                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
+                                closeTopLayers()
+                                vm.currentLibSub = LibrarySubScreen.NONE
+                                libraryScrollSignal++
                             } else {
                                 vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE
-                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
+                                closeTopLayers()
                             }
                         },
                         icon = { Icon(if (vm.currentNav == NavItem.LIBRARY) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib") },
@@ -217,25 +226,40 @@ fun RutubeApp(
                 when (targetNav) {
                 NavItem.HOME -> {
                     HomeScreen(
-                        homeVideos = vm.homeVideos, userRegistry = vm.userRegistry,
-                        isRefreshing = vm.isRefreshingHome, isLoadingMore = vm.isHomeLoadingMore,
-                        onRefresh = { vm.loadHome(false) }, onLoadMore = { vm.loadHome(true) },
-                        onVideoClick = { video, list -> vm.playVideo(video, list) },
-                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
+                        vm.homeVideos,
+                        vm.userRegistry,
+                        vm.isRefreshingHome,
+                        vm.isHomeLoadingMore,
+                        { vm.loadHome(false) },
+                        { vm.loadHome(true) },
+                        { video, list -> vm.playVideo(video, list) },
+                        { vm.loadAuthorVideos(it, false) },
+                        { video, action -> vm.handleVideoMoreAction(video, action) },
+                        homeListState,
+                        homeScrollSignal
                     )
                 }
                 NavItem.SUBSCRIPTIONS -> {
                     SubscriptionsScreen(
-                        userRegistry = vm.userRegistry, subscriptionVideos = vm.subscriptionVideos,
-                        isRefreshing = vm.isRefreshingSubs, isLoadingMore = vm.isSubsLoadingMore, hasMoreVideos = vm.hasMoreSubsVideos,
-                        onRefresh = { vm.loadSubscriptions(false) }, onLoadMore = { vm.loadSubscriptions(true) },
-                        onVideoClick = { video, list -> vm.playVideo(video, list) },
-                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
+                        vm.userRegistry,
+                        vm.subscriptionVideos,
+                        vm.isRefreshingSubs,
+                        vm.isSubsLoadingMore,
+                        vm.hasMoreSubsVideos,
+                        { vm.loadSubscriptions(false) },
+                        { vm.loadSubscriptions(true) },
+                        { video, list -> vm.playVideo(video, list) },
+                        { vm.loadAuthorVideos(it, false) },
+                        { video, action -> vm.handleVideoMoreAction(video, action) },
+                        subscriptionsListState,
+                        subscriptionsScrollSignal
                     )
                 }
-                NavItem.LIBRARY -> LibraryContent(vm = vm)
+                NavItem.LIBRARY -> LibraryContent(
+                    vm = vm,
+                    listState = libraryListState,
+                    scrollToTopSignal = libraryScrollSignal
+                )
                 }
             }
 
@@ -294,7 +318,12 @@ fun RutubeApp(
                 exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
             ) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    SettingsScreen(vm.settingsManager, onThemeToggle, vm.registryManager, onRegistryUpdate = { vm.onRegistryUpdate(it) })
+                    SettingsScreen(
+                        settingsManager = vm.settingsManager,
+                        onThemeToggle = onThemeToggle,
+                        registryManager = vm.registryManager,
+                        onRegistryUpdate = { vm.onRegistryUpdate(it) }
+                    )
                 }
             }
 
@@ -309,7 +338,10 @@ fun RutubeApp(
                             CustomVideoPlayer(
                                 exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isFullscreen = vm.isFullscreenVideo,
                                 currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
-                                onMinimize = { vm.playerState = PlayerState.MINI },
+                                onMinimize = {
+                                    if (vm.isFullscreenVideo) vm.toggleFullscreen(false)
+                                    vm.playerState = PlayerState.MINI
+                                },
                                 onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
                                 onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
                                 isFirstVideo = vm.currentVideoIndex <= 0,
@@ -570,11 +602,17 @@ private fun SearchOverlay(vm: AppViewModel) {
 
 // Library content (with sub-screens)
 @Composable
-private fun LibraryContent(vm: AppViewModel) {
+private fun LibraryContent(
+    vm: AppViewModel,
+    listState: LazyListState,
+    scrollToTopSignal: Int
+) {
     when (vm.currentLibSub) {
         LibrarySubScreen.NONE -> {
             LibraryScreen(
                 vm.userRegistry,
+                listState,
+                scrollToTopSignal,
                 onVideoClick = { item ->
                     vm.playVideo(
                         SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl)),

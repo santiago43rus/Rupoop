@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,12 +33,18 @@ import com.santiago43rus.rupoop.util.formatDuration
 @Composable
 fun LibraryScreen(
     registry: UserRegistry,
+    listState: LazyListState = rememberLazyListState(),
+    scrollToTopSignal: Int = 0,
     onVideoClick: (WatchHistoryItem) -> Unit,
     onAuthorClick: (Author) -> Unit,
     onMoreClick: (WatchHistoryItem, String) -> Unit,
     onActionClick: (String) -> Unit
 ) {
-    LazyColumn(Modifier.fillMaxSize()) {
+    LaunchedEffect(scrollToTopSignal) {
+        if (scrollToTopSignal > 0) listState.animateScrollToItem(0)
+    }
+
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         item {
             Row(
                 Modifier.fillMaxWidth().padding(12.dp),

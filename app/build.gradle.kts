@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.tasks.Copy
 
 plugins {
     alias(libs.plugins.android.application)
@@ -21,8 +22,8 @@ android {
         applicationId = "com.example.rupoop"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -65,6 +66,23 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+val appVersionName = android.defaultConfig.versionName ?: "1.0"
+
+listOf("debug", "release").forEach { buildType ->
+    val buildTypeCapitalized = buildType.replaceFirstChar { it.uppercase() }
+    val renameTask = tasks.register<Copy>("rename${buildTypeCapitalized}Apk") {
+        dependsOn("assemble$buildTypeCapitalized")
+        from(layout.buildDirectory.dir("outputs/apk/$buildType"))
+        include("*.apk")
+        into(layout.buildDirectory.dir("outputs/renamed/$buildType"))
+        rename { "Rupoop-$buildType-$appVersionName.apk" }
+    }
+
+    tasks.matching { it.name == "assemble$buildTypeCapitalized" }.configureEach {
+        finalizedBy(renameTask)
     }
 }
 

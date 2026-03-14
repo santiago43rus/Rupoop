@@ -1,5 +1,6 @@
 package com.santiago43rus.rupoop.components
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,9 +20,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.santiago43rus.rupoop.data.*
@@ -37,34 +40,157 @@ fun VideoItem(
     isEditMode: Boolean = false
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(bottom = 16.dp)) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            AsyncImage(
-                model = video.thumbnailUrl, contentDescription = null,
-                modifier = Modifier.fillMaxWidth().aspectRatio(16 / 9f).background(Color.DarkGray),
-                contentScale = ContentScale.Crop
-            )
-            if (history != null && history.totalDuration > 0)
-                LinearProgressIndicator(
-                    progress = { history.progress.toFloat() / history.totalDuration },
-                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp),
-                    color = Color.Red, trackColor = Color.Gray.copy(alpha = 0.5f)
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    if (isLandscape) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(modifier = Modifier.weight(0.38f)) {
+                AsyncImage(
+                    model = video.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(16 / 9f).background(Color.DarkGray),
+                    contentScale = ContentScale.Fit
                 )
-            video.duration?.let { durSeconds ->
-                Surface(
-                    color = Color.Black.copy(alpha = 0.8f), shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 8.dp, end = 8.dp)
-                ) {
-                    Text(
-                        text = formatDuration(durSeconds.toLong()), color = Color.White,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                if (history != null && history.totalDuration > 0) {
+                    LinearProgressIndicator(
+                        progress = { history.progress.toFloat() / history.totalDuration },
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp),
+                        color = Color.Red,
+                        trackColor = Color.Gray.copy(alpha = 0.5f)
                     )
+                }
+                video.duration?.let { durSeconds ->
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 8.dp, end = 8.dp)
+                    ) {
+                        Text(
+                            text = formatDuration(durSeconds.toLong()),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            VideoMetaBlock(
+                video = video,
+                onAuthorClick = onAuthorClick,
+                onMoreClick = onMoreClick,
+                isEditMode = isEditMode,
+                showMenu = showMenu,
+                onShowMenuChange = { showMenu = it },
+                compact = true,
+                modifier = Modifier.weight(0.62f)
+            )
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(bottom = 12.dp)) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                AsyncImage(
+                    model = video.thumbnailUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(16 / 10f).background(Color.DarkGray),
+                    contentScale = ContentScale.Crop
+                )
+                if (history != null && history.totalDuration > 0) {
+                    LinearProgressIndicator(
+                        progress = { history.progress.toFloat() / history.totalDuration },
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp),
+                        color = Color.Red,
+                        trackColor = Color.Gray.copy(alpha = 0.5f)
+                    )
+                }
+                video.duration?.let { durSeconds ->
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 8.dp, end = 8.dp)
+                    ) {
+                        Text(
+                            text = formatDuration(durSeconds.toLong()),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            VideoMetaBlock(
+                video = video,
+                onAuthorClick = onAuthorClick,
+                onMoreClick = onMoreClick,
+                isEditMode = isEditMode,
+                showMenu = showMenu,
+                onShowMenuChange = { showMenu = it }
+            )
+        }
+    }
+}
+
+@Composable
+private fun VideoMetaBlock(
+    video: SearchResult,
+    onAuthorClick: (Author) -> Unit,
+    onMoreClick: (String) -> Unit,
+    isEditMode: Boolean,
+    showMenu: Boolean,
+    onShowMenuChange: (Boolean) -> Unit,
+    compact: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    if (compact) {
+        Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    video.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 20.sp,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${video.author?.name ?: "Автор"} • Rutube",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } }
+                )
+            }
+            Box {
+                IconButton(onClick = { onShowMenuChange(true) }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.MoreVert, null, tint = Color.Gray)
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { onShowMenuChange(false) },
+                    offset = DpOffset(x = (-12).dp, y = 10.dp)
+                ) {
+                    if (!isEditMode) {
+                        DropdownMenuItem(text = { Text("Добавить в плейлист") }, onClick = { onShowMenuChange(false); onMoreClick("playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) })
+                        DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { onShowMenuChange(false); onMoreClick("later") }, leadingIcon = { Icon(Icons.Default.Schedule, null) })
+                    } else {
+                        DropdownMenuItem(text = { Text("Удалить") }, onClick = { onShowMenuChange(false); onMoreClick("remove") }, leadingIcon = { Icon(Icons.Default.Delete, null) })
+                    }
+                    DropdownMenuItem(text = { Text("Скачать") }, onClick = { onShowMenuChange(false); onMoreClick("download") }, leadingIcon = { Icon(Icons.Default.Download, null) })
+                    DropdownMenuItem(text = { Text("Поделиться") }, onClick = { onShowMenuChange(false); onMoreClick("share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
                 }
             }
         }
+    } else {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp).fillMaxWidth(),
+            modifier = modifier.padding(horizontal = 12.dp, vertical = 10.dp).fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
             AsyncImage(
@@ -76,8 +202,12 @@ fun VideoItem(
             )
             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                 Text(
-                    video.title, style = MaterialTheme.typography.titleMedium, maxLines = 2,
-                    fontWeight = FontWeight.SemiBold, lineHeight = 20.sp, overflow = TextOverflow.Ellipsis
+                    video.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 20.sp,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     "${video.author?.name ?: "Автор"} • Rutube",
@@ -87,18 +217,18 @@ fun VideoItem(
                 )
             }
             Box {
-                IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
+                IconButton(onClick = { onShowMenuChange(true) }, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.MoreVert, null, tint = Color.Gray)
                 }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                DropdownMenu(expanded = showMenu, onDismissRequest = { onShowMenuChange(false) }) {
                     if (!isEditMode) {
-                        DropdownMenuItem(text = { Text("Добавить в плейлист") }, onClick = { showMenu = false; onMoreClick("playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) })
-                        DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { showMenu = false; onMoreClick("later") }, leadingIcon = { Icon(Icons.Default.Schedule, null) })
+                        DropdownMenuItem(text = { Text("Добавить в плейлист") }, onClick = { onShowMenuChange(false); onMoreClick("playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) })
+                        DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { onShowMenuChange(false); onMoreClick("later") }, leadingIcon = { Icon(Icons.Default.Schedule, null) })
                     } else {
-                        DropdownMenuItem(text = { Text("Удалить") }, onClick = { showMenu = false; onMoreClick("remove") }, leadingIcon = { Icon(Icons.Default.Delete, null) })
+                        DropdownMenuItem(text = { Text("Удалить") }, onClick = { onShowMenuChange(false); onMoreClick("remove") }, leadingIcon = { Icon(Icons.Default.Delete, null) })
                     }
-                    DropdownMenuItem(text = { Text("Скачать") }, onClick = { showMenu = false; onMoreClick("download") }, leadingIcon = { Icon(Icons.Default.Download, null) })
-                    DropdownMenuItem(text = { Text("Поделиться") }, onClick = { showMenu = false; onMoreClick("share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
+                    DropdownMenuItem(text = { Text("Скачать") }, onClick = { onShowMenuChange(false); onMoreClick("download") }, leadingIcon = { Icon(Icons.Default.Download, null) })
+                    DropdownMenuItem(text = { Text("Поделиться") }, onClick = { onShowMenuChange(false); onMoreClick("share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
                 }
             }
         }

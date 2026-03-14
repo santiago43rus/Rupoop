@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -24,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
@@ -59,6 +61,7 @@ fun CustomVideoPlayer(
     isLastVideo: Boolean = false,
     onPlayRelated: (SearchResult) -> Unit = {}
 ) {
+    val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var showControls by remember { mutableStateOf(true) }
     var currentTime by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -169,7 +172,7 @@ fun CustomVideoPlayer(
                         Arrangement.SpaceBetween, 
                         Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { if (isFullscreen) onToggleFullscreen() else onMinimize() }) {
+                        IconButton(onClick = { onMinimize() }) {
                             Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
                         }
                         
@@ -340,9 +343,9 @@ fun CustomVideoPlayer(
                             Column(
                                 modifier = Modifier
                                     .width(240.dp)
-                                    .clickable { 
+                                    .clickable {
                                         onPlayRelated(video)
-                                        showMoreVideos = false 
+                                        showMoreVideos = false
                                     }
                             ) {
                                 Box {

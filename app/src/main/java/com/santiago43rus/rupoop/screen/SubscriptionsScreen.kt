@@ -4,9 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -36,8 +38,14 @@ fun SubscriptionsScreen(
     onLoadMore: () -> Unit,
     onVideoClick: (SearchResult, List<SearchResult>) -> Unit,
     onAuthorClick: (Author) -> Unit,
-    onMoreClick: (SearchResult, String) -> Unit
+    onMoreClick: (SearchResult, String) -> Unit,
+    listState: LazyListState = rememberLazyListState(),
+    scrollToTopSignal: Int = 0
 ) {
+    LaunchedEffect(scrollToTopSignal) {
+        if (scrollToTopSignal > 0) listState.animateScrollToItem(0)
+    }
+
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
@@ -48,7 +56,7 @@ fun SubscriptionsScreen(
                 Text("У вас пока нет подписок")
             }
         } else {
-            LazyColumn(Modifier.fillMaxSize()) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 item {
                     LazyRow(
                         Modifier.fillMaxWidth().padding(vertical = 8.dp),
