@@ -203,7 +203,7 @@ base64 -w 0 keystore.jks > keystore_base64.txt
 
 ```
 app/src/main/java/com/santiago43rus/rupoop/
-├── MainActivity.kt            # Entry point, темы, deep links
+├── MainActivity.kt            # Entry point, темы
 ├── AppViewModel.kt            # Основной ViewModel (плеер, навигация, синхронизация)
 ├── RutubeApp.kt               # Root composable, Scaffold, навигация
 ├── RupoopApplication.kt       # Application class (Coil, WorkManager)

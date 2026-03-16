@@ -4,8 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,9 +36,10 @@ fun LibraryScreen(
     onVideoClick: (WatchHistoryItem) -> Unit,
     onAuthorClick: (Author) -> Unit,
     onMoreClick: (WatchHistoryItem, String) -> Unit,
-    onActionClick: (String) -> Unit
+    onActionClick: (String) -> Unit,
+    listState: LazyListState = rememberLazyListState()
 ) {
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         item {
             Row(
                 Modifier.fillMaxWidth().padding(12.dp),
@@ -142,4 +145,3 @@ fun LibraryRow(icon: ImageVector, title: String, count: String, onAction: (() ->
         else Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Color.Gray)
     }
 }
-

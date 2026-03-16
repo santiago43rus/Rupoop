@@ -147,7 +147,14 @@ class RecommendationEngine(private val registryManager: UserRegistryManager) {
 
     private fun calculateScore(video: SearchResult, registry: UserRegistry): Float {
         var score = 0f
-        video.tags?.forEach { tag -> score += registry.tagWeights[tag] ?: 0f }
+        val effectiveTags = video.tags?.toMutableList() ?: mutableListOf()
+        val filmGenres = listOf("боевик", "комедия", "драма", "ужасы", "фантастика", "триллер", "мелодрама", "детектив", "приключения", "криминал", "семейный", "военный", "история", "биография", "фэнтези", "вестерн")
+
+        if (effectiveTags.any { tag -> filmGenres.any { genre -> tag.contains(genre, ignoreCase = true) } }) {
+            effectiveTags.add("фильм")
+        }
+
+        effectiveTags.forEach { tag -> score += registry.tagWeights[tag] ?: 0f }
         if (registry.subscriptions.any { it.name == video.author?.name }) score += 15.0f
 
         val historyId = extractId(video.videoUrl)

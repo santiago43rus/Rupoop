@@ -285,7 +285,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val queries = mutableListOf<String>()
                 // Use enabled genres for home feed
                 val genres = settingsManager.enabledGenres
-                genres.forEach { genre -> queries.add(genre) }
+                val filmGenres = listOf("боевик", "комедия", "драма", "ужасы", "фантастика", "триллер", "детектив", "мелодрама")
+
+                genres.forEach { genre ->
+                    if (filmGenres.any { it.equals(genre, ignoreCase = true) }) {
+                        queries.add("$genre фильм")
+                    } else {
+                        queries.add(genre)
+                    }
+                }
                 if (queries.isEmpty()) queries.add("популярное")
 
                 val query = queries.random()
@@ -530,14 +538,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Fullscreen ──
     fun toggleFullscreen(fill: Boolean) {
         isFullscreenVideo = fill
-        val activity = context.findActivity()
-        if (fill) {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE)
-            activity?.let { hideSystemBars(it) }
-        } else {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-            activity?.let { showSystemBars(it) }
-        }
+        // Orientation is handled in UI layer based on this state
     }
 
     // ── Subscription toggle ──

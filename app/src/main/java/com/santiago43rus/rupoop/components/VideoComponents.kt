@@ -37,58 +37,106 @@ fun VideoItem(
     isEditMode: Boolean = false
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(bottom = 16.dp)) {
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(bottom = 12.dp)
+    ) {
+        // Preview (Thumbnail) - Youtube Style: Full width (or nearly), on TOP
         Box(modifier = Modifier.fillMaxWidth()) {
             AsyncImage(
                 model = video.thumbnailUrl, contentDescription = null,
-                modifier = Modifier.fillMaxWidth().aspectRatio(16 / 9f).background(Color.DarkGray),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16 / 9f)
+                    .background(Color.DarkGray),
                 contentScale = ContentScale.Crop
             )
-            if (history != null && history.totalDuration > 0)
-                LinearProgressIndicator(
-                    progress = { history.progress.toFloat() / history.totalDuration },
-                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp),
-                    color = Color.Red, trackColor = Color.Gray.copy(alpha = 0.5f)
-                )
+            
+            // Duration
             video.duration?.let { durSeconds ->
                 Surface(
-                    color = Color.Black.copy(alpha = 0.8f), shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 8.dp, end = 8.dp)
+                    color = Color.Black.copy(alpha = 0.8f), 
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 8.dp, end = 8.dp)
                 ) {
                     Text(
-                        text = formatDuration(durSeconds.toLong()), color = Color.White,
+                        text = formatDuration(durSeconds.toLong()), 
+                        color = Color.White,
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
             }
+            
+            // Progress Bar (if watched)
+            if (history != null && history.totalDuration > 0) {
+                 LinearProgressIndicator(
+                    progress = { history.progress.toFloat() / history.totalDuration },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(3.dp),
+                    color = Color.Red, 
+                    trackColor = Color.Transparent // Youtube often uses transparent or very subtle track
+                )
+            }
         }
+
+        // Header: Author & Title (Below Preview)
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp).fillMaxWidth(),
+            modifier = Modifier
+                .padding(top = 12.dp, start = 12.dp, end = 12.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
             AsyncImage(
                 model = video.author?.avatarUrl ?: "https://rutube.ru/static/img/default-avatar.png",
                 contentDescription = null,
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.Gray)
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Gray)
                     .clickable { video.author?.let { onAuthorClick(it) } },
                 contentScale = ContentScale.Crop
             )
-            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+            
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .weight(1f)
+            ) {
                 Text(
-                    video.title, style = MaterialTheme.typography.titleMedium, maxLines = 2,
-                    fontWeight = FontWeight.SemiBold, lineHeight = 20.sp, overflow = TextOverflow.Ellipsis
+                    video.title, 
+                    style = MaterialTheme.typography.bodyLarge, // Slightly larger/standard
+                    maxLines = 2,
+                    fontWeight = FontWeight.Normal, // Youtube isn't always bold
+                    lineHeight = 20.sp, 
+                    overflow = TextOverflow.Ellipsis
                 )
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    "${video.author?.name ?: "Автор"} • Rutube",
+                    "${video.author?.name ?: "Автор"} • Rutube", // Simplified metadata
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } }
                 )
             }
+            
             Box {
-                IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
-                    Icon(Icons.Default.MoreVert, null, tint = Color.Gray)
+                IconButton(
+                    onClick = { showMenu = true }, 
+                    modifier = Modifier.size(24.dp).align(Alignment.TopEnd)
+                ) {
+                    Icon(
+                        Icons.Default.MoreVert, 
+                        null, 
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                     if (!isEditMode) {

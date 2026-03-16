@@ -13,13 +13,17 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,10 +40,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.santiago43rus.rupoop.components.*
 import com.santiago43rus.rupoop.data.*
 import com.santiago43rus.rupoop.player.CustomVideoPlayer
@@ -86,9 +94,41 @@ fun RutubeApp(
             }
         }
     }
+    
+    // Handle orientation changes based on fullscreen state
+    val context = LocalContext.current
+    LaunchedEffect(vm.isFullscreenVideo) {
+        if (vm.isFullscreenVideo) {
+            setScreenOrientation(context, android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            context.findActivity()?.let { hideSystemBars(it) }
+        } else {
+            setScreenOrientation(context, android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            context.findActivity()?.let { showSystemBars(it) }
+        }
+    }
 
     // Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ -> }
+
+    // Scroll states
+    val homeListState = rememberLazyListState()
+    val subsListState = rememberLazyListState()
+    val libListState = rememberLazyListState()
+
+    // Pause on background
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                vm.exoPlayer.pause()
+                vm.isPlaying = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     LaunchedEffect(Unit) {
         val permissions = mutableListOf<String>()
@@ -138,69 +178,81 @@ fun RutubeApp(
         },
         bottomBar = {
             if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    tonalElevation = 0.dp
+                Surface(
+                    color = MaterialTheme.colorScheme.background,
+                    tonalElevation = 3.dp,
+                    modifier = Modifier.height(54.dp).fillMaxWidth()
                 ) {
-                    val navItemColors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.onBackground,
-                        selectedTextColor = MaterialTheme.colorScheme.onBackground,
-                        unselectedIconColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                        unselectedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                        indicatorColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                    NavigationBarItem(
-                        selected = vm.currentNav == NavItem.HOME,
-                        onClick = {
-                            if (vm.currentNav == NavItem.HOME) {
-                                // Already on home — close any open overlays/sub-sections
-                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                                // else: already at root — scroll to top handled by LazyColumn state
-                            } else {
-                                vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE
-                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
-                            }
-                        },
-                        icon = { Icon(if (vm.currentNav == NavItem.HOME) Icons.Filled.Home else Icons.Outlined.Home, "Home") },
-                        label = { Text("Главная") },
-                        colors = navItemColors
-                    )
-                    NavigationBarItem(
-                        selected = vm.currentNav == NavItem.SUBSCRIPTIONS,
-                        onClick = {
-                            if (vm.currentNav == NavItem.SUBSCRIPTIONS) {
-                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                            } else {
-                                vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE
-                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
-                            }
-                        },
-                        icon = { Icon(if (vm.currentNav == NavItem.SUBSCRIPTIONS) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs") },
-                        label = { Text("Подписки") },
-                        colors = navItemColors
-                    )
-                    NavigationBarItem(
-                        selected = vm.currentNav == NavItem.LIBRARY,
-                        onClick = {
-                            if (vm.currentNav == NavItem.LIBRARY) {
-                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                            } else {
-                                vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE
-                                vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
-                            }
-                        },
-                        icon = { Icon(if (vm.currentNav == NavItem.LIBRARY) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib") },
-                        label = { Text("Библиотека") },
-                        colors = navItemColors
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Home
+                        val isHome = vm.currentNav == NavItem.HOME
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight().clickable {
+                                if (vm.currentNav == NavItem.HOME) {
+                                    if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                    else if (vm.isSearchVisible) vm.isSearchVisible = false
+                                    else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                    else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
+                                    else scope.launch { homeListState.animateScrollToItem(0) }
+                                } else {
+                                    vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE
+                                    vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                                }
+                            },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(if (isHome) Icons.Filled.Home else Icons.Outlined.Home, "Home", tint = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                            Text("Главная", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                        }
+
+                        // Subscriptions
+                        val isSubs = vm.currentNav == NavItem.SUBSCRIPTIONS
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight().clickable {
+                                if (vm.currentNav == NavItem.SUBSCRIPTIONS) {
+                                    if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                    else if (vm.isSearchVisible) vm.isSearchVisible = false
+                                    else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                    else scope.launch { subsListState.animateScrollToItem(0) }
+                                } else {
+                                    vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE
+                                    vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
+                                }
+                            },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(if (isSubs) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs", tint = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                            Text("Подписки", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                        }
+
+                        // Library
+                        val isLib = vm.currentNav == NavItem.LIBRARY
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight().clickable {
+                                if (vm.currentNav == NavItem.LIBRARY) {
+                                    if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                    else if (vm.isSearchVisible) vm.isSearchVisible = false
+                                    else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                    else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
+                                    else scope.launch { libListState.animateScrollToItem(0) }
+                                } else {
+                                    vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE
+                                    vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
+                                }
+                            },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(if (isLib) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib", tint = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                            Text("Библиотека", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                        }
+                    }
                 }
             }
         }
@@ -222,7 +274,8 @@ fun RutubeApp(
                         onRefresh = { vm.loadHome(false) }, onLoadMore = { vm.loadHome(true) },
                         onVideoClick = { video, list -> vm.playVideo(video, list) },
                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
+                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                        listState = homeListState
                     )
                 }
                 NavItem.SUBSCRIPTIONS -> {
@@ -232,10 +285,11 @@ fun RutubeApp(
                         onRefresh = { vm.loadSubscriptions(false) }, onLoadMore = { vm.loadSubscriptions(true) },
                         onVideoClick = { video, list -> vm.playVideo(video, list) },
                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
+                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                        listState = subsListState
                     )
                 }
-                NavItem.LIBRARY -> LibraryContent(vm = vm)
+                NavItem.LIBRARY -> LibraryContent(vm = vm, listState = libListState)
                 }
             }
 
@@ -274,7 +328,7 @@ fun RutubeApp(
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
                     LazyColumn {
                         items(vm.userRegistry.searchHistory) { query ->
-                            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.History, null, tint = Color.Gray)
                                 Spacer(Modifier.width(16.dp))
                                 Text(query, Modifier.weight(1f).clickable { focusManager.clearFocus(); vm.performSearch(query) })
@@ -301,7 +355,9 @@ fun RutubeApp(
             // Player
             if (vm.playerState != PlayerState.CLOSED) {
                 val playerHeight by animateDpAsState(
-                    targetValue = if (vm.playerState == PlayerState.FULL) config.screenHeightDp.dp else 64.dp, label = ""
+                    targetValue = if (vm.playerState == PlayerState.FULL) config.screenHeightDp.dp else 64.dp,
+                    animationSpec = spring(stiffness = Spring.StiffnessLow),
+                    label = "playerAnimation"
                 )
                 Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(playerHeight).background(MaterialTheme.colorScheme.background)) {
                     if (vm.playerState == PlayerState.FULL) {
@@ -570,7 +626,7 @@ private fun SearchOverlay(vm: AppViewModel) {
 
 // Library content (with sub-screens)
 @Composable
-private fun LibraryContent(vm: AppViewModel) {
+private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
     when (vm.currentLibSub) {
         LibrarySubScreen.NONE -> {
             LibraryScreen(
@@ -600,7 +656,8 @@ private fun LibraryContent(vm: AppViewModel) {
                         "history" -> vm.currentLibSub = LibrarySubScreen.HISTORY
                         "downloads" -> vm.currentLibSub = LibrarySubScreen.DOWNLOADS
                     }
-                }
+                },
+                listState = listState
             )
         }
         LibrarySubScreen.HISTORY -> {
@@ -663,24 +720,21 @@ private fun LibraryContent(vm: AppViewModel) {
                         action = "PAUSE"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vm.getApplication<android.app.Application>().startForegroundService(intent)
-                    else vm.getApplication<android.app.Application>().startService(intent)
+                    vm.getApplication<android.app.Application>().startForegroundService(intent)
                 },
                 onResume = { videoId ->
                     val intent = Intent(vm.getApplication<android.app.Application>(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
                         action = "RESUME"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vm.getApplication<android.app.Application>().startForegroundService(intent)
-                    else vm.getApplication<android.app.Application>().startService(intent)
+                    vm.getApplication<android.app.Application>().startForegroundService(intent)
                 },
                 onCancel = { videoId ->
                     val intent = Intent(vm.getApplication<android.app.Application>(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
                         action = "CANCEL"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vm.getApplication<android.app.Application>().startForegroundService(intent)
-                    else vm.getApplication<android.app.Application>().startService(intent)
+                    vm.getApplication<android.app.Application>().startForegroundService(intent)
                 },
                 onDelete = { videoId -> vm.downloadTracker.removeDownload(videoId) },
                 onRetry = { videoId ->

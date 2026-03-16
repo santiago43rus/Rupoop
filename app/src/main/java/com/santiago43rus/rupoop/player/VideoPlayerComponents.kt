@@ -88,21 +88,26 @@ fun CustomVideoPlayer(
             .background(Color.Black)
             .pointerInput(isFullscreen) {
                 var totalDragY = 0f
+                var totalDragX = 0f
                 detectDragGestures(
-                    onDragStart = { totalDragY = 0f },
+                    onDragStart = { totalDragY = 0f; totalDragX = 0f },
                     onDrag = { change, dragAmount ->
                         change.consume()
                         totalDragY += dragAmount.y
+                        totalDragX += dragAmount.x
                     },
                     onDragEnd = {
-                        if (totalDragY < -150) {
-                            if (!isFullscreen) onToggleFullscreen()
-                            else showMoreVideos = true
-                        }
-                        else if (totalDragY > 150) {
-                            if (showMoreVideos) showMoreVideos = false
-                            else if (isFullscreen) onToggleFullscreen() 
-                            else onMinimize()
+                        if (kotlin.math.abs(totalDragY) > kotlin.math.abs(totalDragX)) {
+                            // Vertical swipe dominant
+                            if (totalDragY < -50) { // Swipe Up
+                                if (!isFullscreen) onToggleFullscreen()
+                                else showMoreVideos = true
+                            }
+                            else if (totalDragY > 50) { // Swipe Down
+                                if (showMoreVideos) showMoreVideos = false
+                                else if (isFullscreen) onToggleFullscreen()
+                                else onMinimize()
+                            }
                         }
                     }
                 )

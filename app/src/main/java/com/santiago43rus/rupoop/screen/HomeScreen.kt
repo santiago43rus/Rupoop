@@ -2,7 +2,9 @@ package com.santiago43rus.rupoop.screen
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -27,14 +29,15 @@ fun HomeScreen(
     onLoadMore: () -> Unit,
     onVideoClick: (SearchResult, List<SearchResult>) -> Unit,
     onAuthorClick: (Author) -> Unit,
-    onMoreClick: (SearchResult, String) -> Unit
+    onMoreClick: (SearchResult, String) -> Unit,
+    listState: LazyListState = rememberLazyListState()
 ) {
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
         state = rememberPullToRefreshState()
     ) {
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState) {
             itemsIndexed(homeVideos) { index, video ->
                 val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
                 VideoItem(
@@ -57,4 +60,3 @@ fun HomeScreen(
         }
     }
 }
-
