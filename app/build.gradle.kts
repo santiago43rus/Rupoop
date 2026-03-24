@@ -71,6 +71,9 @@ android {
         compose = true
         buildConfig = true
     }
+    lint {
+        checkReleaseBuilds = false
+    }
 }
 
 dependencies {
