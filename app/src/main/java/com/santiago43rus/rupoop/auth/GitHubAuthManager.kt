@@ -1,20 +1,20 @@
 package com.santiago43rus.rupoop.auth
 
 import android.content.Context
-import com.santiago43rus.rupoop.BuildConfig
 import android.content.Intent
-import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
+import com.santiago43rus.rupoop.BuildConfig
+import kotlinx.coroutines.suspendCancellableCoroutine
 import net.openid.appauth.*
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
 
-class GitHubAuthManager(private val context: Context) {
+class GitHubAuthManager(context: Context) {
     private val authService = AuthorizationService(context)
     private val serviceConfig = AuthorizationServiceConfiguration(
-        Uri.parse("https://github.com/login/oauth/authorize"),
-        Uri.parse("https://github.com/login/oauth/access_token")
+        "https://github.com/login/oauth/authorize".toUri(),
+        "https://github.com/login/oauth/access_token".toUri()
     )
 
     fun createAuthIntent(): Intent {
@@ -23,12 +23,12 @@ class GitHubAuthManager(private val context: Context) {
             serviceConfig,
             BuildConfig.GH_CLIENT_ID,
             ResponseTypeValues.CODE,
-            Uri.parse("rupoop://auth")
+            "rupoop://auth".toUri()
         ).setScopes("gist").build()
         return authService.getAuthorizationRequestIntent(authRequest)
     }
 
-    suspend fun exchangeCodeForToken(response: AuthorizationResponse): String = suspendCoroutine { continuation ->
+    suspend fun exchangeCodeForToken(response: AuthorizationResponse): String = suspendCancellableCoroutine { continuation ->
         Log.d("RupoopAuth", "Exchanging code for token")
         val clientSecret = BuildConfig.GH_CLIENT_SECRET
         val clientAuthentication: ClientAuthentication = ClientSecretPost(clientSecret)
