@@ -12,10 +12,26 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Retrofit
+-dontwarn okio.**
+-dontwarn javax.annotation.**
+-keepclasseswithmembers class * {
+    @retrofit2.http.* <methods>;
+}
+
+# Kotlinx Serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keep,allowoptimization class kotlinx.serialization.** { *; }
+-keepclassmembers class * {
+    @kotlinx.serialization.Serializable *;
+}
+
+# AppAuth
+-keep class net.openid.appauth.** { *; }
+
+# Media3 / ExoPlayer
+-keep class androidx.media3.** { *; }
