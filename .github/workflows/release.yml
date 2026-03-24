@@ -30,6 +30,9 @@ jobs:
           echo "GH_CLIENT_SECRET=${{ secrets.GH_CLIENT_SECRET }}" >> local.properties
           echo "PROXY_URL=${{ secrets.PROXY_URL }}" >> local.properties
           echo "DONATE_URL=${{ secrets.DONATE_URL }}" >> local.properties
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> local.properties
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> local.properties
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> local.properties
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/keystore.jks
           ./gradlew assembleRelease
       - name: Upload Release APK
