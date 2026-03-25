@@ -29,7 +29,6 @@ jobs:
       - name: Create local.properties
         env:
           GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-          GH_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
           PROXY_URL: ${{ secrets.PROXY_URL }}
           DONATE_URL: ${{ secrets.DONATE_URL }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -37,7 +36,6 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           echo "GH_CLIENT_ID=$GH_CLIENT_ID" >> local.properties
-          echo "GH_CLIENT_SECRET=$GH_CLIENT_SECRET" >> local.properties
           echo "PROXY_URL=$PROXY_URL" >> local.properties
           echo "DONATE_URL=$DONATE_URL" >> local.properties
           echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> local.properties

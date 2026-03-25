@@ -31,7 +31,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "GH_CLIENT_ID", "\"${localProperties.getProperty("GH_CLIENT_ID") ?: ""}\"")
-        buildConfigField("String", "GH_CLIENT_SECRET", "\"${localProperties.getProperty("GH_CLIENT_SECRET") ?: ""}\"")
         buildConfigField("String", "PROXY_URL", "\"${localProperties.getProperty("PROXY_URL") ?: ""}\"")
         buildConfigField("String", "DONATE_URL", "\"${localProperties.getProperty("DONATE_URL") ?: ""}\"")
         manifestPlaceholders["appAuthRedirectScheme"] = "rupoop"
