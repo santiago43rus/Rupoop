@@ -78,7 +78,7 @@ jobs:
         
       - name: Delete old release if exists (To clear debug apks & duplicate changelogs)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete ${{ github.ref_name }} --yes || true
 
