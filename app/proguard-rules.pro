@@ -35,3 +35,11 @@
 
 # Media3 / ExoPlayer
 -keep class androidx.media3.** { *; }
+
+# Keep App Classes just in case to prevent UI crashes while minifying standard libs
+-keep class com.example.rupoop.** { *; }
+-keep class com.santiago43rus.rupoop.** { *; }
+
+# Keep Compose and Coroutines
+-keep class androidx.compose.** { *; }
+-keep class kotlinx.coroutines.** { *; }
