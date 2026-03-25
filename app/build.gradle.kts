@@ -25,7 +25,7 @@ android {
         applicationId = "com.example.rupoop"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
+        versionCode = 1
         versionName = "1.0.0"
         
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
