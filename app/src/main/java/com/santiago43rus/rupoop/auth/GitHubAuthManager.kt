@@ -30,7 +30,9 @@ class GitHubAuthManager(context: Context) {
             BuildConfig.GH_CLIENT_ID,
             ResponseTypeValues.CODE,
             "rupoop://auth".toUri()
-        ).setScopes("gist").build()
+        ).setScopes("gist")
+         .setCodeVerifier(null)
+         .build()
         return authService.getAuthorizationRequestIntent(authRequest)
     }
 
@@ -50,16 +52,24 @@ class GitHubAuthManager(context: Context) {
         // Use the Cloudflare Proxy instead of directly hardcoding the secret in the app
         val request = Request.Builder()
             .url(BuildConfig.PROXY_URL + "auth/token")
+            .header("Accept", "application/json")
             .post(body)
             .build()
 
-        client.newCall(request).enqueue(object : Callback {
+        val call = client.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+
+        call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("RupoopAuth", "Token exchange failed via Proxy", e)
-                continuation.resumeWithException(e)
+                if (continuation.isActive) {
+                    Log.e("RupoopAuth", "Token exchange failed via Proxy", e)
+                    continuation.resumeWithException(e)
+                }
             }
 
             override fun onResponse(call: Call, response: Response) {
+                if (!continuation.isActive) return
+
                 if (!response.isSuccessful) {
                     val ex = Exception("Proxy returned HTTP ${response.code}: ${response.body?.string()}")
                     Log.e("RupoopAuth", "Token exchange HTTP Error", ex)
@@ -68,9 +78,23 @@ class GitHubAuthManager(context: Context) {
                 }
 
                 try {
-                    val respBody = response.body?.string()
-                    val jsonResponse = JSONObject(respBody ?: "{}")
-                    val token = jsonResponse.optString("access_token", "")
+                    val respBody = response.body?.string() ?: ""
+                    var token = ""
+                    
+                    if (respBody.trim().startsWith("{")) {
+                        val jsonResponse = JSONObject(respBody)
+                        token = jsonResponse.optString("access_token", "")
+                    } else if (respBody.contains("access_token=")) {
+                        val params = respBody.split("&")
+                        for (param in params) {
+                            val parts = param.split("=")
+                            if (parts.size == 2 && parts[0] == "access_token") {
+                                token = parts[1]
+                                break
+                            }
+                        }
+                    }
+
                     if (token.isNotEmpty()) {
                         Log.d("RupoopAuth", "Token received from Proxy")
                         continuation.resume(token)
