@@ -83,14 +83,7 @@ fun RutubeApp(
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             val response = AuthorizationResponse.fromIntent(result.data!!)
             if (response != null) {
-                scope.launch {
-                    try {
-                        val token = vm.authManager.exchangeCodeForToken(response)
-                        vm.onAuthSuccess(token)
-                    } catch (e: Exception) {
-                        Log.e("RupoopAuth", "Auth exchange error", e)
-                    }
-                }
+                vm.processAuthResponse(response)
             }
         }
     }

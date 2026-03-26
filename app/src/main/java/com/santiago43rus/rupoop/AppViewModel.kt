@@ -479,6 +479,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Auth result ──
+    fun processAuthResponse(response: net.openid.appauth.AuthorizationResponse) {
+        viewModelScope.launch {
+            isAuthenticating = true
+            try {
+                val token = authManager.exchangeCodeForToken(response)
+                settingsManager.accessToken = token
+                val authHeader = "Bearer $token"
+                githubUser = withContext(Dispatchers.IO) { RetrofitClient.gitHubApi.getUser(authHeader) }
+                userRegistry = withContext(Dispatchers.IO) { syncManager.sync(token) }
+                isAuthenticated = true
+            } catch (e: Exception) {
+                Log.e("RupoopAuth", "Auth processes error", e)
+                _snackbarMessage.emit("Ошибка авторизации: ${e.localizedMessage}")
+            } finally {
+                isAuthenticating = false
+            }
+        }
+    }
+
     fun onAuthSuccess(token: String) {
         viewModelScope.launch {
             isAuthenticating = true
