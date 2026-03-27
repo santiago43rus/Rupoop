@@ -48,6 +48,7 @@ import java.util.concurrent.TimeUnit
 fun CustomVideoPlayer(
     exoPlayer: ExoPlayer,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     isFullscreen: Boolean,
     currentVideo: SearchResult?,
     relatedVideos: List<SearchResult> = emptyList(),
@@ -60,8 +61,8 @@ fun CustomVideoPlayer(
     onPlayRelated: (SearchResult) -> Unit = {}
 ) {
     var showControls by remember { mutableStateOf(true) }
-    var currentTime by remember { mutableLongStateOf(0L) }
-    var duration by remember { mutableLongStateOf(0L) }
+    var currentTime by remember { mutableLongStateOf(exoPlayer.currentPosition) }
+    var duration by remember { mutableLongStateOf(exoPlayer.duration.coerceAtLeast(0L)) }
     var showSettings by remember { mutableStateOf(false) }
     var draggingPos by remember { mutableStateOf<Long?>(null) }
     var isSeeking by remember { mutableStateOf(false) }
@@ -89,8 +90,9 @@ fun CustomVideoPlayer(
             .pointerInput(isFullscreen) {
                 var totalDragY = 0f
                 var totalDragX = 0f
+                var startY = 0f
                 detectDragGestures(
-                    onDragStart = { totalDragY = 0f; totalDragX = 0f },
+                    onDragStart = { offset -> startY = offset.y; totalDragY = 0f; totalDragX = 0f },
                     onDrag = { change, dragAmount ->
                         change.consume()
                         totalDragY += dragAmount.y
@@ -104,6 +106,8 @@ fun CustomVideoPlayer(
                                 else showMoreVideos = true
                             }
                             else if (totalDragY > 50) { // Swipe Down
+                                // Ignore swipe down if it starts near the top edge in fullscreen (like pulling status bar)
+                                if (isFullscreen && startY < 100f) return@detectDragGestures
                                 if (showMoreVideos) showMoreVideos = false
                                 else if (isFullscreen) onToggleFullscreen()
                                 else onMinimize()
@@ -147,6 +151,15 @@ fun CustomVideoPlayer(
             modifier = Modifier.fillMaxSize()
         )
 
+        // Loading indicator
+        if (isBuffering) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center).size(48.dp),
+                color = Color.Red,
+                strokeWidth = 4.dp
+            )
+        }
+
         // 2x Speed Indicator
         if (isFastForwarding) {
             Box(Modifier.align(Alignment.TopCenter).padding(top = 48.dp).background(Color.Black.copy(0.6f), RoundedCornerShape(20.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -189,33 +202,35 @@ fun CustomVideoPlayer(
                     }
 
                     // Center controls
-                    Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = onPrevious,
-                            enabled = !isFirstVideo
-                        ) {
-                            Icon(
-                                Icons.Default.SkipPrevious, 
-                                null, 
-                                tint = if (isFirstVideo) Color.Gray else Color.White, 
-                                modifier = Modifier.size(48.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(32.dp))
-                        IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
-                            Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(64.dp))
-                        }
-                        Spacer(Modifier.width(32.dp))
-                        IconButton(
-                            onClick = onNext,
-                            enabled = !isLastVideo
-                        ) {
-                            Icon(
-                                Icons.Default.SkipNext, 
-                                null, 
-                                tint = if (isLastVideo) Color.Gray else Color.White, 
-                                modifier = Modifier.size(48.dp)
-                            )
+                    if (!isBuffering) {
+                        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = onPrevious,
+                                enabled = !isFirstVideo
+                            ) {
+                                Icon(
+                                    Icons.Default.SkipPrevious, 
+                                    null, 
+                                    tint = if (isFirstVideo) Color.Gray else Color.White, 
+                                    modifier = Modifier.size(48.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(32.dp))
+                            IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
+                                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(64.dp))
+                            }
+                            Spacer(Modifier.width(32.dp))
+                            IconButton(
+                                onClick = onNext,
+                                enabled = !isLastVideo
+                            ) {
+                                Icon(
+                                    Icons.Default.SkipNext, 
+                                    null, 
+                                    tint = if (isLastVideo) Color.Gray else Color.White, 
+                                    modifier = Modifier.size(48.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -274,7 +289,14 @@ fun CustomVideoPlayer(
                     Slider(
                         value = if (duration > 0) (draggingPos ?: currentTime).toFloat() / duration else 0f,
                         onValueChange = { isSeeking = true; draggingPos = (it * duration).toLong() },
-                        onValueChangeFinished = { isSeeking = false; exoPlayer.seekTo(draggingPos!!); draggingPos = null },
+                        onValueChangeFinished = { 
+                            isSeeking = false
+                            draggingPos?.let {
+                                exoPlayer.seekTo(it)
+                                currentTime = it
+                            }
+                            draggingPos = null 
+                        },
                         modifier = Modifier
                             .fillMaxWidth(if (isFullscreen) 0.9f else 1f)
                             .height(32.dp),

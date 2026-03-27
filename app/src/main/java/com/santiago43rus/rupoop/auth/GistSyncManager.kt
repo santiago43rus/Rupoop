@@ -44,6 +44,13 @@ class GistSyncManager(
                 
                 val mergedRegistry = registryManager.mergeWith(remoteRegistry)
                 
+                settingsManager.isDarkTheme = mergedRegistry.appSettings.theme == "dark"
+                settingsManager.downloadQuality = mergedRegistry.appSettings.downloadQuality
+                settingsManager.syncFrequencyHours = mergedRegistry.appSettings.syncFrequencyHours
+                settingsManager.adultContentEnabled = mergedRegistry.appSettings.adultContentEnabled
+                settingsManager.kidsContentEnabled = mergedRegistry.appSettings.kidsContentEnabled
+                settingsManager.enabledGenres = mergedRegistry.appSettings.enabledGenres.toSet()
+
                 push(token, mergedRegistry, gistId)
                 mergedRegistry
             } else {

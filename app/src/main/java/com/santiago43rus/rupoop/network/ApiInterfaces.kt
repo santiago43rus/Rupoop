@@ -40,3 +40,8 @@ interface GitHubApi {
     @GET("user")
     suspend fun getUser(@Header("Authorization") authHeader: String): GitHubUser
 }
+
+interface SuggestApi {
+    @GET("complete/search?client=firefox&ds=yt")
+    suspend fun getSuggestions(@Query("q") query: String): retrofit2.Response<okhttp3.ResponseBody>
+}

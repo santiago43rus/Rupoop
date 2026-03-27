@@ -66,9 +66,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var currentVideo by mutableStateOf<SearchResult?>(null)
     var isFullscreenVideo by mutableStateOf(false)
     var isPlaying by mutableStateOf(false)
+    var isBuffering by mutableStateOf(false)
 
     // ── Search ──
     var searchQuery by mutableStateOf("")
+    var searchSuggestions by mutableStateOf<List<String>>(emptyList())
     var isSearchExpanded by mutableStateOf(false)
     var searchSortOrder by mutableStateOf<String?>(null) // null = default, "-created_ts" = newest
     var authorSortOrder by mutableStateOf("-created_ts") // default newest
@@ -108,6 +110,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) { this@AppViewModel.isPlaying = playing }
             override fun onPlaybackStateChanged(state: Int) {
+                this@AppViewModel.isBuffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_READY && currentVideo != null) {
                     extractId(currentVideo!!.videoUrl)?.let { id ->
                         registryManager.updateWatchProgress(id, player.contentPosition, player.duration)
@@ -157,7 +160,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         pushJob?.cancel()
         pushJob = viewModelScope.launch {
             delay(5000) // debounce 5 seconds
-            syncManager.push(token, registryManager.registry)
+            
+            val appSettings = AppSettings(
+                theme = if (settingsManager.isDarkTheme) "dark" else "light",
+                downloadQuality = settingsManager.downloadQuality,
+                syncFrequencyHours = settingsManager.syncFrequencyHours,
+                adultContentEnabled = settingsManager.adultContentEnabled,
+                kidsContentEnabled = settingsManager.kidsContentEnabled,
+                enabledGenres = settingsManager.enabledGenres.toList()
+            )
+            val updatedRegistry = registryManager.registry.copy(appSettings = appSettings)
+
+            syncManager.push(token, updatedRegistry)
         }
     }
 
@@ -300,7 +314,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, page = 1) }
                 val newVideos = recommendationEngine.recommend(resp.results)
 
-                homeVideos = if (isLoadMore) (homeVideos + newVideos).distinctBy { it.videoUrl } else newVideos
+                val updatedList = if (isLoadMore) (homeVideos + newVideos).distinctBy { it.videoUrl } else newVideos
+                homeVideos = updatedList.take(200)
             } catch (e: Exception) {
                 Log.e("Rupoop", "Error loading home", e)
             } finally {
@@ -470,11 +485,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     Log.e("RupoopAuth", "Auth error", e)
                 } finally {
                     isAuthenticating = false
-                    loadHome(false)
                 }
             }
-        } else {
-            loadHome(false)
         }
     }
 
@@ -494,6 +506,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _snackbarMessage.emit("Ошибка авторизации: ${e.localizedMessage}")
             } finally {
                 isAuthenticating = false
+                loadHome(false)
             }
         }
     }
@@ -511,6 +524,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e("RupoopAuth", "Sync error", e)
             } finally {
                 isAuthenticating = false
+                loadHome(false)
             }
         }
     }
@@ -522,6 +536,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Search ──
+    fun updateSearchQuery(query: String) {
+        searchQuery = query
+        if (query.isBlank()) {
+            searchSuggestions = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val response = withContext(Dispatchers.IO) { RetrofitClient.suggestApi.getSuggestions(query) }
+                val jsonString = response.body()?.string()
+                if (jsonString != null) {
+                    val jsonArray = RetrofitClient.json.parseToJsonElement(jsonString) as kotlinx.serialization.json.JsonArray
+                    if (jsonArray.size > 1 && jsonArray[1] is kotlinx.serialization.json.JsonArray) {
+                        val suggestionsArray = jsonArray[1] as kotlinx.serialization.json.JsonArray
+                        searchSuggestions = suggestionsArray.map { it.toString().removeSurrounding("\"") }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("Rupoop", "Search suggest auto-complete error", e)
+            }
+        }
+    }
+
     fun performSearch(query: String, ordering: String? = searchSortOrder) {
         searchQuery = query
         isSearchExpanded = false
@@ -645,17 +682,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (isFullscreenVideo) { toggleFullscreen(false); return true }
         if (playerState == PlayerState.FULL) { playerState = PlayerState.MINI; return true }
         if (isSettingsVisible) { isSettingsVisible = false; return true }
-        if (isSearchExpanded) { isSearchExpanded = false; searchQuery = ""; return true }
+        if (isSearchExpanded) { isSearchExpanded = false; return true }
 
         val topVisible = overlayOrder.lastOrNull {
             (it == OverlayState.SEARCH && isSearchVisible) ||
             (it == OverlayState.AUTHOR && isAuthorVisible)
         }
 
-        if (topVisible == OverlayState.SEARCH) { isSearchVisible = false; return true }
+        if (topVisible == OverlayState.SEARCH) { isSearchVisible = false; searchQuery = ""; return true }
         if (topVisible == OverlayState.AUTHOR) { isAuthorVisible = false; return true }
         if (currentLibSub != LibrarySubScreen.NONE) { currentLibSub = LibrarySubScreen.NONE; return true }
-        if (currentNav != NavItem.HOME) { currentNav = NavItem.HOME; return true }
+        if (currentNav != NavItem.HOME) { currentNav = NavItem.HOME; searchQuery = ""; return true }
 
         playerState = PlayerState.CLOSED
         exoPlayer.stop()
@@ -698,5 +735,3 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         progressSavingJob?.cancel()
     }
 }
-
-

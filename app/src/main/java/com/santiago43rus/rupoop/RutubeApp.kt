@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -40,7 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -162,248 +163,282 @@ fun RutubeApp(
         ContentSelectionDialog(settingsManager = vm.settingsManager, onDismiss = { vm.dismissOnboarding() })
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
-                AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher)
-            }
-        },
-        bottomBar = {
-            if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
-                Surface(
-                    color = MaterialTheme.colorScheme.background,
-                    tonalElevation = 3.dp,
-                    modifier = Modifier.height(54.dp).fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
+                    AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher)
+                }
+            },
+            bottomBar = {
+                if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.background,
+                        tonalElevation = 3.dp,
+                        modifier = Modifier.height(54.dp).fillMaxWidth()
                     ) {
-                        // Home
-                        val isHome = vm.currentNav == NavItem.HOME
-                        Column(
-                            modifier = Modifier.weight(1f).fillMaxHeight().clickable {
-                                if (vm.currentNav == NavItem.HOME) {
-                                    if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                    else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                    else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                    else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                                    else scope.launch { homeListState.animateScrollToItem(0) }
-                                } else {
-                                    vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE
-                                    vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
-                                }
-                            },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(if (isHome) Icons.Filled.Home else Icons.Outlined.Home, "Home", tint = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                            Text("Главная", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                        }
+                            // Home
+                            val isHome = vm.currentNav == NavItem.HOME
+                            Column(
+                                modifier = Modifier.weight(1f).fillMaxHeight().clickable {
+                                    if (vm.currentNav == NavItem.HOME) {
+                                        if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                        else if (vm.isSearchExpanded) { vm.isSearchExpanded = false; vm.searchQuery = "" }
+                                        else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = "" }
+                                        else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                        else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
+                                        else scope.launch { homeListState.animateScrollToItem(0) }
+                                    } else {
+                                        vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE
+                                        vm.isSearchExpanded = false; vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                                    }
+                                },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(if (isHome) Icons.Filled.Home else Icons.Outlined.Home, "Home", tint = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                                Text("Главная", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                            }
 
-                        // Subscriptions
-                        val isSubs = vm.currentNav == NavItem.SUBSCRIPTIONS
-                        Column(
-                            modifier = Modifier.weight(1f).fillMaxHeight().clickable {
-                                if (vm.currentNav == NavItem.SUBSCRIPTIONS) {
-                                    if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                    else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                    else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                    else scope.launch { subsListState.animateScrollToItem(0) }
-                                } else {
-                                    vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE
-                                    vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
-                                }
-                            },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(if (isSubs) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs", tint = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                            Text("Подписки", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                        }
+                            // Subscriptions
+                            val isSubs = vm.currentNav == NavItem.SUBSCRIPTIONS
+                            Column(
+                                modifier = Modifier.weight(1f).fillMaxHeight().clickable {
+                                    if (vm.currentNav == NavItem.SUBSCRIPTIONS) {
+                                        if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                        else if (vm.isSearchExpanded) { vm.isSearchExpanded = false; vm.searchQuery = "" }
+                                        else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = "" }
+                                        else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                        else scope.launch { subsListState.animateScrollToItem(0) }
+                                    } else {
+                                        vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE
+                                        vm.isSearchExpanded = false; vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                                    }
+                                },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(if (isSubs) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs", tint = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                                Text("Подписки", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                            }
 
-                        // Library
-                        val isLib = vm.currentNav == NavItem.LIBRARY
-                        Column(
-                            modifier = Modifier.weight(1f).fillMaxHeight().clickable {
-                                if (vm.currentNav == NavItem.LIBRARY) {
-                                    if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                    else if (vm.isSearchVisible) vm.isSearchVisible = false
-                                    else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                    else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                                    else scope.launch { libListState.animateScrollToItem(0) }
-                                } else {
-                                    vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE
-                                    vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false
-                                }
-                            },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Icon(if (isLib) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib", tint = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                            Text("Библиотека", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                        }
-                    }
-                }
-            }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            // Main content by nav with animated transitions
-            AnimatedContent(
-                targetState = vm.currentNav,
-                transitionSpec = {
-                    fadeIn(tween(200)) togetherWith fadeOut(tween(200))
-                },
-                label = "nav_animation"
-            ) { targetNav ->
-                when (targetNav) {
-                NavItem.HOME -> {
-                    HomeScreen(
-                        homeVideos = vm.homeVideos, userRegistry = vm.userRegistry,
-                        isRefreshing = vm.isRefreshingHome, isLoadingMore = vm.isHomeLoadingMore,
-                        onRefresh = { vm.loadHome(false) }, onLoadMore = { vm.loadHome(true) },
-                        onVideoClick = { video, list -> vm.playVideo(video, list) },
-                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
-                        listState = homeListState
-                    )
-                }
-                NavItem.SUBSCRIPTIONS -> {
-                    SubscriptionsScreen(
-                        userRegistry = vm.userRegistry, subscriptionVideos = vm.subscriptionVideos,
-                        isRefreshing = vm.isRefreshingSubs, isLoadingMore = vm.isSubsLoadingMore, hasMoreVideos = vm.hasMoreSubsVideos,
-                        onRefresh = { vm.loadSubscriptions(false) }, onLoadMore = { vm.loadSubscriptions(true) },
-                        onVideoClick = { video, list -> vm.playVideo(video, list) },
-                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
-                        listState = subsListState
-                    )
-                }
-                NavItem.LIBRARY -> LibraryContent(vm = vm, listState = libListState)
-                }
-            }
-
-            // Overlays with animation
-            vm.overlayOrder.forEach { overlay ->
-                AnimatedVisibility(
-                    visible = overlay == OverlayState.SEARCH && vm.isSearchVisible,
-                    enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
-                    exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
-                ) {
-                    SearchOverlay(vm = vm)
-                }
-                AnimatedVisibility(
-                    visible = overlay == OverlayState.AUTHOR && vm.isAuthorVisible,
-                    enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
-                    exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
-                ) {
-                    AuthorScreen(
-                        author = vm.selectedAuthor, authorVideos = vm.authorVideos, userRegistry = vm.userRegistry,
-                        isRefreshing = vm.isRefreshingAuthor, isLoadingMore = vm.isAuthorLoadingMore, hasMoreVideos = vm.hasMoreAuthorVideos,
-                        onRefresh = { vm.selectedAuthor?.let { vm.loadAuthorVideos(it, false) } },
-                        onLoadMore = { vm.selectedAuthor?.let { vm.loadAuthorVideos(it, true) } },
-                        onVideoClick = { video, list -> vm.playVideo(video, list) },
-                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onToggleSubscription = { vm.toggleSubscription(it) },
-                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
-                        currentSort = vm.authorSortOrder,
-                        onSortChange = { newSort ->
-                            vm.authorSortOrder = newSort
-                            vm.selectedAuthor?.let { vm.loadAuthorVideos(it, false) }
-                        }
-                    )
-                }
-            }
-            if (vm.isSearchExpanded && vm.userRegistry.searchHistory.isNotEmpty()) {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
-                    LazyColumn {
-                        items(vm.userRegistry.searchHistory) { query ->
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.History, null, tint = Color.Gray)
-                                Spacer(Modifier.width(16.dp))
-                                Text(query, Modifier.weight(1f).clickable { focusManager.clearFocus(); vm.performSearch(query) })
-                                IconButton(onClick = { vm.removeSearchQuery(query) }) {
-                                    Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
-                                }
+                            // Library
+                            val isLib = vm.currentNav == NavItem.LIBRARY
+                            Column(
+                                modifier = Modifier.weight(1f).fillMaxHeight().clickable {
+                                    if (vm.currentNav == NavItem.LIBRARY) {
+                                        if (vm.isSettingsVisible) vm.isSettingsVisible = false
+                                        else if (vm.isSearchExpanded) { vm.isSearchExpanded = false; vm.searchQuery = "" }
+                                        else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = "" }
+                                        else if (vm.isAuthorVisible) vm.isAuthorVisible = false
+                                        else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
+                                        else scope.launch { libListState.animateScrollToItem(0) }
+                                    } else {
+                                        vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE
+                                        vm.isSearchExpanded = false; vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                                    }
+                                },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(if (isLib) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib", tint = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                                Text("Библиотека", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
                             }
                         }
                     }
                 }
             }
-
-            // Settings overlay
-            AnimatedVisibility(
-                visible = vm.isSettingsVisible,
-                enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
-                exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
-            ) {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    SettingsScreen(vm.settingsManager, onThemeToggle, vm.registryManager, onRegistryUpdate = { vm.onRegistryUpdate(it) })
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                // Main content by nav with animated transitions
+                AnimatedContent(
+                    targetState = vm.currentNav,
+                    transitionSpec = {
+                        fadeIn(tween(200)) togetherWith fadeOut(tween(200))
+                    },
+                    label = "nav_animation"
+                ) { targetNav ->
+                    when (targetNav) {
+                    NavItem.HOME -> {
+                        HomeScreen(
+                            homeVideos = vm.homeVideos, userRegistry = vm.userRegistry,
+                            isRefreshing = vm.isRefreshingHome, isLoadingMore = vm.isHomeLoadingMore,
+                            onRefresh = { vm.loadHome(false) }, onLoadMore = { vm.loadHome(true) },
+                            onVideoClick = { video, list -> vm.playVideo(video, list) },
+                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                            onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                            listState = homeListState
+                        )
+                    }
+                    NavItem.SUBSCRIPTIONS -> {
+                        SubscriptionsScreen(
+                            userRegistry = vm.userRegistry, subscriptionVideos = vm.subscriptionVideos,
+                            isRefreshing = vm.isRefreshingSubs, isLoadingMore = vm.isSubsLoadingMore, hasMoreVideos = vm.hasMoreSubsVideos,
+                            onRefresh = { vm.loadSubscriptions(false) }, onLoadMore = { vm.loadSubscriptions(true) },
+                            onVideoClick = { video, list -> vm.playVideo(video, list) },
+                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                            onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                            listState = subsListState
+                        )
+                    }
+                    NavItem.LIBRARY -> LibraryContent(vm = vm, listState = libListState)
+                    }
                 }
-            }
 
-            // Player
-            if (vm.playerState != PlayerState.CLOSED) {
-                val playerHeight by animateDpAsState(
-                    targetValue = if (vm.playerState == PlayerState.FULL) config.screenHeightDp.dp else 64.dp,
-                    animationSpec = spring(stiffness = Spring.StiffnessLow),
-                    label = "playerAnimation"
-                )
-                Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(playerHeight).background(MaterialTheme.colorScheme.background)) {
-                    if (vm.playerState == PlayerState.FULL) {
-                        Column {
-                            CustomVideoPlayer(
-                                exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isFullscreen = vm.isFullscreenVideo,
-                                currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
-                                onMinimize = { vm.playerState = PlayerState.MINI },
-                                onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
-                                onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
-                                isFirstVideo = vm.currentVideoIndex <= 0,
-                                isLastVideo = vm.currentVideoIndex >= vm.currentVideoList.size - 1,
-                                onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
-                            )
-                            if (!vm.isFullscreenVideo) {
-                                LazyColumn(Modifier.weight(1f)) {
-                                    item {
-                                        VideoDetails(
-                                            vm.currentVideo, vm.userRegistry,
-                                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                                            onToggleSub = { vm.toggleSubscription(it) },
-                                            onLike = { vm.currentVideo?.let { vm.toggleLike(it) } },
-                                            onShare = { vm.currentVideo?.let { vm.shareVideo(it) } },
-                                            onAddToPlaylist = { vm.showPlaylistDialog = vm.currentVideo },
-                                            onDownload = { vm.currentVideo?.let { vm.startDownload(it) } }
-                                        )
-                                        HorizontalDivider()
-                                        Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
-                                    }
-                                    items(vm.relatedVideos) { video ->
-                                        val history = vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                                        VideoItem(video, history,
-                                            onClick = { vm.playVideo(video, vm.relatedVideos) },
-                                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                                            onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
-                                        )
+                // Overlays with animation
+                vm.overlayOrder.forEach { overlay ->
+                    AnimatedVisibility(
+                        visible = overlay == OverlayState.SEARCH && vm.isSearchVisible,
+                        enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
+                        exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
+                    ) {
+                        SearchOverlay(vm = vm)
+                    }
+                    AnimatedVisibility(
+                        visible = overlay == OverlayState.AUTHOR && vm.isAuthorVisible,
+                        enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
+                        exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
+                    ) {
+                        AuthorScreen(
+                            author = vm.selectedAuthor, authorVideos = vm.authorVideos, userRegistry = vm.userRegistry,
+                            isRefreshing = vm.isRefreshingAuthor, isLoadingMore = vm.isAuthorLoadingMore, hasMoreVideos = vm.hasMoreAuthorVideos,
+                            onRefresh = { vm.selectedAuthor?.let { vm.loadAuthorVideos(it, false) } },
+                            onLoadMore = { vm.selectedAuthor?.let { vm.loadAuthorVideos(it, true) } },
+                            onVideoClick = { video, list -> vm.playVideo(video, list) },
+                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                            onToggleSubscription = { vm.toggleSubscription(it) },
+                            onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                            currentSort = vm.authorSortOrder,
+                            onSortChange = { newSort ->
+                                vm.authorSortOrder = newSort
+                                vm.selectedAuthor?.let { vm.loadAuthorVideos(it, false) }
+                            }
+                        )
+                    }
+                }
+                if (vm.isSearchExpanded && vm.searchQuery.isNotEmpty()) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
+                        LazyColumn {
+                            items(vm.searchSuggestions) { suggestion ->
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Search, null, tint = Color.Gray)
+                                    Spacer(Modifier.width(16.dp))
+                                    Text(suggestion, Modifier.weight(1f).clickable { focusManager.clearFocus(); vm.performSearch(suggestion) })
+                                    IconButton(onClick = { vm.updateSearchQuery(suggestion) }) {
+                                        Icon(Icons.Default.NorthWest, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
                                     }
                                 }
                             }
                         }
-                    } else {
-                        MiniPlayer(vm.currentVideo, vm.isPlaying, vm.exoPlayer, onClose = { vm.closePlayer() }, onClick = { vm.playerState = PlayerState.FULL })
                     }
+                } else if (vm.isSearchExpanded && vm.userRegistry.searchHistory.isNotEmpty()) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
+                        LazyColumn {
+                            items(vm.userRegistry.searchHistory) { query ->
+                                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.History, null, tint = Color.Gray)
+                                    Spacer(Modifier.width(16.dp))
+                                    Text(query, Modifier.weight(1f).clickable { focusManager.clearFocus(); vm.performSearch(query) })
+                                    IconButton(onClick = { vm.removeSearchQuery(query) }) {
+                                        Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Settings overlay
+                AnimatedVisibility(
+                    visible = vm.isSettingsVisible,
+                    enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
+                    exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
+                ) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                        SettingsScreen(vm.settingsManager, onThemeToggle, vm.registryManager, onRegistryUpdate = { vm.onRegistryUpdate(it) })
+                    }
+                }
+
+                // Player
+                if (vm.playerState != PlayerState.CLOSED) {
+                    val playerHeight by animateDpAsState(
+                        targetValue = if (vm.playerState == PlayerState.FULL) config.screenHeightDp.dp else 64.dp,
+                        animationSpec = spring(stiffness = Spring.StiffnessLow),
+                        label = "playerAnimation"
+                    )
+                    Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(playerHeight).background(MaterialTheme.colorScheme.background)) {
+                        if (vm.playerState == PlayerState.FULL) {
+                            Column {
+                                CustomVideoPlayer(
+                                    exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo,
+                                    currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
+                                    onMinimize = { vm.playerState = PlayerState.MINI },
+                                    onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
+                                    onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
+                                    isFirstVideo = vm.currentVideoIndex <= 0,
+                                    isLastVideo = vm.currentVideoIndex >= vm.currentVideoList.size - 1,
+                                    onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
+                                )
+                                if (!vm.isFullscreenVideo) {
+                                    LazyColumn(Modifier.weight(1f)) {
+                                        item {
+                                            VideoDetails(
+                                                vm.currentVideo, vm.userRegistry,
+                                                onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                                                onToggleSub = { vm.toggleSubscription(it) },
+                                                onLike = { vm.currentVideo?.let { vm.toggleLike(it) } },
+                                                onShare = { vm.currentVideo?.let { vm.shareVideo(it) } },
+                                                onAddToPlaylist = { vm.showPlaylistDialog = vm.currentVideo },
+                                                onDownload = { vm.currentVideo?.let { vm.startDownload(it) } }
+                                            )
+                                            HorizontalDivider()
+                                            Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
+                                        }
+                                        items(vm.relatedVideos) { video ->
+                                            val history = vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                                            VideoItem(video, history,
+                                                onClick = { vm.playVideo(video, vm.relatedVideos) },
+                                                onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                                                onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            MiniPlayer(vm.currentVideo, vm.isPlaying, vm.exoPlayer, onClose = { vm.closePlayer() }, onClick = { vm.playerState = PlayerState.FULL })
+                        }
+                    }
+                }
+
+                // Playlist dialog
+                vm.showPlaylistDialog?.let { video ->
+                    PlaylistSelectionDialog(
+                        playlists = vm.userRegistry.playlists,
+                        onDismiss = { vm.showPlaylistDialog = null },
+                        onPlaylistSelected = { name -> vm.addToPlaylist(name, video) },
+                        onCreateNew = { name -> vm.createPlaylistAndAdd(name, video) }
+                    )
                 }
             }
 
-            // Playlist dialog
-            vm.showPlaylistDialog?.let { video ->
-                PlaylistSelectionDialog(
-                    playlists = vm.userRegistry.playlists,
-                    onDismiss = { vm.showPlaylistDialog = null },
-                    onPlaylistSelected = { name -> vm.addToPlaylist(name, video) },
-                    onCreateNew = { name -> vm.createPlaylistAndAdd(name, video) }
+            // Custom Overlay Snackbar to float above player and UI
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (vm.playerState != PlayerState.CLOSED && !vm.isFullscreenVideo) 100.dp else 24.dp)
+                    .then(if (!vm.isFullscreenVideo) Modifier.navigationBarsPadding() else Modifier)
+            ) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = Color.Black.copy(alpha = 0.85f),
+                    contentColor = Color.White
                 )
             }
         }
@@ -425,6 +460,13 @@ private fun AppTopBar(
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
     DisposableEffect(Unit) {
         onDispose { speechRecognizer.destroy() }
+    }
+
+    LaunchedEffect(vm.isSearchExpanded) {
+        if (!vm.isSearchExpanded && isListening) {
+            speechRecognizer.stopListening()
+            isListening = false
+        }
     }
 
     fun startVoiceInput() {
@@ -470,19 +512,19 @@ private fun AppTopBar(
 
     TopAppBar(
         title = {
-            if (!vm.isSearchExpanded) {
-                val topVisible = vm.overlayOrder.lastOrNull {
-                    (it == OverlayState.SEARCH && vm.isSearchVisible) ||
-                    (it == OverlayState.AUTHOR && vm.isAuthorVisible)
-                }
+            val topVisible = vm.overlayOrder.lastOrNull {
+                (it == OverlayState.SEARCH && vm.isSearchVisible) ||
+                (it == OverlayState.AUTHOR && vm.isAuthorVisible)
+            }
+            if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (topVisible != null || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME) {
                         IconButton(onClick = {
                             if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                            else if (topVisible == OverlayState.SEARCH) vm.isSearchVisible = false
-                            else if (topVisible == OverlayState.AUTHOR) vm.isAuthorVisible = false
+                            else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = "" }
+                            else if (vm.isAuthorVisible) vm.isAuthorVisible = false
                             else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                            else vm.currentNav = NavItem.HOME
+                            else { vm.currentNav = NavItem.HOME; vm.searchQuery = "" }
                         }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                     }
                     Icon(Icons.Default.PlayCircleFilled, null, tint = Color(0xFFE53935), modifier = Modifier.size(32.dp))
@@ -491,7 +533,6 @@ private fun AppTopBar(
                         when {
                             vm.isSettingsVisible -> "Настройки"
                             topVisible == OverlayState.AUTHOR -> vm.selectedAuthor?.name ?: "Канал"
-                            topVisible == OverlayState.SEARCH -> "Результаты поиска"
                             vm.currentLibSub == LibrarySubScreen.LIKED -> "Понравившиеся"
                             vm.currentLibSub == LibrarySubScreen.WATCH_LATER -> "Смотреть позже"
                             vm.currentLibSub == LibrarySubScreen.PLAYLISTS -> "Плейлисты"
@@ -499,8 +540,8 @@ private fun AppTopBar(
                             vm.currentLibSub == LibrarySubScreen.HISTORY -> "История просмотра"
                             vm.currentLibSub == LibrarySubScreen.DOWNLOADS -> "Загрузки"
                             else -> when (vm.currentNav) {
-                                NavItem.SUBSCRIPTIONS -> "Подписки"
-                                NavItem.LIBRARY -> "Библиотека"
+                                NavItem.SUBSCRIPTIONS -> "Rupoop"
+                                NavItem.LIBRARY -> "Rupoop"
                                 else -> "Rupoop"
                             }
                         },
@@ -509,92 +550,131 @@ private fun AppTopBar(
                 }
             } else {
                 // Styled search bar
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(end = 4.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    tonalElevation = 2.dp
-                ) {
-                    TextField(
-                        value = vm.searchQuery, onValueChange = { vm.searchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus(); vm.performSearch(vm.searchQuery) }),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            disabledIndicatorColor = Color.Transparent
-                        ),
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Search, "Поиск",
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                    startVoiceInput()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (vm.isSearchExpanded) {
+                        IconButton(onClick = { 
+                            vm.isSearchExpanded = false
+                            focusManager.clearFocus()
+                        }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") }
+                    } else if (topVisible == OverlayState.SEARCH) {
+                        IconButton(onClick = { vm.isSearchVisible = false; vm.searchQuery = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                    }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(end = 4.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        tonalElevation = 2.dp
+                    ) {
+                        TextField(
+                            value = vm.searchQuery, onValueChange = { vm.updateSearchQuery(it); vm.isSearchExpanded = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        vm.isSearchExpanded = true
+                                    }
+                                },
+                            placeholder = { Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus(); vm.performSearch(vm.searchQuery) }),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent
+                            ),
+                            trailingIcon = {
+                                if (vm.searchQuery.isNotEmpty()) {
+                                    Row {
+                                        IconButton(onClick = { vm.searchQuery = ""; vm.isSearchExpanded = true }) {
+                                            Icon(Icons.Default.Close, "Очистить", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                        }
+                                        IconButton(onClick = {
+                                            if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                                startVoiceInput()
+                                            } else {
+                                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                            }
+                                        }) {
+                                            Icon(
+                                                if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
+                                                "Голосовой поиск",
+                                                tint = if (isListening) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                    }
                                 } else {
-                                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    IconButton(onClick = {
+                                        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                            startVoiceInput()
+                                        } else {
+                                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        }
+                                    }) {
+                                        Icon(
+                                            if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
+                                            "Голосовой поиск",
+                                            tint = if (isListening) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                    }
                                 }
-                            }) {
-                                Icon(
-                                    if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
-                                    "Голосовой поиск",
-                                    tint = if (isListening) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         },
         actions = {
-            if (!vm.isSearchExpanded) {
-                IconButton(onClick = { vm.isSearchExpanded = true }) { Icon(Icons.Default.Search, null) }
-                IconButton(onClick = {
-                    if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        startVoiceInput()
-                    } else {
-                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                }) {
-                    Icon(
-                        if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
-                        "Голосовой поиск",
-                        tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
-                    )
-                }
-                IconButton(onClick = { vm.isSettingsVisible = true }) { Icon(Icons.Default.Settings, null) }
-                Box(contentAlignment = Alignment.Center) {
+            val topVisible = vm.overlayOrder.lastOrNull {
+                (it == OverlayState.SEARCH && vm.isSearchVisible) ||
+                (it == OverlayState.AUTHOR && vm.isAuthorVisible)
+            }
+            if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
+                if (topVisible == null && vm.currentLibSub == LibrarySubScreen.NONE && !vm.isSettingsVisible) {
+                    IconButton(onClick = { vm.isSearchExpanded = true }) { Icon(Icons.Default.Search, null) }
                     IconButton(onClick = {
-                        if (!vm.isAuthenticated && !vm.isAuthenticating) authLauncher.launch(vm.authManager.createAuthIntent())
-                        else if (vm.isAuthenticated) vm.isAccountMenuExpanded = true
+                        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            startVoiceInput()
+                        } else {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
                     }) {
-                        if (vm.isAuthenticating) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        else Icon(
-                            if (vm.isAuthenticated) Icons.Default.AccountCircle else Icons.Outlined.AccountCircle, null,
-                            tint = if (vm.isAuthenticated) Color(0xFF4CAF50) else LocalContentColor.current
+                        Icon(
+                            if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
+                            "Голосовой поиск",
+                            tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
                         )
                     }
-                    if (vm.isAuthenticated) {
-                        DropdownMenu(expanded = vm.isAccountMenuExpanded, onDismissRequest = { vm.isAccountMenuExpanded = false }) {
-                            vm.githubUser?.let { user ->
-                                DropdownMenuItem(text = { Text(user.login, fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
-                                HorizontalDivider()
+                    IconButton(onClick = { vm.isSettingsVisible = true }) { Icon(Icons.Default.Settings, null) }
+                    Box(contentAlignment = Alignment.Center) {
+                        IconButton(onClick = {
+                            if (!vm.isAuthenticated && !vm.isAuthenticating) authLauncher.launch(vm.authManager.createAuthIntent())
+                            else if (vm.isAuthenticated) vm.isAccountMenuExpanded = true
+                        }) {
+                            if (vm.isAuthenticating) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            else Icon(
+                                if (vm.isAuthenticated) Icons.Default.AccountCircle else Icons.Outlined.AccountCircle, null,
+                                tint = if (vm.isAuthenticated) Color(0xFF4CAF50) else LocalContentColor.current
+                            )
+                        }
+                        if (vm.isAuthenticated) {
+                            DropdownMenu(expanded = vm.isAccountMenuExpanded, onDismissRequest = { vm.isAccountMenuExpanded = false }) {
+                                vm.githubUser?.let { user ->
+                                    DropdownMenuItem(text = { Text(user.login, fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
+                                    HorizontalDivider()
+                                }
+                                DropdownMenuItem(text = { Text("Синхронизировать") }, onClick = { vm.isAccountMenuExpanded = false; vm.syncWithGitHub() })
+                                DropdownMenuItem(text = { Text("Выйти") }, onClick = { vm.isAccountMenuExpanded = false; vm.logout() })
                             }
-                            DropdownMenuItem(text = { Text("Синхронизировать") }, onClick = { vm.isAccountMenuExpanded = false; vm.syncWithGitHub() })
-                            DropdownMenuItem(text = { Text("Выйти") }, onClick = { vm.isAccountMenuExpanded = false; vm.logout() })
                         }
                     }
+                } else if (vm.isSettingsVisible && vm.isAuthenticated) {
+                    IconButton(onClick = { vm.logout() }) { Icon(Icons.AutoMirrored.Filled.Logout, "Выйти") }
                 }
             } else {
-                IconButton(onClick = { vm.isSearchExpanded = false; vm.searchQuery = "" }) { Icon(Icons.Default.Close, null) }
+                // Actions are hidden when search is expanded or showing results because the search bar fills the title area (or we put close button inside the textfield)
             }
         }
     )
@@ -709,21 +789,21 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
             DownloadsScreen(
                 downloads = downloads,
                 onPause = { videoId ->
-                    val intent = Intent(vm.getApplication<android.app.Application>(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                    val intent = Intent(vm.getApplication(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
                         action = "PAUSE"
                         putExtra("VIDEO_ID", videoId)
                     }
                     vm.getApplication<android.app.Application>().startForegroundService(intent)
                 },
                 onResume = { videoId ->
-                    val intent = Intent(vm.getApplication<android.app.Application>(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                    val intent = Intent(vm.getApplication(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
                         action = "RESUME"
                         putExtra("VIDEO_ID", videoId)
                     }
                     vm.getApplication<android.app.Application>().startForegroundService(intent)
                 },
                 onCancel = { videoId ->
-                    val intent = Intent(vm.getApplication<android.app.Application>(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                    val intent = Intent(vm.getApplication(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
                         action = "CANCEL"
                         putExtra("VIDEO_ID", videoId)
                     }

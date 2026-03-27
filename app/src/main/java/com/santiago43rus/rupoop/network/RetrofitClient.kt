@@ -48,4 +48,12 @@ object RetrofitClient {
             .build()
             .create(GitHubApi::class.java)
     }
+
+    val suggestApi: SuggestApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://suggestqueries.google.com/")
+            .client(okHttpClient)
+            .build()
+            .create(SuggestApi::class.java)
+    }
 }

@@ -3,6 +3,7 @@ package com.santiago43rus.rupoop.screen
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -11,7 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.santiago43rus.rupoop.BuildConfig
@@ -29,6 +32,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+    val focusManager = LocalFocusManager.current
 
     var downloadQuality by remember { mutableStateOf(settingsManager.downloadQuality) }
     var syncFreq by remember { mutableStateOf(settingsManager.syncFrequencyHours.toString()) }
@@ -42,7 +46,7 @@ fun SettingsScreen(
     )
     var enabledGenres by remember { mutableStateOf(settingsManager.enabledGenres) }
 
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().imePadding().padding(16.dp)) {
         item {
             // ── Внешний вид ──
             Text("Внешний вид", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
@@ -197,7 +201,8 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.width(60.dp),
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
                     )
                 }
             )
