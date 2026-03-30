@@ -22,7 +22,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.rupoop"
+        applicationId = "com.santiago43rus.rupoop"
         minSdk = 29
         targetSdk = 36
         versionCode = 1
