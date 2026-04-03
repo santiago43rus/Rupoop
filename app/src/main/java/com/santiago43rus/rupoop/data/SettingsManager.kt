@@ -54,7 +54,7 @@ class SettingsManager(context: Context) {
     var enabledGenres: Set<String>
         get() = prefs.getStringSet("enabled_genres", null) ?: setOf(
             "аниме", "боевики", "комедии", "фантастика", "ужасы",
-            "драма", "документальные", "мультфильмы", "сериалы", "музыка"
+            "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы", "музыка"
         )
         set(value) = prefs.edit().putStringSet("enabled_genres", value).apply()
 

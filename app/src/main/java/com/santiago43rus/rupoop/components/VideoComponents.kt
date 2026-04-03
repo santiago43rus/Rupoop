@@ -164,8 +164,17 @@ fun VideoDetails(
     onAddToPlaylist: () -> Unit,
     onDownload: () -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Column(Modifier.padding(12.dp)) {
-        Text(video?.title ?: "", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = video?.title ?: "",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            maxLines = if (expanded) Int.MAX_VALUE else 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clickable { expanded = !expanded }
+        )
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(48.dp)) {
             AsyncImage(
@@ -232,4 +241,3 @@ fun VideoListScreen(
         }
     }
 }
-

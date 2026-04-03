@@ -42,7 +42,7 @@ fun SettingsScreen(
 
     val allGenres = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
-        "драма", "документальные", "мультфильмы", "сериалы", "музыка"
+        "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы", "музыка"
     )
     var enabledGenres by remember { mutableStateOf(settingsManager.enabledGenres) }
 

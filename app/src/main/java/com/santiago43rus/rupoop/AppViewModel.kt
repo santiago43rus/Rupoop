@@ -243,7 +243,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val filteredRelated = recommendationEngine.recommendRelated(video, relatedResults)
                     relatedVideos = filteredRelated
 
-                    if (!isExplicitPlaylist && (list == null || list == homeVideos || list == searchResults)) {
+                    if (!isExplicitPlaylist) {
                         currentVideoList = listOf(video) + filteredRelated
                         currentVideoIndex = 0
                     }

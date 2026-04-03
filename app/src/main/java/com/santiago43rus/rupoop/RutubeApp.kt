@@ -108,6 +108,7 @@ fun RutubeApp(
     val homeListState = rememberLazyListState()
     val subsListState = rememberLazyListState()
     val libListState = rememberLazyListState()
+    val relatedListState = rememberLazyListState()
 
     // Pause on background
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -167,7 +168,9 @@ fun RutubeApp(
         Scaffold(
             topBar = {
                 if (vm.playerState != PlayerState.FULL && !vm.isFullscreenVideo) {
-                    AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher)
+                    AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
+                        scope.launch { homeListState.scrollToItem(0) }
+                    })
                 }
             },
             bottomBar = {
@@ -325,11 +328,18 @@ fun RutubeApp(
                     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
                         LazyColumn {
                             items(vm.searchSuggestions) { suggestion ->
-                                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Search, null, tint = Color.Gray)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Search, null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(16.dp))
-                                    Text(suggestion, Modifier.weight(1f).clickable { focusManager.clearFocus(); vm.performSearch(suggestion) })
-                                    IconButton(onClick = { vm.updateSearchQuery(suggestion) }) {
+                                    Text(suggestion, Modifier.weight(1f).clickable {
+                                        focusManager.clearFocus()
+                                        vm.performSearch(suggestion)
+                                        scope.launch { homeListState.scrollToItem(0) }
+                                    })
+                                    IconButton(onClick = { vm.searchQuery = suggestion }, modifier = Modifier.size(24.dp)) {
                                         Icon(Icons.Default.NorthWest, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
                                     }
                                 }
@@ -340,11 +350,21 @@ fun RutubeApp(
                     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
                         LazyColumn {
                             items(vm.userRegistry.searchHistory) { query ->
-                                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.History, null, tint = Color.Gray)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.History, null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(16.dp))
-                                    Text(query, Modifier.weight(1f).clickable { focusManager.clearFocus(); vm.performSearch(query) })
-                                    IconButton(onClick = { vm.removeSearchQuery(query) }) {
+                                    Text(query, Modifier.weight(1f).clickable {
+                                        focusManager.clearFocus()
+                                        vm.performSearch(query)
+                                        scope.launch { homeListState.scrollToItem(0) }
+                                    })
+                                    IconButton(
+                                        onClick = { vm.removeSearchQuery(query) },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
                                         Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
                                     }
                                 }
@@ -385,7 +405,10 @@ fun RutubeApp(
                                     onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
                                 )
                                 if (!vm.isFullscreenVideo) {
-                                    LazyColumn(Modifier.weight(1f)) {
+                                    LaunchedEffect(vm.currentVideo) {
+                                        relatedListState.scrollToItem(0)
+                                    }
+                                    LazyColumn(Modifier.weight(1f), state = relatedListState) {
                                         item {
                                             VideoDetails(
                                                 vm.currentVideo, vm.userRegistry,
@@ -451,7 +474,8 @@ fun RutubeApp(
 private fun AppTopBar(
     vm: AppViewModel,
     focusManager: androidx.compose.ui.focus.FocusManager,
-    authLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
+    authLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
+    onSearch: () -> Unit
 ) {
     val context = LocalContext.current
     var isListening by remember { mutableStateOf(false) }
@@ -577,7 +601,11 @@ private fun AppTopBar(
                             placeholder = { Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus(); vm.performSearch(vm.searchQuery) }),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                focusManager.clearFocus()
+                                vm.performSearch(vm.searchQuery)
+                                onSearch()
+                            }),
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent,
@@ -683,8 +711,16 @@ private fun AppTopBar(
 // Search overlay
 @Composable
 private fun SearchOverlay(vm: AppViewModel) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(vm.searchResults) {
+        if (vm.searchResults.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState) {
             items(vm.searchResults) { video ->
                 val history = vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
                 VideoItem(video, history,
