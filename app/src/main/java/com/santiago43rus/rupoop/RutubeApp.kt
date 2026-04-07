@@ -1,5 +1,18 @@
 package com.santiago43rus.rupoop
 
+import android.app.Application
+import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import androidx.activity.result.ActivityResultLauncher
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.ui.focus.FocusManager
+import androidx.core.content.ContextCompat
+import com.santiago43rus.rupoop.service.DownloadService
+import kotlinx.coroutines.delay
+import java.io.File
+import kotlin.compareTo
+import kotlin.text.toInt
+
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
@@ -93,10 +106,10 @@ fun RutubeApp(
     val context = LocalContext.current
     LaunchedEffect(vm.isFullscreenVideo) {
         if (vm.isFullscreenVideo) {
-            setScreenOrientation(context, android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
             context.findActivity()?.let { hideSystemBars(it) }
         } else {
-            setScreenOrientation(context, android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
             context.findActivity()?.let { showSystemBars(it) }
         }
     }
@@ -257,7 +270,7 @@ fun RutubeApp(
                 }
             }
         ) { padding ->
-            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Box(modifier = Modifier.fillMaxSize().padding(if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) PaddingValues(0.dp) else padding)) {
                 // Main content by nav with animated transitions
                 AnimatedContent(
                     targetState = vm.currentNav,
@@ -329,18 +342,32 @@ fun RutubeApp(
                         LazyColumn {
                             items(vm.searchSuggestions) { suggestion ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 11.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Search, null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                                    Icon(
+                                        Icons.Default.Search,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(22.dp)
+                                    )
                                     Spacer(Modifier.width(16.dp))
                                     Text(suggestion, Modifier.weight(1f).clickable {
                                         focusManager.clearFocus()
                                         vm.performSearch(suggestion)
                                         scope.launch { homeListState.scrollToItem(0) }
-                                    })
-                                    IconButton(onClick = { vm.searchQuery = suggestion }, modifier = Modifier.size(24.dp)) {
-                                        Icon(Icons.Default.NorthWest, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                                    }, fontSize = 22.sp)
+                                    IconButton(
+                                        onClick = { vm.searchQuery = suggestion },
+                                        modifier = Modifier.size(26.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.NorthWest,
+                                            null,
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(22.dp)
+                                        )
                                     }
                                 }
                             }
@@ -351,21 +378,32 @@ fun RutubeApp(
                         LazyColumn {
                             items(vm.userRegistry.searchHistory) { query ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 11.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.History, null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                                    Icon(
+                                        Icons.Default.History,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(22.dp)
+                                    )
                                     Spacer(Modifier.width(16.dp))
                                     Text(query, Modifier.weight(1f).clickable {
                                         focusManager.clearFocus()
                                         vm.performSearch(query)
                                         scope.launch { homeListState.scrollToItem(0) }
-                                    })
+                                    }, fontSize = 20.sp)
                                     IconButton(
                                         onClick = { vm.removeSearchQuery(query) },
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(26.dp)
                                     ) {
-                                        Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                                        Icon(
+                                            Icons.Default.Close,
+                                            null,
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(22.dp)
+                                        )
                                     }
                                 }
                             }
@@ -391,7 +429,7 @@ fun RutubeApp(
                         animationSpec = spring(stiffness = Spring.StiffnessLow),
                         label = "playerAnimation"
                     )
-                    Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(playerHeight).background(MaterialTheme.colorScheme.background)) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().then(if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) Modifier.fillMaxSize() else Modifier.height(playerHeight)).background(MaterialTheme.colorScheme.background)) {
                         if (vm.playerState == PlayerState.FULL) {
                             Column {
                                 CustomVideoPlayer(
@@ -423,11 +461,18 @@ fun RutubeApp(
                                             Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
                                         }
                                         items(vm.relatedVideos) { video ->
-                                            val history = vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                                            VideoItem(video, history,
+                                            val history =
+                                                vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                                            VideoItem(
+                                                video, history,
                                                 onClick = { vm.playVideo(video, vm.relatedVideos) },
                                                 onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                                                onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
+                                                onMoreClick = { action ->
+                                                    vm.handleVideoMoreAction(
+                                                        video,
+                                                        action
+                                                    )
+                                                }
                                             )
                                         }
                                     }
@@ -473,8 +518,8 @@ fun RutubeApp(
 @Composable
 private fun AppTopBar(
     vm: AppViewModel,
-    focusManager: androidx.compose.ui.focus.FocusManager,
-    authLauncher: androidx.activity.result.ActivityResultLauncher<Intent>,
+    focusManager: FocusManager,
+    authLauncher: ActivityResultLauncher<Intent>,
     onSearch: () -> Unit
 ) {
     val context = LocalContext.current
@@ -544,11 +589,7 @@ private fun AppTopBar(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (topVisible != null || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME) {
                         IconButton(onClick = {
-                            if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                            else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = "" }
-                            else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                            else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                            else { vm.currentNav = NavItem.HOME; vm.searchQuery = "" }
+                            vm.handleBack()
                         }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                     }
                     Icon(Icons.Default.PlayCircleFilled, null, tint = Color(0xFFE53935), modifier = Modifier.size(32.dp))
@@ -620,7 +661,7 @@ private fun AppTopBar(
                                             Icon(Icons.Default.Close, "Очистить", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                         }
                                         IconButton(onClick = {
-                                            if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                                                 startVoiceInput()
                                             } else {
                                                 micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -635,7 +676,7 @@ private fun AppTopBar(
                                     }
                                 } else {
                                     IconButton(onClick = {
-                                        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                                             startVoiceInput()
                                         } else {
                                             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -663,7 +704,7 @@ private fun AppTopBar(
                 if (topVisible == null && vm.currentLibSub == LibrarySubScreen.NONE && !vm.isSettingsVisible) {
                     IconButton(onClick = { vm.isSearchExpanded = true }) { Icon(Icons.Default.Search, null) }
                     IconButton(onClick = {
-                        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                             startVoiceInput()
                         } else {
                             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -722,8 +763,10 @@ private fun SearchOverlay(vm: AppViewModel) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         LazyColumn(Modifier.fillMaxSize(), state = listState) {
             items(vm.searchResults) { video ->
-                val history = vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                VideoItem(video, history,
+                val history =
+                    vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                VideoItem(
+                    video, history,
                     onClick = { vm.playVideo(video, vm.searchResults) },
                     onAuthorClick = { vm.loadAuthorVideos(it, false) },
                     onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
@@ -775,8 +818,19 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                     SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl), duration = (item.totalDuration / 1000).toInt())
                 }
                 items(vm.userRegistry.watchHistory) { item ->
-                    val video = SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl), duration = (item.totalDuration / 1000).toInt())
-                    VideoItem(video, item,
+                    val video = SearchResult(
+                        videoUrl = item.videoUrl,
+                        title = item.title ?: "",
+                        thumbnailUrl = item.thumbnailUrl,
+                        author = Author(
+                            id = item.authorId,
+                            name = item.authorName ?: "",
+                            avatarUrl = item.authorAvatarUrl
+                        ),
+                        duration = (item.totalDuration / 1000).toInt()
+                    )
+                    VideoItem(
+                        video, item,
                         onClick = { vm.playVideo(video, historyVideos) },
                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
                         onMoreClick = { action ->
@@ -796,7 +850,11 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
         LibrarySubScreen.PLAYLISTS -> {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(vm.userRegistry.playlists) { playlist ->
-                    LibraryRow(Icons.AutoMirrored.Filled.PlaylistPlay, playlist.name, playlist.videos.size.toString(), onAction = { vm.deletePlaylist(playlist.id) }) {
+                    LibraryRow(
+                        Icons.AutoMirrored.Filled.PlaylistPlay,
+                        playlist.name,
+                        playlist.videos.size.toString(),
+                        onAction = { vm.deletePlaylist(playlist.id) }) {
                         vm.selectedPlaylist = playlist
                         vm.currentLibSub = LibrarySubScreen.PLAYLIST_DETAIL
                     }
@@ -818,32 +876,32 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
             // Periodically refresh download state from disk
             LaunchedEffect(Unit) {
                 while (true) {
-                    kotlinx.coroutines.delay(1000)
+                    delay(1000)
                     vm.downloadTracker.refresh()
                 }
             }
             DownloadsScreen(
                 downloads = downloads,
                 onPause = { videoId ->
-                    val intent = Intent(vm.getApplication(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                    val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
                         action = "PAUSE"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    vm.getApplication<android.app.Application>().startForegroundService(intent)
+                    vm.getApplication<Application>().startForegroundService(intent)
                 },
                 onResume = { videoId ->
-                    val intent = Intent(vm.getApplication(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                    val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
                         action = "RESUME"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    vm.getApplication<android.app.Application>().startForegroundService(intent)
+                    vm.getApplication<Application>().startForegroundService(intent)
                 },
                 onCancel = { videoId ->
-                    val intent = Intent(vm.getApplication(), com.santiago43rus.rupoop.service.DownloadService::class.java).apply {
+                    val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
                         action = "CANCEL"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    vm.getApplication<android.app.Application>().startForegroundService(intent)
+                    vm.getApplication<Application>().startForegroundService(intent)
                 },
                 onDelete = { videoId -> vm.downloadTracker.removeDownload(videoId) },
                 onRetry = { videoId ->
@@ -855,7 +913,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 },
                 onPlay = { item ->
                     item.filePath?.let { path ->
-                        val file = java.io.File(path)
+                        val file = File(path)
                         if (file.exists()) {
                             vm.playLocalFile(path, item.title)
                         }

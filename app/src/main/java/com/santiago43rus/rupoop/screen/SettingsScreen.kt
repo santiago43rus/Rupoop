@@ -108,6 +108,21 @@ fun SettingsScreen(
                     )
                 }
             )
+
+            var doubleTapSeek by remember { mutableIntStateOf(settingsManager.doubleTapSeekDuration) }
+            Text("Время перемотки (двойное касание)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(5, 10, 15, 20, 30).forEach { seconds ->
+                    FilterChip(
+                        selected = doubleTapSeek == seconds,
+                        onClick = {
+                            doubleTapSeek = seconds
+                            settingsManager.doubleTapSeekDuration = seconds
+                        },
+                        label = { Text("${seconds}с") }
+                    )
+                }
+            }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // ── Жанры ──

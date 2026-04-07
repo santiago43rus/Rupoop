@@ -35,7 +35,6 @@ fun setScreenOrientation(context: Context, orientation: Int) {
 }
 
 fun hideSystemBars(activity: Activity) {
-    WindowCompat.setDecorFitsSystemWindows(activity.window, false)
     WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
         hide(WindowInsetsCompat.Type.systemBars())
         systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -43,7 +42,6 @@ fun hideSystemBars(activity: Activity) {
 }
 
 fun showSystemBars(activity: Activity) {
-    WindowCompat.setDecorFitsSystemWindows(activity.window, true)
     WindowInsetsControllerCompat(activity.window, activity.window.decorView).show(WindowInsetsCompat.Type.systemBars())
 }
 

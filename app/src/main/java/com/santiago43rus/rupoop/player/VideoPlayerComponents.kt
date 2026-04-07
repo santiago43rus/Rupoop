@@ -4,9 +4,11 @@ package com.santiago43rus.rupoop.player
 
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -24,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
@@ -31,6 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -68,6 +74,24 @@ fun CustomVideoPlayer(
     var isSeeking by remember { mutableStateOf(false) }
     var isFastForwarding by remember { mutableStateOf(false) }
     var showMoreVideos by remember { mutableStateOf(false) }
+    var seekDirection by remember { mutableIntStateOf(0) }
+    var showSeekAnimation by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val settingsManager = remember { com.santiago43rus.rupoop.data.SettingsManager(context) }
+
+    LaunchedEffect(showSeekAnimation) {
+        if (showSeekAnimation) {
+            delay(500)
+            showSeekAnimation = false
+        }
+    }
+
+    LaunchedEffect(showControls, isPlaying, isSeeking) {
+        if (showControls && isPlaying && !isSeeking) {
+            delay(3500)
+            showControls = false
+        }
+    }
 
     LaunchedEffect(exoPlayer) {
         exoPlayer.setSeekParameters(SeekParameters.CLOSEST_SYNC)
@@ -120,10 +144,18 @@ fun CustomVideoPlayer(
                 detectTapGestures(
                     onTap = { showControls = !showControls },
                     onDoubleTap = { offset ->
+                        showSeekAnimation = true
+                        val seekAmount = settingsManager.doubleTapSeekDuration * 1000L
                         if (offset.x < size.width / 2) {
-                            exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
+                            seekDirection = -1
+                            val target = (exoPlayer.currentPosition - seekAmount).coerceAtLeast(0)
+                            currentTime = target
+                            exoPlayer.seekTo(target)
                         } else {
-                            exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration))
+                            seekDirection = 1
+                            val target = (exoPlayer.currentPosition + seekAmount).coerceAtMost(exoPlayer.duration)
+                            currentTime = target
+                            exoPlayer.seekTo(target)
                         }
                     },
                     onLongPress = {
@@ -171,20 +203,71 @@ fun CustomVideoPlayer(
             }
         }
 
+        // Double tap seek animation overlays
+        if (showSeekAnimation) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AnimatedVisibility(
+                    visible = seekDirection == -1,
+                    enter = fadeIn(tween(200)),
+                    exit = fadeOut(tween(300)),
+                    modifier = Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(0.35f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(topEndPercent = 100, bottomEndPercent = 100))
+                            .background(Color.White.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.FastRewind, null, tint = Color.White, modifier = Modifier.size(36.dp))
+                            Text("-10 сек", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                        }
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = seekDirection == 1,
+                    enter = fadeIn(tween(200)),
+                    exit = fadeOut(tween(300)),
+                    modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.35f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(topStartPercent = 100, bottomStartPercent = 100))
+                            .background(Color.White.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(36.dp))
+                            Text("+10 сек", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                        }
+                    }
+                }
+            }
+        }
+
         // Controls Overlay
-        if ((showControls || isSeeking) && !showMoreVideos) {
+        AnimatedVisibility(
+            visible = (showControls || isSeeking) && !showMoreVideos,
+            enter = fadeIn(animationSpec = tween(300)),
+            exit = fadeOut(animationSpec = tween(300)),
+            modifier = Modifier.fillMaxSize()
+        ) {
             Box(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
                     .background(if (isSeeking) Color.Transparent else Color.Black.copy(alpha = 0.4f))
+                    .then(if (isFullscreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier)
             ) {
                 if (!isSeeking) {
                     // Top bar
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .then(if (isFullscreen) Modifier.statusBarsPadding() else Modifier)
-                            .padding(8.dp), 
-                        Arrangement.SpaceBetween, 
+                            .padding(start = if (isFullscreen) 14.dp else 8.dp, end = if (isFullscreen) 20.dp else 4.dp, top = 8.dp, bottom = 8.dp),
+                        Arrangement.SpaceBetween,
                         Alignment.CenterVertically
                     ) {
                         IconButton(onClick = { if (isFullscreen) onToggleFullscreen() else onMinimize() }) {
@@ -203,7 +286,7 @@ fun CustomVideoPlayer(
 
                     // Center controls
                     if (!isBuffering) {
-                        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.align(Alignment.Center).padding(horizontal = if (isFullscreen) 32.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = onPrevious,
                                 enabled = !isFirstVideo
@@ -212,12 +295,12 @@ fun CustomVideoPlayer(
                                     Icons.Default.SkipPrevious, 
                                     null, 
                                     tint = if (isFirstVideo) Color.Gray else Color.White, 
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier.size(52.dp)
                                 )
                             }
                             Spacer(Modifier.width(32.dp))
                             IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
-                                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(64.dp))
+                                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(70.dp))
                             }
                             Spacer(Modifier.width(32.dp))
                             IconButton(
@@ -228,7 +311,7 @@ fun CustomVideoPlayer(
                                     Icons.Default.SkipNext, 
                                     null, 
                                     tint = if (isLastVideo) Color.Gray else Color.White, 
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier.size(52.dp)
                                 )
                             }
                         }
@@ -239,8 +322,8 @@ fun CustomVideoPlayer(
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .then(if (isFullscreen) Modifier.navigationBarsPadding() else Modifier)
-                        .padding(bottom = if (isFullscreen) 12.dp else 4.dp)
+                        .padding(bottom = if (isFullscreen) 16.dp else 4.dp)
+                        .padding(start = if (isFullscreen) 22.dp else 16.dp, end = if (isFullscreen) 32.dp else 16.dp)
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -263,8 +346,7 @@ fun CustomVideoPlayer(
 
                     Row(
                         Modifier
-                            .fillMaxWidth(if (isFullscreen) 0.9f else 1f)
-                            .padding(horizontal = if (isFullscreen) 0.dp else 16.dp)
+                            .fillMaxWidth()
                             .offset(y = 12.dp),
                         Arrangement.SpaceBetween,
                         Alignment.CenterVertically
@@ -298,7 +380,7 @@ fun CustomVideoPlayer(
                             draggingPos = null 
                         },
                         modifier = Modifier
-                            .fillMaxWidth(if (isFullscreen) 0.9f else 1f)
+                            .fillMaxWidth()
                             .height(32.dp),
                         colors = SliderDefaults.colors(
                             thumbColor = Color.Red,
@@ -338,11 +420,11 @@ fun CustomVideoPlayer(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(0.9f))
-                    .padding(16.dp)
+                    .padding(top = 16.dp, bottom = 16.dp)
             ) {
                 Column {
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier.fillMaxWidth().padding(start = if (isFullscreen) 48.dp else 16.dp, end = if (isFullscreen) 20.dp else 4.dp),
                         Arrangement.SpaceBetween,
                         Alignment.CenterVertically
                     ) {
@@ -353,7 +435,7 @@ fun CustomVideoPlayer(
                     }
                     
                     // Filter Chips (as in screenshot)
-                    Row(Modifier.padding(vertical = 8.dp)) {
+                    Row(Modifier.padding(vertical = 8.dp).padding(start = if (isFullscreen) 48.dp else 16.dp, end = if (isFullscreen) 32.dp else 16.dp)) {
                         FilterChip(selected = true, onClick = {}, label = { Text("Все видео") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedContainerColor = Color.White.copy(0.2f)))
                         Spacer(Modifier.width(8.dp))
                         FilterChip(selected = false, onClick = {}, label = { Text("Автор: ${currentVideo?.author?.name ?: "Автор"}") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White))
@@ -361,7 +443,8 @@ fun CustomVideoPlayer(
 
                     LazyRow(
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(start = if (isFullscreen) 48.dp else 16.dp, end = if (isFullscreen) 32.dp else 16.dp)
                     ) {
                         items(relatedVideos) { video ->
                             Column(
@@ -481,7 +564,7 @@ fun <T> OptionSelectionDialog(title: String, options: List<T>, currentValue: T, 
 @OptIn(UnstableApi::class)
 @Composable
 fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, onClose: () -> Unit, onClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().height(64.dp).background(MaterialTheme.colorScheme.surfaceVariant).clickable { onClick() }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = Modifier.fillMaxWidth().height(64.dp).background(MaterialTheme.colorScheme.surfaceVariant).clickable { onClick() }.pointerInput(Unit) { detectVerticalDragGestures { _, dragAmount -> if (dragAmount < -20f) onClick() } }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(100.dp, 56.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black)) {
             AndroidView(factory = { context -> PlayerView(context).apply { player = exoPlayer; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM } }, modifier = Modifier.fillMaxSize())
         }

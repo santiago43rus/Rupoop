@@ -50,6 +50,10 @@ class SettingsManager(context: Context) {
         get() = prefs.getBoolean("auto_play_next", true)
         set(value) = prefs.edit().putBoolean("auto_play_next", value).apply()
 
+    var doubleTapSeekDuration: Int
+        get() = prefs.getInt("double_tap_seek", 10)
+        set(value) = prefs.edit().putInt("double_tap_seek", value).apply()
+
     // Sub-genre categories stored as comma-separated string
     var enabledGenres: Set<String>
         get() = prefs.getStringSet("enabled_genres", null) ?: setOf(
