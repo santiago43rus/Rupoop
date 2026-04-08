@@ -444,7 +444,7 @@ fun RutubeApp(
                                     onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
                                     onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
                                     isFirstVideo = vm.currentVideoIndex <= 0,
-                                    isLastVideo = vm.currentVideoIndex >= vm.currentVideoList.size - 1,
+                                    isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
                                     onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
                                 )
                                 if (!vm.isFullscreenVideo) {
@@ -846,7 +846,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                     )
                     VideoItem(
                         video, item,
-                        onClick = { vm.playVideo(video, historyVideos) },
+                        onClick = { vm.playVideo(video, historyVideos, false) },
                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
                         onMoreClick = { action ->
                             when (action) {
@@ -860,8 +860,8 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 }
             }
         }
-        LibrarySubScreen.LIKED -> VideoListScreen(vm.userRegistry.likedVideos, { v -> vm.playVideo(v, vm.userRegistry.likedVideos) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleLike(video) }, { vm.startDownload(it) })
-        LibrarySubScreen.WATCH_LATER -> VideoListScreen(vm.userRegistry.watchLater, { v -> vm.playVideo(v, vm.userRegistry.watchLater) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleWatchLater(video) }, { vm.startDownload(it) })
+        LibrarySubScreen.LIKED -> VideoListScreen(vm.userRegistry.likedVideos, { v -> vm.playVideo(v, vm.userRegistry.likedVideos, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleLike(video) }, { vm.startDownload(it) })
+        LibrarySubScreen.WATCH_LATER -> VideoListScreen(vm.userRegistry.watchLater, { v -> vm.playVideo(v, vm.userRegistry.watchLater, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleWatchLater(video) }, { vm.startDownload(it) })
         LibrarySubScreen.PLAYLISTS -> {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(vm.userRegistry.playlists) { playlist ->
@@ -879,7 +879,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
         LibrarySubScreen.PLAYLIST_DETAIL -> {
             VideoListScreen(
                 vm.selectedPlaylist?.videos ?: emptyList(),
-                { v -> vm.playVideo(v, vm.selectedPlaylist?.videos) },
+                { v -> vm.playVideo(v, vm.selectedPlaylist?.videos, true) },
                 { vm.loadAuthorVideos(it, false) },
                 { vm.shareVideo(it) },
                 { video -> vm.selectedPlaylist?.let { vm.removeFromPlaylist(it.id, video.videoUrl) } },
@@ -930,7 +930,8 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                     item.filePath?.let { path ->
                         val file = File(path)
                         if (file.exists()) {
-                            vm.playLocalFile(path, item.title)
+                            val list = downloads.map { SearchResult(videoUrl = it.filePath ?: "", title = it.title, thumbnailUrl = it.thumbnailUrl) }
+                            vm.playLocalFile(path, item.title, list, true)
                         }
                     }
                 }

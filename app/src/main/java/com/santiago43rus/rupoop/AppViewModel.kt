@@ -60,6 +60,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Playback queue ──
     var currentVideoList by mutableStateOf<List<SearchResult>>(emptyList())
     var currentVideoIndex by mutableIntStateOf(-1)
+    var isPlaylistMode by mutableStateOf(false)
 
     // ── Player state ──
     var playerState by mutableStateOf(PlayerState.CLOSED)
@@ -176,18 +177,43 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Play video ──
-    fun playVideo(video: SearchResult, list: List<SearchResult>?) {
+    fun playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
         videoLoadingJob?.cancel()
 
-        val isExplicitPlaylist = currentLibSub != LibrarySubScreen.NONE
-
-        val existingIndex = currentVideoList.indexOfFirst { it.videoUrl == video.videoUrl }
-        if (existingIndex != -1 && (list == relatedVideos || list == null)) {
-            currentVideoIndex = existingIndex
+        if (isPlaylist && list != null) {
+            isPlaylistMode = true
+            currentVideoList = list
+            currentVideoIndex = list.indexOfFirst { it.videoUrl == video.videoUrl }.takeIf { it >= 0 } ?: 0
         } else {
-            val effectiveList = list ?: listOf(video)
-            currentVideoList = effectiveList
-            currentVideoIndex = effectiveList.indexOfFirst { it.videoUrl == video.videoUrl }
+            // Default mode (history navigation)
+            if (!isPlaylistMode) {
+                // We are already in default mode
+                if (list == relatedVideos || list == currentVideoList) {
+                    // Clicked a related video or a video in the current dynamic history
+                    val existingIndex = currentVideoList.indexOfFirst { it.videoUrl == video.videoUrl }
+                    if (existingIndex != -1 && list == currentVideoList) {
+                        currentVideoIndex = existingIndex
+                    } else {
+                        // Truncate history after current index and add new video
+                        val newHistory = if (currentVideoIndex >= 0) {
+                            currentVideoList.take(currentVideoIndex + 1).toMutableList()
+                        } else mutableListOf()
+                        newHistory.add(video)
+                        currentVideoList = newHistory
+                        currentVideoIndex = newHistory.size - 1
+                    }
+                } else {
+                    // Clicked a video from Home, Search, History, etc.
+                    isPlaylistMode = false
+                    currentVideoList = listOf(video)
+                    currentVideoIndex = 0
+                }
+            } else {
+                // Switching from playlist mode to default mode (e.g. clicked related video)
+                isPlaylistMode = false
+                currentVideoList = listOf(video)
+                currentVideoIndex = 0
+            }
         }
 
         currentVideo = video
@@ -243,9 +269,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val filteredRelated = recommendationEngine.recommendRelated(video, relatedResults)
                     relatedVideos = filteredRelated
 
-                    if (!isExplicitPlaylist) {
-                        currentVideoList = listOf(video) + filteredRelated
-                        currentVideoIndex = 0
+                    if (!isPlaylistMode) {
+                        currentVideoList = currentVideoList.take(currentVideoIndex + 1) + filteredRelated
                     }
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Play error", e)
@@ -255,25 +280,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playNext() {
-        if (currentVideoIndex < currentVideoList.size - 1) {
-            playVideo(currentVideoList[currentVideoIndex + 1], currentVideoList)
+        if (isPlaylistMode) {
+            if (currentVideoIndex < currentVideoList.size - 1) {
+                playVideo(currentVideoList[currentVideoIndex + 1], currentVideoList, true)
+            }
+        } else {
+            if (currentVideoIndex < currentVideoList.size - 1) {
+                playVideo(currentVideoList[currentVideoIndex + 1], currentVideoList, false)
+            } else if (relatedVideos.isNotEmpty()) {
+                playVideo(relatedVideos.first(), relatedVideos, false)
+            }
         }
     }
 
     fun playPrevious() {
         if (currentVideoIndex > 0) {
-            playVideo(currentVideoList[currentVideoIndex - 1], currentVideoList)
+            playVideo(currentVideoList[currentVideoIndex - 1], currentVideoList, isPlaylistMode)
         }
     }
 
     // ── Play local file ──
-    fun playLocalFile(filePath: String, title: String) {
+    fun playLocalFile(filePath: String, title: String, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
         videoLoadingJob?.cancel()
         val file = java.io.File(filePath)
         if (!file.exists()) return
-        currentVideo = SearchResult(videoUrl = filePath, title = title)
-        currentVideoList = listOf(currentVideo!!)
-        currentVideoIndex = 0
+        
+        val video = SearchResult(videoUrl = filePath, title = title)
+        currentVideo = video
+        if (isPlaylist && list != null) {
+            isPlaylistMode = true
+            currentVideoList = list
+            currentVideoIndex = list.indexOfFirst { it.videoUrl == filePath }.takeIf { it >= 0 } ?: 0
+        } else {
+            isPlaylistMode = false
+            currentVideoList = listOf(video)
+            currentVideoIndex = 0
+        }
         relatedVideos = emptyList()
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
@@ -616,7 +658,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         userRegistry = registryManager.registry
         pushToGitHub()
         viewModelScope.launch {
-            _snackbarMessage.emit(if (added) "Добавлено в Понравившиеся" else "Удалено из Понравившихся")
+            _snackbarMessage.emit(if (added) "Добавлено in Понравившиеся" else "Удалено из Понравившихся")
         }
     }
 
@@ -626,7 +668,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         userRegistry = registryManager.registry
         pushToGitHub()
         viewModelScope.launch {
-            _snackbarMessage.emit(if (added) "Добавлено в Смотреть позже" else "Удалено из Смотреть позже")
+            _snackbarMessage.emit(if (added) "Добавлено in Смотреть позже" else "Удалено из Смотреть позже")
         }
     }
 
@@ -637,7 +679,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         showPlaylistDialog = null
         pushToGitHub()
         viewModelScope.launch {
-            _snackbarMessage.emit("Добавлено в $name")
+            _snackbarMessage.emit("Добавлено in $name")
         }
     }
 
