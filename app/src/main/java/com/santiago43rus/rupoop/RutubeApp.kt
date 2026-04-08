@@ -87,8 +87,13 @@ fun RutubeApp(
 
     // Collect snackbar events from ViewModel
     LaunchedEffect(Unit) {
+        var snackbarJob: kotlinx.coroutines.Job? = null
         vm.snackbarMessage.collect { message ->
-            snackbarHostState.showSnackbar(message)
+            snackbarJob?.cancel()
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarJob = scope.launch {
+                snackbarHostState.showSnackbar(message)
+            }
         }
     }
 
@@ -493,21 +498,31 @@ fun RutubeApp(
                         onCreateNew = { name -> vm.createPlaylistAndAdd(name, video) }
                     )
                 }
-            }
+            } // Closes Scaffold
 
-            // Custom Overlay Snackbar to float above player and UI
-            SnackbarHost(
-                hostState = snackbarHostState,
+            // Custom Overlay Snackbar to float above player and UI outside Scaffold, in the root Box
+            Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = if (vm.playerState != PlayerState.CLOSED && !vm.isFullscreenVideo) 100.dp else 24.dp)
-                    .then(if (!vm.isFullscreenVideo) Modifier.navigationBarsPadding() else Modifier)
-            ) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = Color.Black.copy(alpha = 0.85f),
-                    contentColor = Color.White
-                )
+                    .fillMaxSize()
+                    .padding(bottom = if (vm.isFullscreenVideo) 24.dp else if (vm.playerState == PlayerState.FULL) 24.dp else if (vm.playerState == PlayerState.MINI) 134.dp else 74.dp)
+                    .padding(horizontal = if (vm.isFullscreenVideo) 24.dp else 16.dp)
+                    .then(if (!vm.isFullscreenVideo) Modifier.navigationBarsPadding() else Modifier),
+                contentAlignment = if (vm.isFullscreenVideo) Alignment.BottomStart else Alignment.BottomCenter
+            ) {
+                SnackbarHost(
+                    hostState = snackbarHostState
+                ) { data ->
+                    Snackbar(
+                        modifier = Modifier.widthIn(max = 400.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        actionColor = MaterialTheme.colorScheme.primary,
+                        actionContentColor = MaterialTheme.colorScheme.primary,
+                        dismissActionContentColor = MaterialTheme.colorScheme.onSurface,
+                        snackbarData = data
+                    )
+                }
             }
         }
     }
