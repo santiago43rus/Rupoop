@@ -28,7 +28,9 @@ data class SearchResult(
     val author: Author? = null,
     val duration: Int? = null,
     val tags: List<String>? = emptyList(),
-    @SerialName("created_ts") val createdTs: String? = null
+    @SerialName("created_ts") val createdTs: String? = null,
+    @SerialName("publication_ts") val publicationTs: String? = null,
+    val hits: Int? = null
 )
 
 @Serializable

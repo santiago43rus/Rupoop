@@ -4,6 +4,7 @@ package com.santiago43rus.rupoop.player
 
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,8 +46,13 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import com.santiago43rus.rupoop.data.SearchResult
+import com.santiago43rus.rupoop.util.formatTimeAgo
+import com.santiago43rus.rupoop.util.formatViewCount
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import java.util.Locale
 
 
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
@@ -490,7 +496,15 @@ fun CustomVideoPlayer(
                                     Spacer(Modifier.width(8.dp))
                                     Column {
                                         Text(video.title, color = Color.White, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                                        Text("${video.author?.name} • Rutube", color = Color.White.copy(0.6f), fontSize = 12.sp)
+                                        val viewsText = formatViewCount(video.hits)
+                                        val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
+                                        val metaText = buildString {
+                                            append(video.author?.name ?: "Автор")
+                                            append(" • Rutube")
+                                            if (viewsText.isNotEmpty()) append(" • $viewsText")
+                                            if (timeAgoText.isNotEmpty()) append(" • $timeAgoText")
+                                        }
+                                        Text(metaText, color = Color.White.copy(0.6f), fontSize = 12.sp)
                                     }
                                 }
                             }
@@ -522,7 +536,7 @@ fun SettingsDialog(exoPlayer: ExoPlayer, currentQuality: String, onQualitySelect
         }
     }
     if (showQuality) {
-        OptionSelectionDialog("Качество", listOf("Авто", "1080p", "720p", "480p", "360p"), currentQuality, { it ->
+        OptionSelectionDialog("Качество", listOf("Авто", "1080p", "720p", "480p", "360p"), currentQuality, {
             onQualitySelected(it)
             val params = exoPlayer.trackSelectionParameters.buildUpon()
             when(it) {
@@ -533,13 +547,15 @@ fun SettingsDialog(exoPlayer: ExoPlayer, currentQuality: String, onQualitySelect
                 else -> params.clearVideoSizeConstraints().setForceHighestSupportedBitrate(false)
             }
             exoPlayer.trackSelectionParameters = params.build()
-            showQuality = false; onDismiss()
+            showQuality = false
+            onDismiss()
         }, { showQuality = false })
     }
     if (showSpeed) {
         OptionSelectionDialog("Скорость", listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f), exoPlayer.playbackParameters.speed, { speed ->
             exoPlayer.playbackParameters = PlaybackParameters(speed)
-            showSpeed = false; onDismiss()
+            showSpeed = false
+            onDismiss()
         }, { showSpeed = false })
     }
 }
@@ -564,7 +580,35 @@ fun <T> OptionSelectionDialog(title: String, options: List<T>, currentValue: T, 
 @OptIn(UnstableApi::class)
 @Composable
 fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, onClose: () -> Unit, onClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().height(64.dp).background(MaterialTheme.colorScheme.surfaceVariant).clickable { onClick() }.pointerInput(Unit) { detectVerticalDragGestures { _, dragAmount -> if (dragAmount < -20f) onClick() } }.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    var offsetY by remember { mutableStateOf(0f) }
+    val animatedOffsetY by animateFloatAsState(targetValue = offsetY, label = "offsetY")
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .offset { IntOffset(0, animatedOffsetY.roundToInt()) }
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick() }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (offsetY > 100f) onClose() else offsetY = 0f
+                    },
+                    onDragCancel = {
+                        offsetY = 0f
+                    }
+                ) { _, dragAmount ->
+                    if (dragAmount < -10f && offsetY <= 0f) {
+                        onClick()
+                    } else {
+                        offsetY = (offsetY + dragAmount).coerceAtLeast(0f)
+                    }
+                }
+            }
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(modifier = Modifier.size(100.dp, 56.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black)) {
             AndroidView(factory = { context -> PlayerView(context).apply { player = exoPlayer; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM } }, modifier = Modifier.fillMaxSize())
         }
@@ -579,5 +623,5 @@ fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, o
 
 fun formatTime(ms: Long): String {
     val h = TimeUnit.MILLISECONDS.toHours(ms); val m = TimeUnit.MILLISECONDS.toMinutes(ms) % 60; val s = TimeUnit.MILLISECONDS.toSeconds(ms) % 60
-    return if (h > 0) String.format("%02d:%02d:%02d", h, m, s) else String.format("%02d:%02d", m, s)
+    return if (h > 0) String.format(Locale.getDefault(), "%02d:%02d:%02d", h, m, s) else String.format(Locale.getDefault(), "%02d:%02d", m, s)
 }
