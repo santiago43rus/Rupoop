@@ -434,7 +434,7 @@ fun RutubeApp(
                         animationSpec = spring(stiffness = Spring.StiffnessLow),
                         label = "playerAnimation"
                     )
-                    Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().then(if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) Modifier.fillMaxSize() else Modifier.height(playerHeight)).background(MaterialTheme.colorScheme.background)) {
+                    Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().then(if (vm.playerState == PlayerState.FULL) Modifier.fillMaxSize() else Modifier.height(playerHeight)).background(MaterialTheme.colorScheme.background)) {
                         if (vm.playerState == PlayerState.FULL) {
                             Column {
                                 CustomVideoPlayer(

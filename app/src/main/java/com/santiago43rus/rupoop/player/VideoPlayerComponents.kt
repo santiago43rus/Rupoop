@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -82,6 +83,12 @@ fun CustomVideoPlayer(
     var showMoreVideos by remember { mutableStateOf(false) }
     var seekDirection by remember { mutableIntStateOf(0) }
     var showSeekAnimation by remember { mutableStateOf(false) }
+    var moreVideosDragOffset by remember { mutableFloatStateOf(0f) }
+
+    var swipeScale by remember { mutableFloatStateOf(1f) }
+    var swipeOffsetY by remember { mutableFloatStateOf(0f) }
+    var swipeOffsetX by remember { mutableFloatStateOf(0f) }
+
     val context = LocalContext.current
     val settingsManager = remember { com.santiago43rus.rupoop.data.SettingsManager(context) }
 
@@ -113,36 +120,135 @@ fun CustomVideoPlayer(
 
     var selectedQuality by remember { mutableStateOf("Авто") }
 
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val shouldFillMax = isFullscreen && isLandscape
+
     Box(
         modifier = Modifier
-            .then(if (isFullscreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth().aspectRatio(16 / 9f))
+            .fillMaxWidth()
+            .then(if (shouldFillMax) Modifier.fillMaxSize() else Modifier.aspectRatio(16 / 9f))
+            .offset { IntOffset(swipeOffsetX.roundToInt(), swipeOffsetY.roundToInt()) }
+            .graphicsLayer {
+                scaleX = swipeScale
+                scaleY = swipeScale
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, if (shouldFillMax) 0.5f else 0f)
+            }
             .background(Color.Black)
             .pointerInput(isFullscreen) {
                 var totalDragY = 0f
                 var totalDragX = 0f
                 var startY = 0f
+                var isMoreVideosGesture = false
+                var isScreenTransitionGesture = false
+                var wasControlsVisible = false
+                val dragMultiplier = 2.5f // Увеличенная чувствительность
+                val maxDragDistanceVertical = 150f
+                val maxDragDistanceFullScreen = 80f // Укороченные границы для быстрого срабатывания в горизонтальном
+
                 detectDragGestures(
-                    onDragStart = { offset -> startY = offset.y; totalDragY = 0f; totalDragX = 0f },
+                    onDragStart = { offset ->
+                        startY = offset.y
+                        totalDragY = 0f
+                        totalDragX = 0f
+                        isMoreVideosGesture = false
+                        isScreenTransitionGesture = false
+                        wasControlsVisible = showControls
+                        showControls = false // Скрываем элементы на время жеста
+                    },
                     onDrag = { change, dragAmount ->
                         change.consume()
                         totalDragY += dragAmount.y
                         totalDragX += dragAmount.x
-                    },
-                    onDragEnd = {
-                        if (kotlin.math.abs(totalDragY) > kotlin.math.abs(totalDragX)) {
-                            // Vertical swipe dominant
-                            if (totalDragY < -50) { // Swipe Up
-                                if (!isFullscreen) onToggleFullscreen()
-                                else showMoreVideos = true
-                            }
-                            else if (totalDragY > 50) { // Swipe Down
-                                // Ignore swipe down if it starts near the top edge in fullscreen (like pulling status bar)
-                                if (isFullscreen && startY < 100f) return@detectDragGestures
-                                if (showMoreVideos) showMoreVideos = false
-                                else if (isFullscreen) onToggleFullscreen()
-                                else onMinimize()
+
+                        val absY = kotlin.math.abs(totalDragY)
+                        val absX = kotlin.math.abs(totalDragX)
+
+                        // Определяем тип жеста при первом достаточном смещении
+                        if (!isMoreVideosGesture && !isScreenTransitionGesture && absY > 20f && absY > absX) {
+                            if (isFullscreen && totalDragY < 0 && !showMoreVideos) {
+                                isMoreVideosGesture = true
+                            } else if (isFullscreen && totalDragY > 0) {
+                                isScreenTransitionGesture = true
+                            } else if (!isFullscreen && totalDragY < 0) {
+                                isScreenTransitionGesture = true
                             }
                         }
+
+                        if (isMoreVideosGesture) {
+                            if (totalDragY < 0) {
+                                moreVideosDragOffset = totalDragY * 1.25f // Быстрее открывается панель
+                            } else {
+                                moreVideosDragOffset = 0f
+                            }
+                        } else if (isScreenTransitionGesture) {
+                            val activeDrag = if (isFullscreen) totalDragY else -totalDragY
+                            
+                            if (activeDrag > 0) {
+                                val maxDist = if (isFullscreen) maxDragDistanceFullScreen else maxDragDistanceVertical
+                                val boundedDrag = activeDrag.coerceAtMost(maxDist)
+                                val progress = boundedDrag / maxDist
+
+                                if (isFullscreen) {
+                                    // В горизонтальном (свайп вниз) -> уменьшение
+                                    swipeScale = 1f - (0.2f * progress)
+                                    swipeOffsetX = 0f
+                                    swipeOffsetY = boundedDrag * dragMultiplier * 0.4f
+                                } else {
+                                    // В вертикальном (свайп вверх) -> увеличение
+                                    swipeScale = 1f + (0.25f * progress)
+                                    swipeOffsetX = 0f
+                                    swipeOffsetY = -boundedDrag * dragMultiplier * 0.4f
+                                }
+                            } else {
+                                // Плавный возврат без рывков, если двигать назад
+                                swipeScale = 1f
+                                swipeOffsetX = 0f
+                                swipeOffsetY = 0f
+                            }
+                        }
+                    },
+                    onDragEnd = {
+                        var returnControls = false
+                        if (isMoreVideosGesture) {
+                            if (totalDragY < -75f) { // Вдвое меньший порог для шторки
+                                showMoreVideos = true
+                            } else {
+                                returnControls = true
+                            }
+                        } else if (isScreenTransitionGesture) {
+                            val activeDrag = if (isFullscreen) totalDragY else -totalDragY
+                            val threshold = if (isFullscreen) 40f else 60f // Меньший порог для полноэкранного режима
+
+                            if (activeDrag > threshold) {
+                                onToggleFullscreen()
+                                returnControls = true // Покажем контролы после поворота экрана
+                            } else {
+                                returnControls = true
+                            }
+                        } else {
+                            returnControls = true
+                        }
+
+                        if (returnControls && wasControlsVisible) {
+                            showControls = true
+                        }
+                        
+                        moreVideosDragOffset = 0f
+                        swipeScale = 1f
+                        swipeOffsetY = 0f
+                        swipeOffsetX = 0f
+                        isMoreVideosGesture = false
+                        isScreenTransitionGesture = false
+                    },
+                    onDragCancel = {
+                        if (wasControlsVisible) showControls = true
+                        moreVideosDragOffset = 0f
+                        swipeScale = 1f
+                        swipeOffsetY = 0f
+                        swipeOffsetX = 0f
+                        isMoreVideosGesture = false
+                        isScreenTransitionGesture = false
                     }
                 )
             }
@@ -416,16 +522,43 @@ fun CustomVideoPlayer(
         }
 
         // More Videos Overlay
-        AnimatedVisibility(
-            visible = showMoreVideos,
-            enter = slideInVertically(initialOffsetY = { it }),
-            exit = slideOutVertically(targetOffsetY = { it }),
-            modifier = Modifier.fillMaxSize()
-        ) {
+        val screenHeightPixels = LocalContext.current.resources.displayMetrics.heightPixels.toFloat()
+        var panelDragY by remember { mutableFloatStateOf(0f) }
+        val isDraggingUp = moreVideosDragOffset < 0f
+
+        val targetOffsetY = when {
+            isDraggingUp -> (screenHeightPixels + moreVideosDragOffset).coerceAtLeast(0f)
+            showMoreVideos -> panelDragY
+            else -> screenHeightPixels
+        }
+
+        val animatedOffsetY by animateFloatAsState(
+            targetValue = targetOffsetY,
+            animationSpec = tween(durationMillis = if (isDraggingUp || panelDragY > 0f) 0 else 250),
+            label = "moreVideosY"
+        )
+
+        if (showMoreVideos || animatedOffsetY < screenHeightPixels) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .offset { IntOffset(0, animatedOffsetY.roundToInt()) }
                     .background(Color.Black.copy(0.9f))
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragStart = { },
+                            onDragEnd = {
+                                if (panelDragY > 100f) { // Уменьшнен порог закрытия с 200f
+                                    showMoreVideos = false
+                                }
+                                panelDragY = 0f
+                            },
+                            onDragCancel = { panelDragY = 0f }
+                        ) { change, dragAmount ->
+                            change.consume()
+                            panelDragY = (panelDragY + dragAmount).coerceAtLeast(0f)
+                        }
+                    }
                     .padding(top = 16.dp, bottom = 16.dp)
             ) {
                 Column {
