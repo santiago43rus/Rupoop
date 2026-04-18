@@ -71,6 +71,7 @@ fun CustomVideoPlayer(
     onPrevious: () -> Unit = {},
     isFirstVideo: Boolean = false,
     isLastVideo: Boolean = false,
+    isTransitioning: Boolean = false,
     onPlayRelated: (SearchResult) -> Unit = {}
 ) {
     var showControls by remember { mutableStateOf(true) }
@@ -88,9 +89,18 @@ fun CustomVideoPlayer(
     var swipeScale by remember { mutableFloatStateOf(1f) }
     var swipeOffsetY by remember { mutableFloatStateOf(0f) }
     var swipeOffsetX by remember { mutableFloatStateOf(0f) }
+    var restoreControlsAfterFullscreen by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val settingsManager = remember { com.santiago43rus.rupoop.data.SettingsManager(context) }
+
+    LaunchedEffect(isFullscreen) {
+        if (restoreControlsAfterFullscreen) {
+            delay(500) // Wait for screen orientation animation to finish
+            showControls = true
+            restoreControlsAfterFullscreen = false
+        }
+    }
 
     LaunchedEffect(showSeekAnimation) {
         if (showSeekAnimation) {
@@ -136,19 +146,18 @@ fun CustomVideoPlayer(
             }
             .background(Color.Black)
             .pointerInput(isFullscreen) {
+                if (!isFullscreen) return@pointerInput
                 var totalDragY = 0f
                 var totalDragX = 0f
-                var startY = 0f
                 var isMoreVideosGesture = false
                 var isScreenTransitionGesture = false
                 var wasControlsVisible = false
-                val dragMultiplier = 2.5f // Увеличенная чувствительность
+                val dragMultiplier = 1.3f // Сбалансированная чувствительность
                 val maxDragDistanceVertical = 150f
                 val maxDragDistanceFullScreen = 80f // Укороченные границы для быстрого срабатывания в горизонтальном
 
                 detectDragGestures(
                     onDragStart = { offset ->
-                        startY = offset.y
                         totalDragY = 0f
                         totalDragX = 0f
                         isMoreVideosGesture = false
@@ -222,7 +231,9 @@ fun CustomVideoPlayer(
 
                             if (activeDrag > threshold) {
                                 onToggleFullscreen()
-                                returnControls = true // Покажем контролы после поворота экрана
+                                if (wasControlsVisible) {
+                                    restoreControlsAfterFullscreen = true // Отложенный возврат контролов
+                                }
                             } else {
                                 returnControls = true
                             }
@@ -362,7 +373,7 @@ fun CustomVideoPlayer(
 
         // Controls Overlay
         AnimatedVisibility(
-            visible = (showControls || isSeeking) && !showMoreVideos,
+            visible = (showControls || isSeeking) && !showMoreVideos && !isTransitioning,
             enter = fadeIn(animationSpec = tween(300)),
             exit = fadeOut(animationSpec = tween(300)),
             modifier = Modifier.fillMaxSize()
@@ -382,7 +393,15 @@ fun CustomVideoPlayer(
                         Arrangement.SpaceBetween,
                         Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { if (isFullscreen) onToggleFullscreen() else onMinimize() }) {
+                        IconButton(onClick = {
+                            if (isFullscreen) {
+                                showControls = false
+                                restoreControlsAfterFullscreen = true
+                                onToggleFullscreen()
+                            } else {
+                                onMinimize()
+                            }
+                        }) {
                             Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
                         }
                         
@@ -469,7 +488,11 @@ fun CustomVideoPlayer(
                             style = MaterialTheme.typography.labelSmall
                         )
                         if (!isSeeking) {
-                            IconButton(onClick = onToggleFullscreen, modifier = Modifier.size(32.dp)) {
+                            IconButton(onClick = {
+                                showControls = false
+                                restoreControlsAfterFullscreen = true
+                                onToggleFullscreen()
+                            }, modifier = Modifier.size(32.dp)) {
                                 Icon(
                                     if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
                                     null,
@@ -680,14 +703,12 @@ fun SettingsDialog(exoPlayer: ExoPlayer, currentQuality: String, onQualitySelect
                 else -> params.clearVideoSizeConstraints().setForceHighestSupportedBitrate(false)
             }
             exoPlayer.trackSelectionParameters = params.build()
-            showQuality = false
             onDismiss()
         }, { showQuality = false })
     }
     if (showSpeed) {
         OptionSelectionDialog("Скорость", listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f), exoPlayer.playbackParameters.speed, { speed ->
             exoPlayer.playbackParameters = PlaybackParameters(speed)
-            showSpeed = false
             onDismiss()
         }, { showSpeed = false })
     }
@@ -713,32 +734,12 @@ fun <T> OptionSelectionDialog(title: String, options: List<T>, currentValue: T, 
 @OptIn(UnstableApi::class)
 @Composable
 fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, onClose: () -> Unit, onClick: () -> Unit) {
-    var offsetY by remember { mutableStateOf(0f) }
-    val animatedOffsetY by animateFloatAsState(targetValue = offsetY, label = "offsetY")
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(64.dp)
-            .offset { IntOffset(0, animatedOffsetY.roundToInt()) }
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onClick() }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragEnd = {
-                        if (offsetY > 100f) onClose() else offsetY = 0f
-                    },
-                    onDragCancel = {
-                        offsetY = 0f
-                    }
-                ) { _, dragAmount ->
-                    if (dragAmount < -10f && offsetY <= 0f) {
-                        onClick()
-                    } else {
-                        offsetY = (offsetY + dragAmount).coerceAtLeast(0f)
-                    }
-                }
-            }
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -746,8 +747,8 @@ fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, o
             AndroidView(factory = { context -> PlayerView(context).apply { player = exoPlayer; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM } }, modifier = Modifier.fillMaxSize())
         }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(video?.title ?: "", maxLines = 1, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
-            Text(video?.author?.name ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(0.7f))
+            Text(video?.title ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
+            Text(video?.author?.name ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(0.7f))
         }
         IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) { Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null) }
         IconButton(onClick = onClose) { Icon(Icons.Default.Close, null) }

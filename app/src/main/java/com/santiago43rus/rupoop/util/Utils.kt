@@ -145,19 +145,28 @@ fun formatFileSize(bytes: Long): String {
     }
 }
 
-fun switchAppIcon(context: Context, useLightIcon: Boolean) {
+fun switchAppIcon(context: Context, iconMode: String) {
+    val useLightIcon = when (iconMode) {
+        "default", "light" -> true
+        "dark" -> false
+        else -> {
+            val uiMode = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+            uiMode != android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
+    }
+
     val pm = context.packageManager
-    val defaultComponent = ComponentName(context, "com.santiago43rus.rupoop.MainActivity")
-    val lightComponent = ComponentName(context, "com.santiago43rus.rupoop.MainActivityLight")
-    
+    val defaultComponent = android.content.ComponentName(context, "com.santiago43rus.rupoop.MainActivity")
+    val lightComponent = android.content.ComponentName(context, "com.santiago43rus.rupoop.MainActivityLight")
+
     pm.setComponentEnabledSetting(
         defaultComponent,
-        if (useLightIcon) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-        PackageManager.DONT_KILL_APP
+        if (useLightIcon) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+        android.content.pm.PackageManager.DONT_KILL_APP
     )
     pm.setComponentEnabledSetting(
         lightComponent,
-        if (useLightIcon) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-        PackageManager.DONT_KILL_APP
+        if (useLightIcon) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+        android.content.pm.PackageManager.DONT_KILL_APP
     )
 }

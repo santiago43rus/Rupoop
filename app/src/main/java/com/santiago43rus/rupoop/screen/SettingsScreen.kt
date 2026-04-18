@@ -26,7 +26,7 @@ import com.santiago43rus.rupoop.util.*
 @Composable
 fun SettingsScreen(
     settingsManager: SettingsManager,
-    onThemeToggle: () -> Unit,
+    onThemeToggle: (String) -> Unit,
     registryManager: UserRegistryManager,
     onRegistryUpdate: (UserRegistry) -> Unit
 ) {
@@ -38,6 +38,7 @@ fun SettingsScreen(
     var syncFreq by remember { mutableStateOf(settingsManager.syncFrequencyHours.toString()) }
     var autoPlayNext by remember { mutableStateOf(settingsManager.autoPlayNext) }
     var cacheSize by remember { mutableStateOf(getCacheSize(context)) }
+    var themeMode by remember { mutableStateOf(settingsManager.themeMode) }
     var selectedIcon by remember { mutableStateOf(settingsManager.appIcon) }
 
     val allGenres = listOf(
@@ -50,44 +51,43 @@ fun SettingsScreen(
         item {
             // ── Внешний вид ──
             Text("Внешний вид", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
-            ListItem(
-                headlineContent = { Text("Тёмная тема") },
-                trailingContent = {
-                    Switch(
-                        checked = settingsManager.isDarkTheme,
-                        onCheckedChange = { onThemeToggle() },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFFE53935))
+            
+            Text("Тема приложения", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val themes = listOf("system" to "Системная", "light" to "Светлая", "dark" to "Тёмная")
+                themes.forEach { (mode, label) ->
+                    FilterChip(
+                        selected = themeMode == mode,
+                        onClick = {
+                            themeMode = mode
+                            onThemeToggle(mode)
+                        },
+                        label = { Text(label) },
+                        leadingIcon = {
+                            if (themeMode == mode) Icon(Icons.Default.Check, null, Modifier.size(FilterChipDefaults.IconSize))
+                        }
                     )
                 }
-            )
+            }
             
             // Icon selection
             Text("Иконка приложения", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilterChip(
-                    selected = selectedIcon == "default",
-                    onClick = {
-                        selectedIcon = "default"
-                        settingsManager.appIcon = "default"
-                        switchAppIcon(context, true)
-                    },
-                    label = { Text("Светлая") },
-                    leadingIcon = {
-                        Icon(Icons.Default.LightMode, null, modifier = Modifier.size(18.dp))
-                    }
-                )
-                FilterChip(
-                    selected = selectedIcon == "light",
-                    onClick = {
-                        selectedIcon = "light"
-                        settingsManager.appIcon = "light"
-                        switchAppIcon(context, false)
-                    },
-                    label = { Text("Тёмная") },
-                    leadingIcon = {
-                        Icon(Icons.Default.DarkMode, null, modifier = Modifier.size(18.dp))
-                    }
-                )
+                val icons = listOf("system" to "Системная", "default" to "Светлая", "dark" to "Тёмная")
+                icons.forEach { (iconId, label) ->
+                    FilterChip(
+                        selected = selectedIcon == iconId,
+                        onClick = {
+                            selectedIcon = iconId
+                            settingsManager.appIcon = iconId
+                            switchAppIcon(context, iconId)
+                        },
+                        label = { Text(label) },
+                        leadingIcon = {
+                            if (selectedIcon == iconId) Icon(Icons.Default.Check, null, Modifier.size(FilterChipDefaults.IconSize))
+                        }
+                    )
+                }
             }
             
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
