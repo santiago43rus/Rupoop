@@ -54,7 +54,9 @@ import java.util.concurrent.TimeUnit
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import java.util.Locale
-
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +95,27 @@ fun CustomVideoPlayer(
 
     val context = LocalContext.current
     val settingsManager = remember { com.santiago43rus.rupoop.data.SettingsManager(context) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
+                // Reset gesture states when app goes to background
+                moreVideosDragOffset = 0f
+                swipeScale = 1f
+                swipeOffsetY = 0f
+                swipeOffsetX = 0f
+                if (isFastForwarding) {
+                    isFastForwarding = false
+                    exoPlayer.playbackParameters = PlaybackParameters(1f)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     LaunchedEffect(isFullscreen) {
         if (restoreControlsAfterFullscreen) {
@@ -152,9 +175,12 @@ fun CustomVideoPlayer(
                 var isMoreVideosGesture = false
                 var isScreenTransitionGesture = false
                 var wasControlsVisible = false
+                var ignoreGesture = false
                 val dragMultiplier = 1.3f // Сбалансированная чувствительность
                 val maxDragDistanceVertical = 150f
                 val maxDragDistanceFullScreen = 80f // Укороченные границы для быстрого срабатывания в горизонтальном
+
+                val edgeMargin = 150f // Пикселей от края, где жесты игнорируются (для системных свайпов)
 
                 detectDragGestures(
                     onDragStart = { offset ->
@@ -162,10 +188,15 @@ fun CustomVideoPlayer(
                         totalDragX = 0f
                         isMoreVideosGesture = false
                         isScreenTransitionGesture = false
-                        wasControlsVisible = showControls
-                        showControls = false // Скрываем элементы на время жеста
+                        ignoreGesture = offset.y < edgeMargin || offset.y > size.height - edgeMargin
+                        
+                        if (!ignoreGesture) {
+                            wasControlsVisible = showControls
+                            showControls = false // Скрываем элементы на время жеста
+                        }
                     },
                     onDrag = { change, dragAmount ->
+                        if (ignoreGesture) return@detectDragGestures
                         change.consume()
                         totalDragY += dragAmount.y
                         totalDragX += dragAmount.x
@@ -218,6 +249,7 @@ fun CustomVideoPlayer(
                         }
                     },
                     onDragEnd = {
+                        if (ignoreGesture) return@detectDragGestures
                         var returnControls = false
                         if (isMoreVideosGesture) {
                             if (totalDragY < -75f) { // Вдвое меньший порог для шторки
@@ -253,6 +285,7 @@ fun CustomVideoPlayer(
                         isScreenTransitionGesture = false
                     },
                     onDragCancel = {
+                        if (ignoreGesture) return@detectDragGestures
                         if (wasControlsVisible) showControls = true
                         moreVideosDragOffset = 0f
                         swipeScale = 1f
