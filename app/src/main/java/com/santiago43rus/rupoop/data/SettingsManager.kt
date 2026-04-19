@@ -10,9 +10,16 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("access_token", null)
         set(value) = prefs.edit().putString("access_token", value).apply()
 
+    var themeMode: String
+        get() = prefs.getString("theme_mode", "system") ?: "system"
+        set(value) = prefs.edit().putString("theme_mode", value).apply()
+
+    @Deprecated("Use themeMode instead", ReplaceWith("themeMode == \"dark\""))
     var isDarkTheme: Boolean
-        get() = prefs.getBoolean("dark_theme", true)
-        set(value) = prefs.edit().putBoolean("dark_theme", value).apply()
+        get() = themeMode == "dark"
+        set(value) {
+            themeMode = if (value) "dark" else "light"
+        }
 
     var downloadQuality: String
         get() = prefs.getString("download_quality", "1080") ?: "1080"
@@ -43,18 +50,22 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putBoolean("kids_content", value).apply()
 
     var appIcon: String
-        get() = prefs.getString("app_icon", "default") ?: "default"
+        get() = prefs.getString("app_icon", "system") ?: "system"
         set(value) = prefs.edit().putString("app_icon", value).apply()
 
     var autoPlayNext: Boolean
         get() = prefs.getBoolean("auto_play_next", true)
         set(value) = prefs.edit().putBoolean("auto_play_next", value).apply()
 
+    var doubleTapSeekDuration: Int
+        get() = prefs.getInt("double_tap_seek", 10)
+        set(value) = prefs.edit().putInt("double_tap_seek", value).apply()
+
     // Sub-genre categories stored as comma-separated string
     var enabledGenres: Set<String>
         get() = prefs.getStringSet("enabled_genres", null) ?: setOf(
             "аниме", "боевики", "комедии", "фантастика", "ужасы",
-            "драма", "документальные", "мультфильмы", "сериалы", "музыка"
+            "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы", "музыка"
         )
         set(value) = prefs.edit().putStringSet("enabled_genres", value).apply()
 

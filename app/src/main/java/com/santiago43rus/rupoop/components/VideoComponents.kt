@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.santiago43rus.rupoop.data.*
 import com.santiago43rus.rupoop.util.formatDuration
+import com.santiago43rus.rupoop.util.formatTimeAgo
+import com.santiago43rus.rupoop.util.formatViewCount
 
 @Composable
 fun VideoItem(
@@ -119,8 +121,12 @@ fun VideoItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(2.dp))
+                val viewsText = formatViewCount(video.hits)
+                val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
+                val sep1 = if (viewsText.isNotEmpty()) " • " else ""
+                val sep2 = if (timeAgoText.isNotEmpty()) " • " else ""
                 Text(
-                    "${video.author?.name ?: "Автор"} • Rutube", // Simplified metadata
+                    "${video.author?.name ?: "Автор"} • Rutube$sep1$viewsText$sep2$timeAgoText", // Simplified metadata
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } }
@@ -164,8 +170,17 @@ fun VideoDetails(
     onAddToPlaylist: () -> Unit,
     onDownload: () -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Column(Modifier.padding(12.dp)) {
-        Text(video?.title ?: "", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = video?.title ?: "",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            maxLines = if (expanded) Int.MAX_VALUE else 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clickable { expanded = !expanded }
+        )
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(48.dp)) {
             AsyncImage(
@@ -232,4 +247,3 @@ fun VideoListScreen(
         }
     }
 }
-

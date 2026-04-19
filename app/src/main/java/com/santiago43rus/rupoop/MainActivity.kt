@@ -26,7 +26,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val vm: AppViewModel = viewModel()
-            var isDarkTheme by remember { mutableStateOf(vm.settingsManager.isDarkTheme) }
+            var themeMode by remember { mutableStateOf(vm.settingsManager.themeMode) }
+            val systemDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+            val isDarkTheme = when (themeMode) {
+                "light" -> false
+                "dark" -> true
+                else -> systemDarkTheme
+            }
 
             // Handle pending local file playback
             LaunchedEffect(pendingLocalFilePath) {
@@ -47,9 +53,9 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     RutubeApp(
                         vm = vm,
-                        onThemeToggle = {
-                            isDarkTheme = !isDarkTheme
-                            vm.settingsManager.isDarkTheme = isDarkTheme
+                        onThemeToggle = { newThemeMode ->
+                            themeMode = newThemeMode
+                            vm.settingsManager.themeMode = newThemeMode
                         },
                         deepLinkVideoUrl = deepLinkVideoUrl,
                         onDeepLinkConsumed = { deepLinkVideoUrl = null }

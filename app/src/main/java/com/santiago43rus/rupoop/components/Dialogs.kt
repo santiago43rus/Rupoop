@@ -17,7 +17,7 @@ fun ContentSelectionDialog(
 ) {
     val allGenres = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
-        "драма", "документальные", "мультфильмы", "сериалы", "музыка"
+        "драма", "документальные", "мультфильмы", "сериалы", "музыка", "мультсериалы"
     )
     var enabledGenres by remember { mutableStateOf(settingsManager.enabledGenres) }
 
@@ -85,5 +85,3 @@ fun PlaylistSelectionDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
     )
 }
-
-

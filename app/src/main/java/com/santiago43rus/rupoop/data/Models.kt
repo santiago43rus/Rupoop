@@ -28,7 +28,9 @@ data class SearchResult(
     val author: Author? = null,
     val duration: Int? = null,
     val tags: List<String>? = emptyList(),
-    @SerialName("created_ts") val createdTs: String? = null
+    @SerialName("created_ts") val createdTs: String? = null,
+    @SerialName("publication_ts") val publicationTs: String? = null,
+    val hits: Int? = null
 )
 
 @Serializable
@@ -85,7 +87,7 @@ data class AppSettings(
     val syncFrequencyHours: Int = 24,
     val enabledGenres: List<String> = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
-        "драма", "документальные", "мультфильмы", "сериалы", "музыка"
+        "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы", "музыка"
     )
 )
 

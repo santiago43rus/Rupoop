@@ -12,6 +12,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.TimeZone
 
 enum class PlayerState { CLOSED, MINI, FULL }
 enum class OverlayState { SEARCH, AUTHOR }
@@ -34,8 +36,62 @@ fun setScreenOrientation(context: Context, orientation: Int) {
     context.findActivity()?.requestedOrientation = orientation
 }
 
+fun formatViewCount(views: Int?): String {
+    if (views == null || views == 0) return "Нет просмотров"
+    return when {
+        views >= 1_000_000 -> String.format(Locale.getDefault(), "%.1f млн просмотров", views / 1_000_000.0).replace(",0", "").replace(".0", "")
+        views >= 1_000 -> String.format(Locale.getDefault(), "%.1f тыс. просмотров", views / 1_000.0).replace(",0", "").replace(".0", "")
+        else -> "$views ${getPlural(views, "просмотр", "просмотра", "просмотров")}"
+    }
+}
+
+fun formatTimeAgo(dateString: String?): String {
+    if (dateString.isNullOrEmpty()) return ""
+    try {
+        var cleanDateStr = dateString
+        if (cleanDateStr.contains(".")) {
+            cleanDateStr = cleanDateStr.substringBefore(".")
+        } else if (cleanDateStr.endsWith("Z")) {
+            cleanDateStr = cleanDateStr.dropLast(1)
+        }
+        val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+        // Rutube API usually returns MSK time (UTC+3)
+        format.timeZone = TimeZone.getTimeZone("Europe/Moscow")
+        val parsedDate = format.parse(cleanDateStr) ?: return ""
+        var diff = System.currentTimeMillis() - parsedDate.time
+        
+        // Prevent negative time display if local clock differs
+        if (diff < 0) diff = 0
+        
+        val seconds = diff / 1000
+        val minutes = seconds / 60
+        val hours = minutes / 60
+        val days = hours / 24
+        val months = days / 30
+        val years = days / 365
+        
+        return when {
+            years > 0 -> "${years.toInt()} ${getPlural(years.toInt(), "год", "года", "лет")} назад"
+            months > 0 -> "${months.toInt()} ${getPlural(months.toInt(), "месяц", "месяца", "месяцев")} назад"
+            days > 0 -> "${days.toInt()} ${getPlural(days.toInt(), "день", "дня", "дней")} назад"
+            hours > 0 -> "${hours.toInt()} ${getPlural(hours.toInt(), "час", "часа", "часов")} назад"
+            minutes > 0 -> "${minutes.toInt()} ${getPlural(minutes.toInt(), "минуту", "минуты", "минут")} назад"
+            else -> "Только что"
+        }
+    } catch (e: Exception) {
+        return ""
+    }
+}
+
+private fun getPlural(n: Int, form1: String, form2: String, form5: String): String {
+    val n10 = n % 10
+    val n100 = n % 100
+    if (n10 == 1 && n100 != 11) return form1
+    if (n10 in 2..4 && !(n100 in 12..14)) return form2
+    return form5
+}
+
 fun hideSystemBars(activity: Activity) {
-    WindowCompat.setDecorFitsSystemWindows(activity.window, false)
     WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
         hide(WindowInsetsCompat.Type.systemBars())
         systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -43,7 +99,6 @@ fun hideSystemBars(activity: Activity) {
 }
 
 fun showSystemBars(activity: Activity) {
-    WindowCompat.setDecorFitsSystemWindows(activity.window, true)
     WindowInsetsControllerCompat(activity.window, activity.window.decorView).show(WindowInsetsCompat.Type.systemBars())
 }
 
@@ -90,20 +145,28 @@ fun formatFileSize(bytes: Long): String {
     }
 }
 
-fun switchAppIcon(context: Context, useLightIcon: Boolean) {
+fun switchAppIcon(context: Context, iconMode: String) {
+    val useLightIcon = when (iconMode) {
+        "default", "light" -> true
+        "dark" -> false
+        else -> {
+            val uiMode = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+            uiMode != android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
+    }
+
     val pm = context.packageManager
-    val defaultComponent = ComponentName(context, "com.santiago43rus.rupoop.MainActivity")
-    val lightComponent = ComponentName(context, "com.santiago43rus.rupoop.MainActivityLight")
-    
+    val defaultComponent = android.content.ComponentName(context, "com.santiago43rus.rupoop.MainActivity")
+    val lightComponent = android.content.ComponentName(context, "com.santiago43rus.rupoop.MainActivityLight")
+
     pm.setComponentEnabledSetting(
         defaultComponent,
-        if (useLightIcon) PackageManager.COMPONENT_ENABLED_STATE_DISABLED else PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-        PackageManager.DONT_KILL_APP
+        if (useLightIcon) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+        android.content.pm.PackageManager.DONT_KILL_APP
     )
     pm.setComponentEnabledSetting(
         lightComponent,
-        if (useLightIcon) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-        PackageManager.DONT_KILL_APP
+        if (useLightIcon) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+        android.content.pm.PackageManager.DONT_KILL_APP
     )
 }
-

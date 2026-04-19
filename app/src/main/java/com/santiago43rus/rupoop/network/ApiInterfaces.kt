@@ -17,7 +17,7 @@ interface RutubeApi {
     @GET("api/video/person/{id}/?format=json")
     suspend fun getAuthorVideos(
         @Path("id") id: String,
-        @Query("ordering") ordering: String? = "-created_ts",
+        @Query("ordering") ordering: String? = "-hits",
         @Query("page") page: Int = 1
     ): SearchResponse
 }
