@@ -22,8 +22,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.santiago43rus.rupoop.components.VideoItem
-import com.santiago43rus.rupoop.data.*
+import com.santiago43rus.rupoop.components.VideoCardItem
+import com.santiago43rus.rupoop.data.Author
+import com.santiago43rus.rupoop.data.SearchResult
+import com.santiago43rus.rupoop.data.UserRegistry
 import com.santiago43rus.rupoop.util.extractId
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,9 +76,10 @@ fun SubscriptionsScreen(
                     HorizontalDivider()
                 }
                 itemsIndexed(subscriptionVideos) { index, video ->
+                    if (index == 0) Spacer(Modifier.height(8.dp))
                     val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                    VideoItem(
-                        video, history,
+                    VideoCardItem(
+                        video = video, history = history,
                         onClick = { onVideoClick(video, subscriptionVideos) },
                         onAuthorClick = onAuthorClick,
                         onMoreClick = { action -> onMoreClick(video, action) }

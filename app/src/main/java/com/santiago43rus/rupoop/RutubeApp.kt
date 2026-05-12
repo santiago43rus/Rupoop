@@ -386,8 +386,8 @@ fun RutubeApp(
                     ) { targetNav ->
                         when (targetNav) {
                         NavItem.HOME -> {
-                            HomeScreen(
-                                homeVideos = vm.homeVideos, userRegistry = vm.userRegistry,
+                            MainFeedScreen(
+                                videos = vm.homeVideos, userRegistry = vm.userRegistry,
                                 isRefreshing = vm.isRefreshingHome, isLoadingMore = vm.isHomeLoadingMore,
                                 onRefresh = { vm.loadHome(false) }, onLoadMore = { vm.loadHome(true) },
                                 onVideoClick = { video, list -> vm.playVideo(video, list) },
@@ -669,36 +669,22 @@ fun RutubeApp(
                                         LaunchedEffect(vm.currentVideo) {
                                             relatedListState.scrollToItem(0)
                                         }
-                                        LazyColumn(Modifier.weight(1f).graphicsLayer { alpha = (1f - realProgress * 2f).coerceIn(0f, 1f) }, state = relatedListState) {
-                                            item {
-                                                VideoDetails(
-                                                    vm.currentVideo, vm.userRegistry,
-                                                    onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                                                    onToggleSub = { vm.toggleSubscription(it) },
-                                                    onLike = { vm.currentVideo?.let { vm.toggleLike(it) } },
-                                                    onShare = { vm.currentVideo?.let { vm.shareVideo(it) } },
-                                                    onAddToPlaylist = { vm.showPlaylistDialog = vm.currentVideo },
-                                                    onDownload = { vm.currentVideo?.let { vm.startDownload(it) } }
-                                                )
-                                                HorizontalDivider()
-                                                Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
-                                            }
-                                            items(vm.relatedVideos) { video ->
-                                                val history =
-                                                    vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                                                VideoItem(
-                                                    video, history,
-                                                    onClick = { vm.playVideo(video, vm.relatedVideos) },
-                                                    onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                                                    onMoreClick = { action ->
-                                                        vm.handleVideoMoreAction(
-                                                            video,
-                                                            action
-                                                        )
-                                                    }
-                                                )
-                                            }
-                                        }
+                                        RelatedVideosList(
+                                            modifier = Modifier.weight(1f),
+                                            listState = relatedListState,
+                                            currentVideo = vm.currentVideo,
+                                            relatedVideos = vm.relatedVideos,
+                                            userRegistry = vm.userRegistry,
+                                            alphaProgress = realProgress,
+                                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                                            onToggleSub = { vm.toggleSubscription(it) },
+                                            onLike = { vm.currentVideo?.let { vm.toggleLike(it) } },
+                                            onShare = { vm.currentVideo?.let { vm.shareVideo(it) } },
+                                            onAddToPlaylist = { vm.showPlaylistDialog = vm.currentVideo },
+                                            onDownload = { vm.currentVideo?.let { vm.startDownload(it) } },
+                                            onVideoClick = { video, list -> vm.playVideo(video, list) },
+                                            onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
+                                        )
                                     }
                                 }
                             } else {
@@ -909,7 +895,7 @@ private fun AppTopBar(
                                         Icon(
                                             if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
                                             "Голосовой поиск",
-                                            tint = if (isListening) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
                                         )
                                     }
                                 }
@@ -989,8 +975,8 @@ private fun SearchOverlay(vm: AppViewModel) {
             items(vm.searchResults) { video ->
                 val history =
                     vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                VideoItem(
-                    video, history,
+                VideoCardItem(
+                    video = video, history = history,
                     onClick = { vm.playVideo(video, vm.searchResults) },
                     onAuthorClick = { vm.loadAuthorVideos(it, false) },
                     onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
@@ -1053,8 +1039,8 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         ),
                         duration = (item.totalDuration / 1000).toInt()
                     )
-                    VideoItem(
-                        video, item,
+                    VideoCardItem(
+                        video = video, history = item,
                         onClick = { vm.playVideo(video, historyVideos, false) },
                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
                         onMoreClick = { action ->

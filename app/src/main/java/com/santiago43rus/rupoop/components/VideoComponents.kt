@@ -30,136 +30,6 @@ import com.santiago43rus.rupoop.util.formatTimeAgo
 import com.santiago43rus.rupoop.util.formatViewCount
 
 @Composable
-fun VideoItem(
-    video: SearchResult,
-    history: WatchHistoryItem?,
-    onClick: () -> Unit,
-    onAuthorClick: (Author) -> Unit,
-    onMoreClick: (String) -> Unit,
-    isEditMode: Boolean = false
-) {
-    var showMenu by remember { mutableStateOf(false) }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(bottom = 12.dp)
-    ) {
-        // Preview (Thumbnail) - Youtube Style: Full width (or nearly), on TOP
-        Box(modifier = Modifier.fillMaxWidth()) {
-            AsyncImage(
-                model = video.thumbnailUrl, contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16 / 9f)
-                    .background(Color.DarkGray),
-                contentScale = ContentScale.Crop
-            )
-            
-            // Duration
-            video.duration?.let { durSeconds ->
-                Surface(
-                    color = Color.Black.copy(alpha = 0.8f), 
-                    shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(bottom = 8.dp, end = 8.dp)
-                ) {
-                    Text(
-                        text = formatDuration(durSeconds.toLong()), 
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            
-            // Progress Bar (if watched)
-            if (history != null && history.totalDuration > 0) {
-                 LinearProgressIndicator(
-                    progress = { history.progress.toFloat() / history.totalDuration },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(3.dp),
-                    color = Color.Red, 
-                    trackColor = Color.Transparent // Youtube often uses transparent or very subtle track
-                )
-            }
-        }
-
-        // Header: Author & Title (Below Preview)
-        Row(
-            modifier = Modifier
-                .padding(top = 12.dp, start = 12.dp, end = 12.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.Top
-        ) {
-            AsyncImage(
-                model = video.author?.avatarUrl ?: "https://rutube.ru/static/img/default-avatar.png",
-                contentDescription = null,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color.Gray)
-                    .clickable { video.author?.let { onAuthorClick(it) } },
-                contentScale = ContentScale.Crop
-            )
-            
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .weight(1f)
-            ) {
-                Text(
-                    video.title, 
-                    style = MaterialTheme.typography.bodyLarge, // Slightly larger/standard
-                    maxLines = 2,
-                    fontWeight = FontWeight.Normal, // Youtube isn't always bold
-                    lineHeight = 20.sp, 
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(2.dp))
-                val viewsText = formatViewCount(video.hits)
-                val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
-                val sep1 = if (viewsText.isNotEmpty()) " • " else ""
-                val sep2 = if (timeAgoText.isNotEmpty()) " • " else ""
-                Text(
-                    "${video.author?.name ?: "Автор"} • Rutube$sep1$viewsText$sep2$timeAgoText", // Simplified metadata
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } }
-                )
-            }
-            
-            Box {
-                IconButton(
-                    onClick = { showMenu = true }, 
-                    modifier = Modifier.size(24.dp).align(Alignment.TopEnd)
-                ) {
-                    Icon(
-                        Icons.Default.MoreVert, 
-                        null, 
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    if (!isEditMode) {
-                        DropdownMenuItem(text = { Text("Добавить в плейлист") }, onClick = { showMenu = false; onMoreClick("playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) })
-                        DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { showMenu = false; onMoreClick("later") }, leadingIcon = { Icon(Icons.Default.Schedule, null) })
-                    } else {
-                        DropdownMenuItem(text = { Text("Удалить") }, onClick = { showMenu = false; onMoreClick("remove") }, leadingIcon = { Icon(Icons.Default.Delete, null) })
-                    }
-                    DropdownMenuItem(text = { Text("Скачать") }, onClick = { showMenu = false; onMoreClick("download") }, leadingIcon = { Icon(Icons.Default.Download, null) })
-                    DropdownMenuItem(text = { Text("Поделиться") }, onClick = { showMenu = false; onMoreClick("share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun VideoDetails(
     video: SearchResult?,
     registry: UserRegistry,
@@ -236,7 +106,11 @@ fun VideoListScreen(
     } else {
         LazyColumn(Modifier.fillMaxSize()) {
             items(videos) { video ->
-                VideoItem(video, null, onClick = { onVideoClick(video) }, onAuthorClick = onAuthorClick, onMoreClick = { action ->
+                VideoCardItem(
+                    video = video, history = null,
+                    onClick = { onVideoClick(video) },
+                    onAuthorClick = onAuthorClick,
+                    onMoreClick = { action ->
                     when (action) {
                         "remove" -> onRemove(video)
                         "share" -> onShare(video)

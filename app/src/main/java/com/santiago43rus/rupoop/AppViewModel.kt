@@ -29,7 +29,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val context = application.applicationContext
     val settingsManager = SettingsManager(context)
     val registryManager = UserRegistryManager(context)
-    val recommendationEngine = RecommendationEngine(registryManager)
+    val mainFeedRecommender = MainFeedRecommendationStrategy(registryManager)
+    val relatedVideoRecommender = RelatedVideoRecommendationStrategy(registryManager)
     val authManager = GitHubAuthManager(context)
     val syncManager = GistSyncManager(RetrofitClient.gistApi, registryManager, settingsManager)
     val downloadTracker = DownloadTracker(context)
@@ -240,7 +241,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val optionsDeferred = async(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
                     val relatedDeferred = async(Dispatchers.IO) {
-                        val queries = recommendationEngine.getSearchQueries(video)
+                        val queries = relatedVideoRecommender.getSearchQueries(video)
                         val allResults = mutableListOf<SearchResult>()
                         for (q in queries) {
                             try {
@@ -266,7 +267,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     val relatedResults = relatedDeferred.await()
-                    val filteredRelated = recommendationEngine.recommendRelated(video, relatedResults)
+                    val filteredRelated = relatedVideoRecommender.recommendRelated(video, relatedResults)
                     relatedVideos = filteredRelated
 
                     if (!isPlaylistMode) {
@@ -354,7 +355,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                 val query = queries.random()
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, page = 1) }
-                val newVideos = recommendationEngine.recommend(resp.results)
+                val newVideos = mainFeedRecommender.recommend(resp.results)
 
                 val updatedList = if (isLoadMore) (homeVideos + newVideos).distinctBy { it.videoUrl } else newVideos
                 homeVideos = updatedList.take(200)

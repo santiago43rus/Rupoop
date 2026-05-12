@@ -14,14 +14,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.santiago43rus.rupoop.components.VideoItem
+import com.santiago43rus.rupoop.components.VideoCardItem
 import com.santiago43rus.rupoop.data.*
 import com.santiago43rus.rupoop.util.extractId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    homeVideos: List<SearchResult>,
+fun MainFeedScreen(
+    videos: List<SearchResult>,
     userRegistry: UserRegistry,
     isRefreshing: Boolean,
     isLoadingMore: Boolean,
@@ -38,15 +38,17 @@ fun HomeScreen(
         state = rememberPullToRefreshState()
     ) {
         LazyColumn(Modifier.fillMaxSize(), state = listState) {
-            itemsIndexed(homeVideos) { index, video ->
+            itemsIndexed(videos) { index, video ->
                 val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                VideoItem(
-                    video, history,
-                    onClick = { onVideoClick(video, homeVideos) },
+                VideoCardItem(
+                    video = video,
+                    history = history,
+                    modifier = Modifier,
+                    onClick = { onVideoClick(video, videos) },
                     onAuthorClick = onAuthorClick,
                     onMoreClick = { action -> onMoreClick(video, action) }
                 )
-                if (index == homeVideos.lastIndex && !isLoadingMore) {
+                if (index == videos.lastIndex && !isLoadingMore) {
                     LaunchedEffect(video.videoUrl) { onLoadMore() }
                 }
             }
