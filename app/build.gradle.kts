@@ -14,7 +14,7 @@ val localProperties = Properties().apply {
 }
 
 base {
-    archivesName.set("Rupoop-v1.0.0")
+    archivesName.set("Rupoop-v1.0.1")
 }
 
 android {
@@ -25,9 +25,9 @@ android {
         applicationId = "com.santiago43rus.rupoop"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
-        
+        versionCode = 2
+        versionName = "1.0.1"
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "GH_CLIENT_ID", "\"${localProperties.getProperty("GH_CLIENT_ID") ?: ""}\"")
