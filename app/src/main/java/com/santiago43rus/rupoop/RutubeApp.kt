@@ -65,6 +65,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.foundation.text.BasicTextField
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.santiago43rus.rupoop.components.*
@@ -263,7 +266,7 @@ fun RutubeApp(
                                                 else scope.launch { homeListState.animateScrollToItem(0) }
                                             } else {
                                                 vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE
-                                                vm.isSearchExpanded = false; vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                                                vm.isSettingsVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -297,7 +300,7 @@ fun RutubeApp(
                                                 else scope.launch { subsListState.animateScrollToItem(0) }
                                             } else {
                                                 vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE
-                                                vm.isSearchExpanded = false; vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                                                vm.isAuthorVisible = false; vm.isSettingsVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -332,7 +335,7 @@ fun RutubeApp(
                                                 else scope.launch { libListState.animateScrollToItem(0) }
                                             } else {
                                                 vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE
-                                                vm.isSearchExpanded = false; vm.isSearchVisible = false; vm.isAuthorVisible = false; vm.isSettingsVisible = false; vm.searchQuery = ""
+                                                vm.isAuthorVisible = false; vm.isSettingsVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -421,7 +424,7 @@ fun RutubeApp(
                             SearchOverlay(vm = vm)
                         }
                         androidx.compose.animation.AnimatedVisibility(
-                            visible = overlay == OverlayState.AUTHOR && vm.isAuthorVisible,
+                            visible = overlay == OverlayState.AUTHOR && vm.isAuthorVisible && vm.currentNav == NavItem.HOME,
                             enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
                             exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
                         ) {
@@ -791,10 +794,10 @@ private fun AppTopBar(
 
     TopAppBar(
         title = {
-            val topVisible = vm.overlayOrder.lastOrNull {
-                (it == OverlayState.SEARCH && vm.isSearchVisible) ||
-                (it == OverlayState.AUTHOR && vm.isAuthorVisible)
-            }
+                            val topVisible = vm.overlayOrder.lastOrNull {
+                                (it == OverlayState.SEARCH && vm.isSearchVisible) ||
+                                (it == OverlayState.AUTHOR && vm.isAuthorVisible && vm.currentNav == NavItem.HOME)
+                            }
             if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (topVisible != null || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME) {
@@ -835,68 +838,78 @@ private fun AppTopBar(
                         IconButton(onClick = { vm.isSearchVisible = false; vm.searchQuery = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                     }
                     Surface(
-                        modifier = Modifier.fillMaxWidth().padding(end = 4.dp),
+                        modifier = Modifier.weight(1f).padding(end = 4.dp),
                         shape = RoundedCornerShape(24.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         tonalElevation = 2.dp
                     ) {
-                        TextField(
-                            value = vm.searchQuery, onValueChange = { vm.updateSearchQuery(it); vm.isSearchExpanded = true },
+                        BasicTextField(
+                            value = vm.searchQuery,
+                            onValueChange = {
+                                vm.updateSearchQuery(it)
+                                vm.isSearchExpanded = true
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .height(48.dp)
                                 .onFocusChanged { focusState ->
                                     if (focusState.isFocused) {
                                         vm.isSearchExpanded = true
                                     }
                                 },
-                            placeholder = { Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
                             singleLine = true,
+                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
                                 focusManager.clearFocus()
                                 vm.performSearch(vm.searchQuery)
                                 onSearch()
                             }),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                disabledIndicatorColor = Color.Transparent
-                            ),
-                            trailingIcon = {
-                                if (vm.searchQuery.isNotEmpty()) {
-                                    Row {
-                                        IconButton(onClick = { vm.searchQuery = ""; vm.isSearchExpanded = true }) {
-                                            Icon(Icons.Default.Close, "Очистить", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            decorationBox = { innerTextField ->
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        if (vm.searchQuery.isEmpty()) {
+                                            Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 16.sp)
                                         }
+                                        innerTextField()
+                                    }
+                                    if (vm.searchQuery.isNotEmpty()) {
+                                        Row {
+                                            IconButton(onClick = { vm.searchQuery = ""; vm.isSearchExpanded = true }, modifier = Modifier.size(36.dp)) {
+                                                Icon(Icons.Default.Close, "Очистить", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                            }
+                                            IconButton(onClick = {
+                                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                                    startVoiceInput()
+                                                } else {
+                                                    micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                                }
+                                            }, modifier = Modifier.size(36.dp)) {
+                                                Icon(
+                                                    if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
+                                                    "Голосовой поиск",
+                                                    tint = if (isListening) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                )
+                                            }
+                                        }
+                                    } else {
                                         IconButton(onClick = {
                                             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                                                 startVoiceInput()
                                             } else {
                                                 micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                             }
-                                        }) {
+                                        }, modifier = Modifier.size(36.dp)) {
                                             Icon(
                                                 if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
                                                 "Голосовой поиск",
-                                                tint = if (isListening) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
                                             )
                                         }
-                                    }
-                                } else {
-                                    IconButton(onClick = {
-                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                            startVoiceInput()
-                                        } else {
-                                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                        }
-                                    }) {
-                                        Icon(
-                                            if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
-                                            "Голосовой поиск",
-                                            tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
-                                        )
                                     }
                                 }
                             }
@@ -908,7 +921,7 @@ private fun AppTopBar(
         actions = {
             val topVisible = vm.overlayOrder.lastOrNull {
                 (it == OverlayState.SEARCH && vm.isSearchVisible) ||
-                (it == OverlayState.AUTHOR && vm.isAuthorVisible)
+                (it == OverlayState.AUTHOR && vm.isAuthorVisible && vm.currentNav == NavItem.HOME)
             }
             if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
                 if (topVisible == null && vm.currentLibSub == LibrarySubScreen.NONE && !vm.isSettingsVisible) {

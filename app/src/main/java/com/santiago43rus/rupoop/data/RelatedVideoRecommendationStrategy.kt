@@ -67,7 +67,7 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
         
         // Formats:
         val numPattern = "(\\d+|[IVXLCDM]+)"
-
+        
         // Format: с01э05
         val seRegex1 = Regex("с(\\d{1,2})э(\\d{1,2})", RegexOption.IGNORE_CASE)
         // Format: 1 сезон 5 серия

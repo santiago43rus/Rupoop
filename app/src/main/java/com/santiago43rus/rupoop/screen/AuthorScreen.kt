@@ -40,7 +40,7 @@ fun AuthorScreen(
     onAuthorClick: (Author) -> Unit,
     onToggleSubscription: (Author) -> Unit,
     onMoreClick: (SearchResult, String) -> Unit,
-    currentSort: String = "-hits",
+    currentSort: String = "-created_ts",
     onSortChange: (String) -> Unit = {}
 ) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -86,7 +86,7 @@ fun AuthorScreen(
                     ) {
                         FilterChip(
                             selected = currentSort == "-hits",
-                            onClick = { onSortChange("-hits") },
+                            onClick = { if (currentSort != "-hits") onSortChange("-hits") },
                             label = { Text("От новых") }
                         )
                     }

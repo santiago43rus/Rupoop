@@ -50,6 +50,7 @@ import com.santiago43rus.rupoop.data.SearchResult
 import com.santiago43rus.rupoop.util.formatTimeAgo
 import com.santiago43rus.rupoop.util.formatViewCount
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
@@ -86,13 +87,13 @@ fun CustomVideoPlayer(
     var showMoreVideos by remember { mutableStateOf(false) }
     var seekDirection by remember { mutableIntStateOf(0) }
     var showSeekAnimation by remember { mutableStateOf(false) }
+    var accumulatedSeekAmount by remember { mutableLongStateOf(0L) }
+    var seekAnimationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var moreVideosDragOffset by remember { mutableFloatStateOf(0f) }
 
     var swipeScale by remember { mutableFloatStateOf(1f) }
     var swipeOffsetY by remember { mutableFloatStateOf(0f) }
     var swipeOffsetX by remember { mutableFloatStateOf(0f) }
-    var restoreControlsAfterFullscreen by remember { mutableStateOf(false) }
-
     val context = LocalContext.current
     val settingsManager = remember { com.santiago43rus.rupoop.data.SettingsManager(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -117,20 +118,12 @@ fun CustomVideoPlayer(
         }
     }
 
-    LaunchedEffect(isFullscreen) {
-        if (restoreControlsAfterFullscreen) {
-            delay(500) // Wait for screen orientation animation to finish
-            showControls = true
-            restoreControlsAfterFullscreen = false
+    LaunchedEffect(isTransitioning) {
+        if (isTransitioning) {
+            showControls = false
         }
     }
 
-    LaunchedEffect(showSeekAnimation) {
-        if (showSeekAnimation) {
-            delay(500)
-            showSeekAnimation = false
-        }
-    }
 
     LaunchedEffect(showControls, isPlaying, isSeeking) {
         if (showControls && isPlaying && !isSeeking) {
@@ -168,7 +161,7 @@ fun CustomVideoPlayer(
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, if (shouldFillMax) 0.5f else 0f)
             }
             .background(Color.Black)
-            .pointerInput(isFullscreen) {
+            .pointerInput(isFullscreen, currentVideo?.videoUrl) {
                 if (!isFullscreen) return@pointerInput
                 var totalDragY = 0f
                 var totalDragX = 0f
@@ -263,9 +256,7 @@ fun CustomVideoPlayer(
 
                             if (activeDrag > threshold) {
                                 onToggleFullscreen()
-                                if (wasControlsVisible) {
-                                    restoreControlsAfterFullscreen = true // Отложенный возврат контролов
-                                }
+                                showControls = false
                             } else {
                                 returnControls = true
                             }
@@ -273,7 +264,7 @@ fun CustomVideoPlayer(
                             returnControls = true
                         }
 
-                        if (returnControls && wasControlsVisible) {
+                        if (returnControls && wasControlsVisible && !isTransitioning) {
                             showControls = true
                         }
                         
@@ -296,22 +287,36 @@ fun CustomVideoPlayer(
                     }
                 )
             }
-            .pointerInput(Unit) {
+            .pointerInput(currentVideo?.videoUrl) {
+                val coroutineScope = this
                 detectTapGestures(
                     onTap = { showControls = !showControls },
                     onDoubleTap = { offset ->
                         showSeekAnimation = true
-                        val seekAmount = settingsManager.doubleTapSeekDuration * 1000L
+                        val baseSeek = settingsManager.doubleTapSeekDuration * 1000L
+
+                        seekAnimationJob?.cancel()
+
                         if (offset.x < size.width / 2) {
+                            if (seekDirection == 1) accumulatedSeekAmount = 0L
                             seekDirection = -1
-                            val target = (exoPlayer.currentPosition - seekAmount).coerceAtLeast(0)
+                            accumulatedSeekAmount += baseSeek
+                            val target = (exoPlayer.currentPosition - baseSeek).coerceAtLeast(0)
                             currentTime = target
                             exoPlayer.seekTo(target)
                         } else {
+                            if (seekDirection == -1) accumulatedSeekAmount = 0L
                             seekDirection = 1
-                            val target = (exoPlayer.currentPosition + seekAmount).coerceAtMost(exoPlayer.duration)
+                            accumulatedSeekAmount += baseSeek
+                            val target = (exoPlayer.currentPosition + baseSeek).coerceAtMost(exoPlayer.duration)
                             currentTime = target
                             exoPlayer.seekTo(target)
+                        }
+
+                        seekAnimationJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            delay(700)
+                            showSeekAnimation = false
+                            accumulatedSeekAmount = 0L
                         }
                     },
                     onLongPress = {
@@ -377,7 +382,7 @@ fun CustomVideoPlayer(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.FastRewind, null, tint = Color.White, modifier = Modifier.size(36.dp))
-                            Text("-10 сек", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                            Text("-${accumulatedSeekAmount / 1000} сек", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
                         }
                     }
                 }
@@ -397,7 +402,7 @@ fun CustomVideoPlayer(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(36.dp))
-                            Text("+10 сек", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+                            Text("+${accumulatedSeekAmount / 1000} сек", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
                         }
                     }
                 }
@@ -429,9 +434,9 @@ fun CustomVideoPlayer(
                         IconButton(onClick = {
                             if (isFullscreen) {
                                 showControls = false
-                                restoreControlsAfterFullscreen = true
                                 onToggleFullscreen()
                             } else {
+                                    showControls = false
                                 onMinimize()
                             }
                         }) {
@@ -523,7 +528,6 @@ fun CustomVideoPlayer(
                         if (!isSeeking) {
                             IconButton(onClick = {
                                 showControls = false
-                                restoreControlsAfterFullscreen = true
                                 onToggleFullscreen()
                             }, modifier = Modifier.size(32.dp)) {
                                 Icon(

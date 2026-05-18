@@ -46,7 +46,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var isAccountMenuExpanded by mutableStateOf(false)
 
     // ── Navigation ──
-    var currentNav by mutableStateOf(NavItem.HOME)
+    private val _currentNavState = mutableStateOf(NavItem.HOME)
+    var currentNav: NavItem
+        get() = _currentNavState.value
+        set(value) {
+            if (_currentNavState.value != value) {
+                _currentNavState.value = value
+                restoreSearchStateForTab(value)
+            }
+        }
     var currentLibSub by mutableStateOf(LibrarySubScreen.NONE)
     var selectedPlaylist by mutableStateOf<Playlist?>(null)
     var selectedAuthor by mutableStateOf<Author?>(null)
@@ -69,6 +77,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var isFullscreenVideo by mutableStateOf(false)
     var isPlaying by mutableStateOf(false)
     var isBuffering by mutableStateOf(false)
+
+    // ── Search State Per Tab ──
+    data class SearchState(
+        val query: String,
+        val results: List<SearchResult>,
+        val ordering: String? = null
+    )
+
+    private val searchStacks = mutableMapOf<NavItem, MutableList<SearchState>>(
+        NavItem.HOME to mutableListOf(),
+        NavItem.SUBSCRIPTIONS to mutableListOf(),
+        NavItem.LIBRARY to mutableListOf()
+    )
+
+    fun restoreSearchStateForTab(tab: NavItem) {
+        val stack = searchStacks[tab] ?: mutableListOf()
+        if (stack.isNotEmpty()) {
+            val top = stack.last()
+            searchQuery = top.query
+            searchResults = top.results
+            searchSortOrder = top.ordering
+            isSearchVisible = true
+            isSearchExpanded = false
+            if (!overlayOrder.contains(OverlayState.SEARCH)) {
+                overlayOrder = overlayOrder + OverlayState.SEARCH
+            }
+        } else {
+            searchQuery = ""
+            searchResults = emptyList()
+            isSearchVisible = false
+            isSearchExpanded = false
+            overlayOrder = overlayOrder.filter { it != OverlayState.SEARCH }
+        }
+    }
 
     // ── Search ──
     var searchQuery by mutableStateOf("")
@@ -617,6 +659,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, ordering = ordering) }
                 searchResults = resp.results
+                
+                val currentStack = searchStacks[currentNav] ?: mutableListOf()
+                currentStack.add(SearchState(query, resp.results, ordering))
+                searchStacks[currentNav] = currentStack
             } catch (e: Exception) {
                 Log.e("Rupoop", "Search error", e)
             }
@@ -673,7 +719,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── Playlist ──
+    // ─��� Playlist ──
     fun addToPlaylist(name: String, video: SearchResult) {
         registryManager.addToPlaylist(name, video)
         userRegistry = registryManager.registry
@@ -725,14 +771,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (isFullscreenVideo) { toggleFullscreen(false); return true }
         if (playerState == PlayerState.FULL) { playerState = PlayerState.MINI; return true }
         if (isSettingsVisible) { isSettingsVisible = false; return true }
-        if (isSearchExpanded) { isSearchExpanded = false; return true }
+        if (isSearchExpanded) {
+            val currentStack = searchStacks[currentNav] ?: mutableListOf()
+            if (currentStack.isNotEmpty()) {
+                isSearchExpanded = false
+                return true
+            }
+        }
 
         val topVisible = overlayOrder.lastOrNull {
             (it == OverlayState.SEARCH && isSearchVisible) ||
             (it == OverlayState.AUTHOR && isAuthorVisible)
         }
 
-        if (topVisible == OverlayState.SEARCH) { isSearchVisible = false; searchQuery = ""; return true }
+        if (topVisible == OverlayState.SEARCH) {
+            val currentStack = searchStacks[currentNav] ?: mutableListOf()
+            if (currentStack.isNotEmpty()) {
+                currentStack.removeAt(currentStack.size - 1)
+            }
+            if (currentStack.isNotEmpty()) {
+                val previous = currentStack.last()
+                searchQuery = previous.query
+                searchResults = previous.results
+                searchSortOrder = previous.ordering
+                isSearchExpanded = false
+                isSearchVisible = true
+            } else {
+                isSearchVisible = false
+                searchQuery = ""
+                searchResults = emptyList()
+                overlayOrder = overlayOrder.filter { it != OverlayState.SEARCH }
+            }
+            return true
+        }
+        
+        if (isSearchExpanded) {
+            isSearchExpanded = false
+            return true
+        }
+
         if (topVisible == OverlayState.AUTHOR) { isAuthorVisible = false; return true }
         if (currentLibSub != LibrarySubScreen.NONE) { currentLibSub = LibrarySubScreen.NONE; return true }
         if (currentNav != NavItem.HOME) { currentNav = NavItem.HOME; searchQuery = ""; return true }
