@@ -260,7 +260,7 @@ fun RutubeApp(
                                             if (vm.currentNav == NavItem.HOME) {
                                                 if (vm.isSettingsVisible) vm.isSettingsVisible = false
                                                 else if (vm.isSearchExpanded) { vm.isSearchExpanded = false; vm.searchQuery = "" }
-                                                else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = "" }
+                                                else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = ""; vm.clearCurrentSearchStack() }
                                                 else if (vm.isAuthorVisible) vm.isAuthorVisible = false
                                                 else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
                                                 else scope.launch { homeListState.animateScrollToItem(0) }
@@ -424,7 +424,7 @@ fun RutubeApp(
                             SearchOverlay(vm = vm)
                         }
                         androidx.compose.animation.AnimatedVisibility(
-                            visible = overlay == OverlayState.AUTHOR && vm.isAuthorVisible && vm.currentNav == NavItem.HOME,
+                            visible = overlay == OverlayState.AUTHOR && vm.isAuthorVisible,
                             enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
                             exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
                         ) {
@@ -577,10 +577,12 @@ fun RutubeApp(
                                     if (!vm.isFullscreenVideo) {
                                         var dragStartedFrom = vm.playerState
                                         var initialDragDirection = 0f
+                                        var touchStartY = 0f
                                         detectVerticalDragGestures(
-                                            onDragStart = { 
-                                                dragStartedFrom = vm.playerState 
+                                            onDragStart = { offset ->
+                                                dragStartedFrom = vm.playerState
                                                 initialDragDirection = 0f
+                                                touchStartY = offset.y
                                             },
                                             onDragEnd = {
                                                 coroutineScope.launch {
@@ -619,6 +621,7 @@ fun RutubeApp(
                                             
                                             val activeDragAmount = dragAmount * 1.1f
                                             val isAtTop = relatedListState.firstVisibleItemIndex == 0 && relatedListState.firstVisibleItemScrollOffset == 0
+                                            val isTouchOnPlayer = touchStartY < size.width * (9f / 16f)
 
                                             if (dragStartedFrom == PlayerState.MINI) {
                                                 change.consume()
@@ -629,7 +632,7 @@ fun RutubeApp(
                                                     // Swipe up to expand
                                                     coroutineScope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDrag)) }
                                                 }
-                                            } else if (dragStartedFrom == PlayerState.FULL && isAtTop) {
+                                            } else if (dragStartedFrom == PlayerState.FULL && (isAtTop || isTouchOnPlayer)) {
                                                 if (initialDragDirection > 0f) {
                                                     // Swipe down to minimize
                                                     change.consume()
@@ -682,6 +685,7 @@ fun RutubeApp(
                                             onAuthorClick = { vm.loadAuthorVideos(it, false) },
                                             onToggleSub = { vm.toggleSubscription(it) },
                                             onLike = { vm.currentVideo?.let { vm.toggleLike(it) } },
+                                            onDislike = { vm.currentVideo?.let { vm.handleVideoMoreAction(it, "dislike") } },
                                             onShare = { vm.currentVideo?.let { vm.shareVideo(it) } },
                                             onAddToPlaylist = { vm.showPlaylistDialog = vm.currentVideo },
                                             onDownload = { vm.currentVideo?.let { vm.startDownload(it) } },
@@ -921,7 +925,7 @@ private fun AppTopBar(
         actions = {
             val topVisible = vm.overlayOrder.lastOrNull {
                 (it == OverlayState.SEARCH && vm.isSearchVisible) ||
-                (it == OverlayState.AUTHOR && vm.isAuthorVisible && vm.currentNav == NavItem.HOME)
+                (it == OverlayState.AUTHOR && vm.isAuthorVisible)
             }
             if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
                 if (topVisible == null && vm.currentLibSub == LibrarySubScreen.NONE && !vm.isSettingsVisible) {

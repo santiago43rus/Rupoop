@@ -17,7 +17,7 @@ fun ContentSelectionDialog(
 ) {
     val allGenres = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
-        "драма", "документальные", "мультфильмы", "сериалы", "музыка", "мультсериалы"
+        "драма", "документальные", "мультфильмы", "сериалы", "мультсериалы"
     )
     var enabledGenres by remember { mutableStateOf(settingsManager.enabledGenres) }
 

@@ -112,6 +112,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun clearCurrentSearchStack() {
+        searchStacks[currentNav]?.clear()
+        searchQuery = ""
+        searchResults = emptyList()
+        isSearchVisible = false
+        isSearchExpanded = false
+        overlayOrder = overlayOrder.filter { it != OverlayState.SEARCH }
+    }
+
     // ── Search ──
     var searchQuery by mutableStateOf("")
     var searchSuggestions by mutableStateOf<List<String>>(emptyList())
@@ -142,7 +151,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var authorPage by mutableIntStateOf(1)
     var hasMoreAuthorVideos by mutableStateOf(true)
 
-    // ── Pagination: Subscriptions ──
+    // ─�� Pagination: Subscriptions ──
     private var subsPage by mutableIntStateOf(1)
     var hasMoreSubsVideos by mutableStateOf(true)
     var isSubsLoadingMore by mutableStateOf(false)
@@ -301,9 +310,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         exoPlayer.clearMediaItems()
                         exoPlayer.setMediaItem(MediaItem.fromUri(url))
                         exoPlayer.prepare()
-                        if ((historyItem?.progress ?: 0) > 0) {
-                            exoPlayer.seekTo(historyItem!!.progress)
+                        
+                        val historyProg = historyItem?.progress ?: 0
+                        val historyTotal = historyItem?.totalDuration ?: 0
+                        if (historyTotal > 0 && (historyProg.toFloat() / historyTotal) >= 0.95f) {
+                            // If watched > 95%, start from beginning
+                            exoPlayer.seekTo(0)
+                        } else if (historyProg > 0) {
+                            exoPlayer.seekTo(historyProg)
                         }
+                        
                         exoPlayer.play()
                         playerState = PlayerState.FULL
                     }
@@ -482,7 +498,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val resp = if (author.id != null) {
                         withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), ordering = authorSortOrder, page = authorPage) }
                     } else {
-                        withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, ordering = authorSortOrder, page = authorPage) }
+                        withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, page = authorPage) }
                     }
 
                     if (resp.results.isEmpty()) {
@@ -539,7 +555,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 userRegistry = withContext(Dispatchers.IO) { syncManager.sync(token) }
                 settingsManager.lastSyncTime = System.currentTimeMillis()
-                _snackbarMessage.emit("Синхронизация завершена")
+                _snackbarMessage.emit("Синхронизация зав��ршена")
             } catch (_: Exception) {
                 _snackbarMessage.emit("Ошибка синхронизации")
             }
@@ -655,14 +671,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         registryManager.addSearchQuery(query)
         userRegistry = registryManager.registry
         pushToGitHub()
+        val requestNav = currentNav
         viewModelScope.launch {
             try {
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, ordering = ordering) }
-                searchResults = resp.results
-                
-                val currentStack = searchStacks[currentNav] ?: mutableListOf()
+
+                val currentStack = searchStacks[requestNav] ?: mutableListOf()
                 currentStack.add(SearchState(query, resp.results, ordering))
-                searchStacks[currentNav] = currentStack
+                searchStacks[requestNav] = currentStack
+
+                if (currentNav == requestNav) {
+                    searchResults = resp.results
+                }
             } catch (e: Exception) {
                 Log.e("Rupoop", "Search error", e)
             }
@@ -827,6 +847,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             "playlist" -> showPlaylistDialog = video
             "share" -> shareVideo(video)
             "download" -> startDownload(video)
+            "dislike" -> {
+                val videoId = video.videoUrl.substringAfterLast("/").substringBefore("?")
+                registryManager.toggleDislike(videoId)
+                userRegistry = registryManager.registry
+                searchResults = searchResults.filterNot { it.videoUrl == video.videoUrl }
+                homeVideos = homeVideos.filterNot { it.videoUrl == video.videoUrl }
+                relatedVideos = relatedVideos.filterNot { it.videoUrl == video.videoUrl }
+                _snackbarMessage.tryEmit("Видео отмечено как \"Не нравится\"")
+            }
+            "not_interested" -> {
+                registryManager.hideTitle(video.title)
+                userRegistry = registryManager.registry
+                searchResults = searchResults.filterNot { it.title.contains(video.title, ignoreCase = true) }
+                homeVideos = homeVideos.filterNot { it.title.contains(video.title, ignoreCase = true) }
+                relatedVideos = relatedVideos.filterNot { it.title.contains(video.title, ignoreCase = true) }
+                _snackbarMessage.tryEmit("Видео и его аналоги скрыты из ленты")
+            }
         }
     }
 

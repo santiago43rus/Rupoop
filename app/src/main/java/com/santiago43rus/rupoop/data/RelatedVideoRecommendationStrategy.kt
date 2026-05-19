@@ -41,12 +41,6 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
     fun parseSequenceInfo(title: String): SequenceInfo {
         var base = title
         
-        // Split by slash and keep first part
-        val splitBySlash = base.split("/")
-        if (splitBySlash.size > 1) {
-            base = splitBySlash[0]
-        }
-        
         // Remove quotes like «...»
         base = base.replace(Regex("«[^»]*»?"), "")
         
@@ -77,10 +71,26 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
         // Format: 5 серия (without season)
         val eRegexOnly = Regex("$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep|выпуск)", RegexOption.IGNORE_CASE)
         val eRegexOnly2 = Regex("(?:серия|эпизод|episode|ep|выпуск|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
+        // Format: s01e05 or s1e5
+        val seRegexUniversal = Regex("s(\\d{1,2})\\s*e(\\d{1,3})", RegexOption.IGNORE_CASE)
+        // Format: 01x05
+        val seRegexXFormat = Regex("(\\d{1,2})x(\\d{1,3})", RegexOption.IGNORE_CASE)
 
         when {
             seRegex1.containsMatchIn(base) -> {
                 val match = seRegex1.find(base)!!
+                season = match.groupValues[1].toIntOrNull()
+                episode = match.groupValues[2].toIntOrNull()
+                base = base.replace(match.value, "")
+            }
+            seRegexUniversal.containsMatchIn(base) -> {
+                val match = seRegexUniversal.find(base)!!
+                season = match.groupValues[1].toIntOrNull()
+                episode = match.groupValues[2].toIntOrNull()
+                base = base.replace(match.value, "")
+            }
+            seRegexXFormat.containsMatchIn(base) -> {
+                val match = seRegexXFormat.find(base)!!
                 season = match.groupValues[1].toIntOrNull()
                 episode = match.groupValues[2].toIntOrNull()
                 base = base.replace(match.value, "")
@@ -134,6 +144,12 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
                     base = base.replace(match.value, "")
                 }
             }
+        }
+        
+        // Split by slash and keep first part AFTER removing season/episode info
+        val splitBySlash = base.split("/")
+        if (splitBySlash.size > 1) {
+            base = splitBySlash[0]
         }
 
         // Cut off subtitles to make base names match for series with subtitles (e.g., Star Wars, Minions)

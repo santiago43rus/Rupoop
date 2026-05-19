@@ -36,6 +36,7 @@ fun VideoDetails(
     onAuthorClick: (Author) -> Unit,
     onToggleSub: (Author) -> Unit,
     onLike: () -> Unit,
+    onDislike: () -> Unit = {},
     onShare: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onDownload: () -> Unit
@@ -76,7 +77,9 @@ fun VideoDetails(
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
             val isLiked = registry.likedVideos.any { it.videoUrl == video?.videoUrl }
+            val isDisliked = registry.dislikedVideos.any { video?.videoUrl?.contains(it) == true }
             DetailAction(if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, "Лайк", color = if (isLiked) Color.Red else LocalContentColor.current, onClick = onLike)
+            DetailAction(if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Дизлайк", color = if (isDisliked) Color.Red else LocalContentColor.current, onClick = onDislike)
             DetailAction(Icons.Outlined.Download, "Скачать", onClick = onDownload)
             DetailAction(Icons.Default.Share, "Поделиться", onClick = onShare)
             DetailAction(Icons.AutoMirrored.Filled.PlaylistAdd, "В плейлист", onClick = onAddToPlaylist)

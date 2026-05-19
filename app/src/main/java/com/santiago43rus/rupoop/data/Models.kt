@@ -56,6 +56,9 @@ data class UserRegistry(
     val likedVideos: List<SearchResult> = emptyList(),
     val watchLater: List<SearchResult> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
+    val hiddenVideos: List<String> = emptyList(),
+    val hiddenTitles: List<String> = emptyList(),
+    val dislikedVideos: List<String> = emptyList(),
     val appSettings: AppSettings = AppSettings(),
     val lastSynced: Long = System.currentTimeMillis(),
     val watchHistoryClearedAt: Long = 0,
@@ -87,7 +90,7 @@ data class AppSettings(
     val syncFrequencyHours: Int = 24,
     val enabledGenres: List<String> = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
-        "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы", "музыка"
+        "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы"
     )
 )
 

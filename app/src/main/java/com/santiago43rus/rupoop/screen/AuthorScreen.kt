@@ -85,8 +85,8 @@ fun AuthorScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilterChip(
-                            selected = currentSort == "-hits",
-                            onClick = { if (currentSort != "-hits") onSortChange("-hits") },
+                            selected = true,
+                            onClick = { },
                             label = { Text("От новых") }
                         )
                     }

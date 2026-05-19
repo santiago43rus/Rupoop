@@ -82,6 +82,30 @@ class UserRegistryManager(private val context: Context) {
         return !exists
     }
 
+    fun hideTitle(title: String) {
+        val titles = registry.hiddenTitles.toMutableList()
+        if (!titles.contains(title)) {
+            titles.add(title)
+            updateRegistry(registry.copy(hiddenTitles = titles))
+        }
+    }
+
+    fun toggleDislike(videoId: String): Boolean {
+        val disliked = registry.dislikedVideos.toMutableList()
+        val exists = disliked.contains(videoId)
+        if (exists) disliked.remove(videoId)
+        else disliked.add(videoId)
+        
+        // Also remove from liked if disliking
+        val liked = registry.likedVideos.toMutableList()
+        if (!exists) {
+            liked.removeAll { it.videoUrl.contains(videoId) }
+        }
+        
+        updateRegistry(registry.copy(dislikedVideos = disliked, likedVideos = liked))
+        return !exists
+    }
+
     fun addToPlaylist(playlistName: String, video: SearchResult) {
         val playlists = registry.playlists.toMutableList()
         val index = playlists.indexOfFirst { it.name == playlistName }
@@ -177,6 +201,9 @@ class UserRegistryManager(private val context: Context) {
             likedVideos = (local.likedVideos + remote.likedVideos).distinctBy { it.videoUrl },
             watchLater = (local.watchLater + remote.watchLater).distinctBy { it.videoUrl },
             playlists = (local.playlists + remote.playlists).distinctBy { it.name },
+            hiddenVideos = (local.hiddenVideos + remote.hiddenVideos).distinct(),
+            hiddenTitles = (local.hiddenTitles + remote.hiddenTitles).distinct(),
+            dislikedVideos = (local.dislikedVideos + remote.dislikedVideos).distinct(),
             appSettings = remote.appSettings,
             lastSynced = System.currentTimeMillis(),
             watchHistoryClearedAt = maxWatchClearedAt,

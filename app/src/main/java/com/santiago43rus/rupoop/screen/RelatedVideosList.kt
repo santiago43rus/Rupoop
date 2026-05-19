@@ -27,6 +27,7 @@ fun RelatedVideosList(
     onAuthorClick: (Author) -> Unit,
     onToggleSub: (Author) -> Unit,
     onLike: () -> Unit,
+    onDislike: () -> Unit = {},
     onShare: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onDownload: () -> Unit,
@@ -46,6 +47,7 @@ fun RelatedVideosList(
                 onAuthorClick = onAuthorClick,
                 onToggleSub = onToggleSub,
                 onLike = onLike,
+                onDislike = onDislike,
                 onShare = onShare,
                 onAddToPlaylist = onAddToPlaylist,
                 onDownload = onDownload

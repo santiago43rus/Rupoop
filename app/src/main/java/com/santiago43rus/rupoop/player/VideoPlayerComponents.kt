@@ -39,6 +39,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.media3.common.Player
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -161,7 +162,7 @@ fun CustomVideoPlayer(
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, if (shouldFillMax) 0.5f else 0f)
             }
             .background(Color.Black)
-            .pointerInput(isFullscreen, currentVideo?.videoUrl) {
+            .pointerInput(isFullscreen) {
                 if (!isFullscreen) return@pointerInput
                 var totalDragY = 0f
                 var totalDragX = 0f
@@ -287,7 +288,7 @@ fun CustomVideoPlayer(
                     }
                 )
             }
-            .pointerInput(currentVideo?.videoUrl) {
+            .pointerInput(Unit) {
                 val coroutineScope = this
                 detectTapGestures(
                     onTap = { showControls = !showControls },
@@ -468,8 +469,20 @@ fun CustomVideoPlayer(
                                 )
                             }
                             Spacer(Modifier.width(32.dp))
-                            IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) {
-                                Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(70.dp))
+                            IconButton(onClick = {
+                                if (isPlaying) {
+                                    exoPlayer.pause()
+                                } else {
+                                    if (exoPlayer.playbackState == Player.STATE_ENDED || (duration > 0 && currentTime >= duration)) {
+                                        exoPlayer.seekTo(0)
+                                    }
+                                    exoPlayer.play()
+                                }
+                            }) {
+                                val icon = if (isPlaying) Icons.Default.Pause
+                                           else if (exoPlayer.playbackState == Player.STATE_ENDED || (duration > 0 && currentTime >= duration)) Icons.Default.Replay
+                                           else Icons.Default.PlayArrow
+                                Icon(icon, null, tint = Color.White, modifier = Modifier.size(70.dp))
                             }
                             Spacer(Modifier.width(32.dp))
                             IconButton(
@@ -787,7 +800,21 @@ fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, o
             Text(video?.title ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
             Text(video?.author?.name ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(0.7f))
         }
-        IconButton(onClick = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() }) { Icon(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null) }
+        IconButton(onClick = {
+            if (isPlaying) {
+                exoPlayer.pause()
+            } else {
+                if (exoPlayer.playbackState == Player.STATE_ENDED || (exoPlayer.duration > 0 && exoPlayer.currentPosition >= exoPlayer.duration)) {
+                    exoPlayer.seekTo(0)
+                }
+                exoPlayer.play()
+            }
+        }) {
+            val icon = if (isPlaying) Icons.Default.Pause
+                       else if (exoPlayer.playbackState == Player.STATE_ENDED || (exoPlayer.duration > 0 && exoPlayer.currentPosition >= exoPlayer.duration)) Icons.Default.Replay
+                       else Icons.Default.PlayArrow
+            Icon(icon, null)
+        }
         IconButton(onClick = onClose) { Icon(Icons.Default.Close, null) }
     }
 }

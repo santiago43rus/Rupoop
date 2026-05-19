@@ -39,35 +39,56 @@ class SequelTests {
     fun parseSequenceInfo(title: String): SequenceInfo {
         var base = title
 
-        val splitBySlash = base.split("/")
-        if (splitBySlash.size > 1) {
-            base = splitBySlash[0]
-        }
-
+        // Remove quotes like «...»
         base = base.replace(Regex("«[^»]*»?"), "")
 
+        // Year
         val yearRegex = Regex("\\((\\d{4})\\)")
         var year: Int? = null
         yearRegex.find(base)?.let { match ->
             year = match.groupValues[1].toIntOrNull()
         }
+
+        // Remove stuff in brackets
         val bracketRegex = Regex("\\[.*?\\]|\\(.*?\\)")
         base = base.replace(bracketRegex, "")
 
+        // Season and Episode multiple formats
         var season: Int? = null
         var episode: Int? = null
 
+        // Formats:
         val numPattern = "(\\d+|[IVXLCDM]+)"
 
+        // Format: с01э05
         val seRegex1 = Regex("с(\\d{1,2})э(\\d{1,2})", RegexOption.IGNORE_CASE)
+        // Format: 1 сезон 5 серия
         val seRegex2 = Regex("$numPattern\\s*-?я?\\s*(?:сезон|season).*?$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep)", RegexOption.IGNORE_CASE)
+        // Format: сезон 1 серия 5
         val seRegex3 = Regex("(?:сезон|season|s)\\s*$numPattern.*?(?:серия|эпизод|episode|ep|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
+        // Format: 5 серия (without season)
         val eRegexOnly = Regex("$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep|выпуск)", RegexOption.IGNORE_CASE)
         val eRegexOnly2 = Regex("(?:серия|эпизод|episode|ep|выпуск|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
+        // Format: s01e05 or s1e5
+        val seRegexUniversal = Regex("s(\\d{1,2})\\s*e(\\d{1,3})", RegexOption.IGNORE_CASE)
+        // Format: 01x05
+        val seRegexXFormat = Regex("(\\d{1,2})x(\\d{1,3})", RegexOption.IGNORE_CASE)
 
         when {
             seRegex1.containsMatchIn(base) -> {
                 val match = seRegex1.find(base)!!
+                season = match.groupValues[1].toIntOrNull()
+                episode = match.groupValues[2].toIntOrNull()
+                base = base.replace(match.value, "")
+            }
+            seRegexUniversal.containsMatchIn(base) -> {
+                val match = seRegexUniversal.find(base)!!
+                season = match.groupValues[1].toIntOrNull()
+                episode = match.groupValues[2].toIntOrNull()
+                base = base.replace(match.value, "")
+            }
+            seRegexXFormat.containsMatchIn(base) -> {
+                val match = seRegexXFormat.find(base)!!
                 season = match.groupValues[1].toIntOrNull()
                 episode = match.groupValues[2].toIntOrNull()
                 base = base.replace(match.value, "")
@@ -121,6 +142,12 @@ class SequelTests {
             }
         }
 
+        // Split by slash and keep first part AFTER removing season/episode info
+        val splitBySlash = base.split("/")
+        if (splitBySlash.size > 1) {
+            base = splitBySlash[0]
+        }
+
         // Cut off subtitles to make base names match for series with subtitles (e.g., Star Wars, Minions)
         val colonIndex = base.indexOf(':')
         if (colonIndex != -1) base = base.substring(0, colonIndex)
@@ -151,7 +178,8 @@ class SequelTests {
             "Звёздные войны: Эпизод VI",
             "Рокки IV",
             "Путь II часть",
-            "часть VII"
+            "часть VII",
+            "Одна из многих / Pluribus 1 сезон 4 серия LE-Production"
         )
         for (c in cases) {
             val res = parseSequenceInfo(c)
@@ -162,5 +190,9 @@ class SequelTests {
         assertEquals(6, parseSequenceInfo("Звёздные войны: Эпизод VI").episode)
         assertEquals(4, parseSequenceInfo("Рокки IV").part)
         assertEquals(2, parseSequenceInfo("Путь II часть").part)
+
+        val pluribus = parseSequenceInfo("Одна из многих / Pluribus 1 сезон 4 серия LE-Production")
+        assertEquals(1, pluribus.season)
+        assertEquals(4, pluribus.episode)
     }
 }

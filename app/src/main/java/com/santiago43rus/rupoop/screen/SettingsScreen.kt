@@ -36,14 +36,13 @@ fun SettingsScreen(
 
     var downloadQuality by remember { mutableStateOf(settingsManager.downloadQuality) }
     var syncFreq by remember { mutableStateOf(settingsManager.syncFrequencyHours.toString()) }
-    var autoPlayNext by remember { mutableStateOf(settingsManager.autoPlayNext) }
     var cacheSize by remember { mutableStateOf(getCacheSize(context)) }
     var themeMode by remember { mutableStateOf(settingsManager.themeMode) }
     var selectedIcon by remember { mutableStateOf(settingsManager.appIcon) }
 
     val allGenres = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
-        "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы", "музыка"
+        "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы"
     )
     var enabledGenres by remember { mutableStateOf(settingsManager.enabledGenres) }
 
@@ -94,20 +93,6 @@ fun SettingsScreen(
 
             // ── Плеер ──
             Text("Плеер", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
-            ListItem(
-                headlineContent = { Text("Автовоспроизведение") },
-                supportingContent = { Text("Автоматически воспроизводить следующее видео") },
-                trailingContent = {
-                    Switch(
-                        checked = autoPlayNext,
-                        onCheckedChange = {
-                            autoPlayNext = it
-                            settingsManager.autoPlayNext = it
-                        },
-                        colors = SwitchDefaults.colors(checkedTrackColor = Color(0xFFE53935))
-                    )
-                }
-            )
 
             var doubleTapSeek by remember { mutableIntStateOf(settingsManager.doubleTapSeekDuration) }
             Text("Время перемотки (двойное касание)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
