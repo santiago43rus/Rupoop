@@ -1,45 +1,57 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Production ProGuard & R8 Rules for Rupoop
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
--keepattributes SourceFile,LineNumberTable
+# ── Attributes & Metadata ───────────────────────────────────────────────────
+-keepattributes Signature, InnerClasses, EnclosingMethod, AnnotationDefault, *Annotation*, SourceFile, LineNumberTable
 -renamesourcefileattribute SourceFile
 
-# Retrofit
--dontwarn okio.**
--dontwarn javax.annotation.**
+# ── Custom App Code Safety ──────────────────────────────────────────────────
+# Preserves all custom application code from being obfuscated/shrunk to prevent runtime JSON model or UI reflection issues.
+-keep class com.santiago43rus.rupoop.** { *; }
+
+# ── Kotlin Serialization ────────────────────────────────────────────────────
+-keepclassmembers class * {
+    @kotlinx.serialization.Serializable *;
+}
+-keepclassmembers class * {
+    *** Companion;
+}
+-keepclasseswithmembers class * {
+    *** Companion;
+}
+-keepclassmembers class * {
+    *** $serializer;
+}
+-keep @kotlinx.serialization.Serializable class * { *; }
+-keepclassmembers class * {
+    @kotlinx.serialization.SerialName <fields>;
+}
+
+# ── Retrofit & OkHttp ────────────────────────────────────────────────────────
+-dontwarn retrofit2.**
+-keep class retrofit2.** { *; }
 -keepclasseswithmembers class * {
     @retrofit2.http.* <methods>;
 }
 
-# Kotlinx Serialization
--keepattributes *Annotation*, InnerClasses
--dontnote kotlinx.serialization.AnnotationsKt
--keep,allowoptimization class kotlinx.serialization.** { *; }
--keepclassmembers class * {
-    @kotlinx.serialization.Serializable *;
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn javax.annotation.**
+
+# ── WorkManager ──────────────────────────────────────────────────────────────
+-keepclassmembers class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
 
-# AppAuth
+# ── AppAuth ─────────────────────────────────────────────────────────────────
 -keep class net.openid.appauth.** { *; }
 
-# Media3 / ExoPlayer
+# ── Media3 / ExoPlayer ──────────────────────────────────────────────────────
 -keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
 
-# Keep App Classes just in case to prevent UI crashes while minifying standard libs
--keep class com.example.rupoop.** { *; }
--keep class com.santiago43rus.rupoop.** { *; }
+# ── Coil ────────────────────────────────────────────────────────────────────
+-keep class coil.** { *; }
+-dontwarn coil.**
 
-# Keep Compose and Coroutines
--keep class androidx.compose.** { *; }
+# ── Coroutines ──────────────────────────────────────────────────────────────
 -keep class kotlinx.coroutines.** { *; }

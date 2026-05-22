@@ -322,15 +322,13 @@ class DownloadService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(NotificationManager::class.java)
-            val serviceChannel = NotificationChannel(CHANNEL_ID, "Download Service", NotificationManager.IMPORTANCE_LOW)
-            manager?.createNotificationChannel(serviceChannel)
-            val completeChannel = NotificationChannel(CHANNEL_COMPLETE_ID, "Download Complete", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Уведомления о завершении загрузки"
-            }
-            manager?.createNotificationChannel(completeChannel)
+        val manager = getSystemService(NotificationManager::class.java)
+        val serviceChannel = NotificationChannel(CHANNEL_ID, "Download Service", NotificationManager.IMPORTANCE_LOW)
+        manager?.createNotificationChannel(serviceChannel)
+        val completeChannel = NotificationChannel(CHANNEL_COMPLETE_ID, "Download Complete", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = "Уведомления о завершении загрузки"
         }
+        manager?.createNotificationChannel(completeChannel)
     }
 
     private fun createNotification(title: String, progress: Int, isComplete: Boolean = false, statusText: String? = null): Notification {

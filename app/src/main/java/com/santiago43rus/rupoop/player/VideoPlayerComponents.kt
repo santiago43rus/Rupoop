@@ -59,6 +59,7 @@ import java.util.Locale
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +98,7 @@ fun CustomVideoPlayer(
     var swipeOffsetX by remember { mutableFloatStateOf(0f) }
     val context = LocalContext.current
     val settingsManager = remember { com.santiago43rus.rupoop.data.SettingsManager(context) }
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->

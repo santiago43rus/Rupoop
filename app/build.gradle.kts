@@ -19,12 +19,12 @@ base {
 
 android {
     namespace = "com.santiago43rus.rupoop"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.santiago43rus.rupoop"
         minSdk = 29
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 2
         versionName = "1.0.1"
 
@@ -50,8 +50,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -95,28 +95,28 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // Network & API
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation(libs.retrofit)
+    implementation(libs.retrofit2.kotlinx.serialization.converter)
+    implementation(libs.okhttp)
 
     // Video Player (Media3)
-    implementation("androidx.media3:media3-exoplayer:1.5.1")
-    implementation("androidx.media3:media3-ui:1.5.1")
-    implementation("androidx.media3:media3-common:1.5.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.exoplayer.hls)
 
     // ViewModel
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // Icons
-    implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("androidx.compose.material:material-icons-extended:1.7.7")
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
 
     // WorkManager for background sync
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Compose animations
-    implementation("androidx.compose.animation:animation:1.7.7")
+    implementation(libs.androidx.compose.animation)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

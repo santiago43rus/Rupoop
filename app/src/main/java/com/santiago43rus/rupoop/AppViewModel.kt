@@ -17,6 +17,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.santiago43rus.rupoop.auth.GistSyncManager
 import com.santiago43rus.rupoop.auth.GitHubAuthManager
 import com.santiago43rus.rupoop.data.*
+import android.annotation.SuppressLint
 import com.santiago43rus.rupoop.network.RetrofitClient
 import com.santiago43rus.rupoop.service.DownloadService
 import com.santiago43rus.rupoop.util.*
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
+    @SuppressLint("StaticFieldLeak")
     private val context = application.applicationContext
     val settingsManager = SettingsManager(context)
     val registryManager = UserRegistryManager(context)
@@ -537,8 +539,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             putExtra("THUMBNAIL_URL", video.thumbnailUrl)
                             putExtra("QUALITY", settingsManager.downloadQuality)
                         }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(serviceIntent)
-                        else context.startService(serviceIntent)
+                        context.startForegroundService(serviceIntent)
                     }
                 } catch (e: Exception) {
                     Log.e("RupoopDownload", "Error starting download", e)
