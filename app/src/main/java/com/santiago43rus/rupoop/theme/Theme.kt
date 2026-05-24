@@ -1,4 +1,4 @@
-package com.santiago43rus.rupoop.ui.theme
+package com.santiago43rus.rupoop.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

@@ -526,7 +526,28 @@ fun RutubeApp(
                         exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
                     ) {
                         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                            SettingsScreen(vm.settingsManager, onThemeToggle, vm.registryManager, onRegistryUpdate = { vm.onRegistryUpdate(it) })
+                            SettingsScreen(
+                                settingsManager = vm.settingsManager,
+                                onThemeToggle = onThemeToggle,
+                                registryManager = vm.registryManager,
+                                onRegistryUpdate = { vm.onRegistryUpdate(it) },
+                                onShowHiddenVideos = { vm.isHiddenVideosVisible = true }
+                            )
+                        }
+                    }
+
+                    // Hidden and Disliked overlay
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = vm.isHiddenVideosVisible,
+                        enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
+                        exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
+                    ) {
+                        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                            HiddenVideosScreen(
+                                registryManager = vm.registryManager,
+                                onRegistryUpdate = { vm.onRegistryUpdate(it) },
+                                onDismiss = { vm.isHiddenVideosVisible = false }
+                            )
                         }
                     }
 
@@ -666,6 +687,7 @@ fun RutubeApp(
                                             onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
                                             onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
                                             isFirstVideo = vm.currentVideoIndex <= 0,
+                                            isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
                                             isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
                                             isTransitioning = fsProgress > 0f || realProgress > 0f,
                                             onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
@@ -684,11 +706,11 @@ fun RutubeApp(
                                             alphaProgress = realProgress,
                                             onAuthorClick = { vm.loadAuthorVideos(it, false) },
                                             onToggleSub = { vm.toggleSubscription(it) },
-                                            onLike = { vm.currentVideo?.let { vm.toggleLike(it) } },
-                                            onDislike = { vm.currentVideo?.let { vm.handleVideoMoreAction(it, "dislike") } },
-                                            onShare = { vm.currentVideo?.let { vm.shareVideo(it) } },
-                                            onAddToPlaylist = { vm.showPlaylistDialog = vm.currentVideo },
-                                            onDownload = { vm.currentVideo?.let { vm.startDownload(it) } },
+                                            onLike = { video -> vm.toggleLike(video) },
+                                            onDislike = { video -> vm.handleVideoMoreAction(video, "dislike") },
+                                            onShare = { video -> vm.shareVideo(video) },
+                                            onAddToPlaylist = { video -> vm.showPlaylistDialog = video },
+                                            onDownload = { video -> vm.startDownload(video) },
                                             onVideoClick = { video, list -> vm.playVideo(video, list) },
                                             onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
                                         )

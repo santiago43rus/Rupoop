@@ -101,6 +101,6 @@ object RecommendationUtils {
         return score
     }
 
-    private fun extractId(url: String): String = url.split("/").lastOrNull { it.isNotEmpty() } ?: ""
+    private fun extractId(url: String): String = url.split("/").lastOrNull { it.isNotEmpty() }?.substringBefore("?") ?: ""
 }
 

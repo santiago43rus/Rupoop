@@ -75,6 +75,7 @@ fun CustomVideoPlayer(
     onNext: () -> Unit = {},
     onPrevious: () -> Unit = {},
     isFirstVideo: Boolean = false,
+    isPreviousDisliked: Boolean = false,
     isLastVideo: Boolean = false,
     isTransitioning: Boolean = false,
     onPlayRelated: (SearchResult) -> Unit = {}
@@ -341,6 +342,7 @@ fun CustomVideoPlayer(
                     player = exoPlayer
                     useController = false
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    keepScreenOn = true
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -460,12 +462,12 @@ fun CustomVideoPlayer(
                         Row(Modifier.align(Alignment.Center).padding(horizontal = if (isFullscreen) 32.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = onPrevious,
-                                enabled = !isFirstVideo
+                                enabled = !isFirstVideo && !isPreviousDisliked
                             ) {
                                 Icon(
                                     Icons.Default.SkipPrevious, 
                                     null, 
-                                    tint = if (isFirstVideo) Color.Gray else Color.White, 
+                                    tint = if (isPreviousDisliked) Color.Red else if (isFirstVideo) Color.Gray else Color.White,
                                     modifier = Modifier.size(52.dp)
                                 )
                             }
@@ -795,7 +797,7 @@ fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, o
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.size(100.dp, 56.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black)) {
-            AndroidView(factory = { context -> PlayerView(context).apply { player = exoPlayer; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM } }, modifier = Modifier.fillMaxSize())
+            AndroidView(factory = { context -> PlayerView(context).apply { player = exoPlayer; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM; keepScreenOn = true } }, modifier = Modifier.fillMaxSize())
         }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(video?.title ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)

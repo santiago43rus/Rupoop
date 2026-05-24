@@ -21,6 +21,10 @@ import com.santiago43rus.rupoop.BuildConfig
 import com.santiago43rus.rupoop.data.SettingsManager
 import com.santiago43rus.rupoop.data.UserRegistryManager
 import com.santiago43rus.rupoop.data.UserRegistry
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.Alignment
+import com.santiago43rus.rupoop.components.VideoCardItem
+import com.santiago43rus.rupoop.data.SearchResult
 import com.santiago43rus.rupoop.util.*
 
 @Composable
@@ -28,7 +32,8 @@ fun SettingsScreen(
     settingsManager: SettingsManager,
     onThemeToggle: (String) -> Unit,
     registryManager: UserRegistryManager,
-    onRegistryUpdate: (UserRegistry) -> Unit
+    onRegistryUpdate: (UserRegistry) -> Unit,
+    onShowHiddenVideos: () -> Unit
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -182,6 +187,16 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
             ) { Text("Очистить историю поиска") }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            // ── Контент и рекомендации ──
+            Text("Контент и рекомендации", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            ListItem(
+                headlineContent = { Text("Скрытые и неинтересные видео") },
+                supportingContent = { Text("Управление дизлайками и скрытыми видео") },
+                leadingContent = { Icon(Icons.Default.VisibilityOff, null, tint = Color.Gray) },
+                modifier = Modifier.clickable { onShowHiddenVideos() }
+            )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // ── GitHub Синхронизация ──

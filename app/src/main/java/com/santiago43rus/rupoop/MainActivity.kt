@@ -13,7 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.santiago43rus.rupoop.ui.theme.RupoopTheme
+import com.santiago43rus.rupoop.theme.RupoopTheme
 
 class MainActivity : ComponentActivity() {
     private var deepLinkVideoUrl by mutableStateOf<String?>(null)

@@ -59,6 +59,8 @@ data class UserRegistry(
     val hiddenVideos: List<String> = emptyList(),
     val hiddenTitles: List<String> = emptyList(),
     val dislikedVideos: List<String> = emptyList(),
+    val hiddenVideosList: List<SearchResult> = emptyList(),
+    val dislikedVideosList: List<SearchResult> = emptyList(),
     val appSettings: AppSettings = AppSettings(),
     val lastSynced: Long = System.currentTimeMillis(),
     val watchHistoryClearedAt: Long = 0,

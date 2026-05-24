@@ -1,4 +1,4 @@
-package com.santiago43rus.rupoop.ui.theme
+package com.santiago43rus.rupoop.theme
 
 import androidx.compose.ui.graphics.Color
 

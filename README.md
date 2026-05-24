@@ -17,7 +17,9 @@
 ## ✨ Возможности
 
 - 🎥 **Видеоплеер** — ExoPlayer (Media3) с HLS, качество до 1080p, управление жестами (двойной тап для перемотки, long press для 2x скорости)
-- 🏠 **Главная** — Персонализированные рекомендации на основе истории просмотра
+- 🏠 **Главная** — Персонализированный микс и умные рекомендации на основе истории просмотров и выбранных жанров в разнобой (как на YouTube) с параллельной загрузкой категорий.
+- 🚫 **Скрытие контента** — Видео, помеченные как «Не интересно» или дизлайкнутые, гарантированно удаляются из всех лент, поиска, каналов авторов и подписок в реальном времени. В настройках доступен удобный раздел «Скрытые и неинтересные видео» для их разблокировки.
+- 🎥 **Видеоплеер** — ExoPlayer (Media3) с HLS, качество до 1080p, управление жестами (двойной тап для перемотки, long press для 2x скорости) и удержанием экрана awake (`keepScreenOn`).
 - 🔍 **Поиск** — Текстовый и голосовой ввод
 - 📺 **Подписки** — Подписывайтесь на каналы и следите за обновлениями
 - 📚 **Библиотека** — История, лайки, «Смотреть позже», плейлисты, загрузки
@@ -211,31 +213,40 @@ app/src/main/java/com/santiago43rus/rupoop/
 │   ├── GitHubAuthManager.kt   # OAuth через AppAuth
 │   └── GistSyncManager.kt     # Синхронизация данных через Gist
 ├── components/
-│   ├── VideoComponents.kt     # VideoItem, VideoDetails
+│   ├── VideoComponents.kt     # VideoDetails, VideoListScreen
+│   ├── VideoCardItem.kt       # Карточка видео, меню "три точки", режим редактирования
 │   ├── LibraryComponents.kt   # LibraryScreen, LibraryRow
 │   ├── DownloadComponents.kt  # Раздел загрузок
 │   └── Dialogs.kt             # Диалоги (контент, плейлисты)
 ├── data/
-│   ├── Models.kt              # Data classes
-│   ├── SettingsManager.kt     # SharedPreferences
-│   ├── UserRegistryManager.kt # Управление данными пользователя
-│   ├── RecommendationEngine.kt# Рекомендации
+│   ├── Models.kt              # Модели данных (UserRegistry, AppSettings)
+│   ├── SettingsManager.kt     # Хранилище SharedPreferences
+│   ├── UserRegistryManager.kt # Управление реестром пользователя (лайки, скрытые, дизлайки)
+│   ├── MainFeedRecommendationStrategy.kt # Стратегия рекомендаций главной страницы
+│   ├── RelatedVideoRecommendationStrategy.kt # Стратегия рекомендаций похожих видео
+│   ├── RecommendationUtils.kt # Утилиты ранжирования весов тегов
 │   └── DownloadTracker.kt     # Трекер загрузок
 ├── network/
-│   ├── ApiInterfaces.kt       # Retrofit interfaces
-│   └── RetrofitClient.kt      # HTTP клиент
+│   ├── ApiInterfaces.kt       # Интерфейсы Retrofit (Rutube, Gist, GitHub)
+│   └── RetrofitClient.kt      # Настройка HTTP-клиента OkHttp
 ├── player/
-│   └── VideoPlayerComponents.kt # ExoPlayer обёртка
+│   └── VideoPlayerComponents.kt # Кастомный плеер ExoPlayer, жесты, воспроизведение
 ├── screen/
-│   ├── HomeScreen.kt
-│   ├── SubscriptionsScreen.kt
-│   ├── AuthorScreen.kt
-│   └── SettingsScreen.kt
+│   ├── MainFeedScreen.kt      # Главная страница (лента рекомендаций)
+│   ├── SubscriptionsScreen.kt # Вкладка подписок
+│   ├── AuthorScreen.kt        # Страница конкретного автора
+│   ├── RelatedVideosList.kt   # Список похожих видео под плеером
+│   ├── SettingsScreen.kt      # Настройки
+│   └── HiddenVideosScreen.kt  # Раздел скрытых и неинтересных видео
 ├── service/
-│   ├── DownloadService.kt     # Foreground service загрузок
-│   └── SyncWorker.kt          # WorkManager для фоновой синхронизации
+│   ├── DownloadService.kt     # Фоновая Foreground-служба скачивания видео
+│   └── SyncWorker.kt          # Периодическая фоновая синхронизация реестра
+├── theme/
+│   ├── Color.kt               # Определение цветов темы
+│   ├── Theme.kt               # Настройка RupoopTheme
+│   └── Type.kt                # Типографика Jetpack Compose
 └── util/
-    └── Utils.kt               # Утилиты, enums
+    └── Utils.kt               # Утилиты форматирования, проверка сети
 ```
 
 ---

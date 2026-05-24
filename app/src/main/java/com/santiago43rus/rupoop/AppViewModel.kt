@@ -134,6 +134,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var isSearchVisible by mutableStateOf(false)
     var isAuthorVisible by mutableStateOf(false)
     var isSettingsVisible by mutableStateOf(false)
+    var isHiddenVideosVisible by mutableStateOf(false)
     var overlayOrder by mutableStateOf(listOf(OverlayState.SEARCH, OverlayState.AUTHOR))
 
     // ── Dialogs ──
@@ -328,10 +329,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                     val relatedResults = relatedDeferred.await()
                     val filteredRelated = relatedVideoRecommender.recommendRelated(video, relatedResults)
-                    relatedVideos = filteredRelated
+                    val finalRelated = filterHiddenAndDisliked(filteredRelated)
+                    relatedVideos = finalRelated
 
                     if (!isPlaylistMode) {
-                        currentVideoList = currentVideoList.take(currentVideoIndex + 1) + filteredRelated
+                        currentVideoList = currentVideoList.take(currentVideoIndex + 1) + finalRelated
                     }
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Play error", e)
@@ -399,23 +401,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             else { isRefreshingHome = true; homeVideos = emptyList() }
 
             try {
-                val queries = mutableListOf<String>()
-                // Use enabled genres for home feed
-                val genres = settingsManager.enabledGenres
-                val filmGenres = listOf("боевик", "комедия", "драма", "ужасы", "фантастика", "триллер", "детектив", "мелодрама")
+                val enabledGenres = settingsManager.enabledGenres.toList()
+                val selectedGenres = if (enabledGenres.size > 4) {
+                    enabledGenres.shuffled().take(4)
+                } else enabledGenres
 
-                genres.forEach { genre ->
+                val filmGenres = listOf("боевик", "комедия", "драма", "ужасы", "фантастика", "триллер", "детектив", "мелодрама")
+                val queries = selectedGenres.map { genre ->
                     if (filmGenres.any { it.equals(genre, ignoreCase = true) }) {
-                        queries.add("$genre фильм")
+                        "$genre фильм"
                     } else {
-                        queries.add(genre)
+                        genre
                     }
-                }
+                }.toMutableList()
+
                 if (queries.isEmpty()) queries.add("популярное")
 
-                val query = queries.random()
-                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, page = 1) }
-                val newVideos = mainFeedRecommender.recommend(resp.results)
+                val deferreds = queries.map { query ->
+                    viewModelScope.async(Dispatchers.IO) {
+                        try {
+                            val targetPage = if (isLoadMore) (2..4).random() else 1
+                            RetrofitClient.api.searchVideos(query, page = targetPage).results
+                        } catch (e: Exception) {
+                            Log.e("Rupoop", "Error fetching home genre query: $query", e)
+                            emptyList<SearchResult>()
+                        }
+                    }
+                }
+
+                val allResults = deferreds.awaitAll().flatten().distinctBy { it.videoUrl }
+                val newVideos = mainFeedRecommender.recommend(allResults)
 
                 val updatedList = if (isLoadMore) (homeVideos + newVideos).distinctBy { it.videoUrl } else newVideos
                 homeVideos = updatedList.take(200)
@@ -459,10 +474,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         hasMoreSubsVideos = false
                     } else {
                         val sortedNewVideos = allSubsVideos.sortedByDescending { it.createdTs ?: "" }
+                        val filteredNewVideos = filterHiddenAndDisliked(sortedNewVideos)
                         subscriptionVideos = if (isLoadMore) {
-                            (subscriptionVideos + sortedNewVideos).distinctBy { it.videoUrl }
+                            (subscriptionVideos + filteredNewVideos).distinctBy { it.videoUrl }
                         } else {
-                            sortedNewVideos.distinctBy { it.videoUrl }
+                            filteredNewVideos.distinctBy { it.videoUrl }
                         }
                     }
                 } catch (e: Exception) {
@@ -506,8 +522,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     if (resp.results.isEmpty()) {
                         hasMoreAuthorVideos = false
                     } else {
-                        val newVideos = resp.results
-                        authorVideos = if (isLoadMore) (authorVideos + newVideos).distinctBy { it.videoUrl } else newVideos
+                        val filteredNewVideos = filterHiddenAndDisliked(resp.results)
+                        authorVideos = if (isLoadMore) (authorVideos + filteredNewVideos).distinctBy { it.videoUrl } else filteredNewVideos
                     }
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Author videos error", e)
@@ -676,13 +692,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, ordering = ordering) }
-
+                val filteredResults = filterHiddenAndDisliked(resp.results)
                 val currentStack = searchStacks[requestNav] ?: mutableListOf()
-                currentStack.add(SearchState(query, resp.results, ordering))
+                currentStack.add(SearchState(query, filteredResults, ordering))
                 searchStacks[requestNav] = currentStack
 
                 if (currentNav == requestNav) {
-                    searchResults = resp.results
+                    searchResults = filteredResults
                 }
             } catch (e: Exception) {
                 Log.e("Rupoop", "Search error", e)
@@ -740,14 +756,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addToWatchLaterViaMenu(video: SearchResult) {
+        val exists = userRegistry.watchLater.any { extractId(it.videoUrl) == extractId(video.videoUrl) }
+        if (exists) {
+            viewModelScope.launch {
+                _snackbarMessage.emit("Видео уже находится в разделе \"Смотреть позже\"")
+            }
+        } else {
+            registryManager.toggleWatchLater(video)
+            userRegistry = registryManager.registry
+            pushToGitHub()
+            viewModelScope.launch {
+                _snackbarMessage.emit("Добавлено in Смотреть позже")
+            }
+        }
+    }
+
     // ─��� Playlist ──
     fun addToPlaylist(name: String, video: SearchResult) {
-        registryManager.addToPlaylist(name, video)
+        val added = registryManager.addToPlaylist(name, video)
         userRegistry = registryManager.registry
         showPlaylistDialog = null
         pushToGitHub()
         viewModelScope.launch {
-            _snackbarMessage.emit("Добавлено in $name")
+            if (added) {
+                _snackbarMessage.emit("Добавлено в $name")
+            } else {
+                _snackbarMessage.emit("Видео уже добавлено в плейлист \"$name\"")
+            }
         }
     }
 
@@ -791,6 +827,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun handleBack(): Boolean {
         if (isFullscreenVideo) { toggleFullscreen(false); return true }
         if (playerState == PlayerState.FULL) { playerState = PlayerState.MINI; return true }
+        if (isHiddenVideosVisible) { isHiddenVideosVisible = false; return true }
         if (isSettingsVisible) { isSettingsVisible = false; return true }
         if (isSearchExpanded) {
             val currentStack = searchStacks[currentNav] ?: mutableListOf()
@@ -844,30 +881,68 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Video action handler (used across screens) ──
     fun handleVideoMoreAction(video: SearchResult, action: String) {
         when (action) {
-            "later" -> toggleWatchLater(video)
+            "later" -> addToWatchLaterViaMenu(video)
             "playlist" -> showPlaylistDialog = video
             "share" -> shareVideo(video)
             "download" -> startDownload(video)
             "dislike" -> {
-                val videoId = video.videoUrl.substringAfterLast("/").substringBefore("?")
-                registryManager.toggleDislike(videoId)
+                registryManager.toggleDislike(video)
                 userRegistry = registryManager.registry
-                searchResults = searchResults.filterNot { it.videoUrl == video.videoUrl }
-                homeVideos = homeVideos.filterNot { it.videoUrl == video.videoUrl }
-                relatedVideos = relatedVideos.filterNot { it.videoUrl == video.videoUrl }
+                removeVideoFromUiLists(video)
+                pushToGitHub()
                 _snackbarMessage.tryEmit("Видео отмечено как \"Не нравится\"")
             }
             "not_interested" -> {
+                registryManager.hideVideo(video)
                 registryManager.hideTitle(video.title)
+                val videoId = video.videoUrl.substringAfterLast("/").substringBefore("?")
+                if (!userRegistry.dislikedVideos.contains(videoId)) {
+                    registryManager.toggleDislike(video)
+                }
                 userRegistry = registryManager.registry
-                searchResults = searchResults.filterNot { it.title.contains(video.title, ignoreCase = true) }
-                homeVideos = homeVideos.filterNot { it.title.contains(video.title, ignoreCase = true) }
-                relatedVideos = relatedVideos.filterNot { it.title.contains(video.title, ignoreCase = true) }
+                removeVideoFromUiLists(video)
+                pushToGitHub()
                 _snackbarMessage.tryEmit("Видео и его аналоги скрыты из ленты")
             }
         }
     }
 
+    fun removeVideoFromUiLists(video: SearchResult) {
+        val videoId = extractId(video.videoUrl)
+        val title = video.title
+        val filterPredicate: (SearchResult) -> Boolean = { item ->
+            val itemId = extractId(item.videoUrl)
+            itemId != videoId && !item.title.contains(title, ignoreCase = true)
+        }
+        homeVideos = homeVideos.filter(filterPredicate)
+        searchResults = searchResults.filter(filterPredicate)
+        subscriptionVideos = subscriptionVideos.filter(filterPredicate)
+        authorVideos = authorVideos.filter(filterPredicate)
+        relatedVideos = relatedVideos.filter(filterPredicate)
+    }
+
+    fun filterHiddenAndDisliked(videos: List<SearchResult>): List<SearchResult> {
+        val hiddenIds = userRegistry.hiddenVideos.toSet()
+        val dislikedIds = userRegistry.dislikedVideos.toSet()
+        val hiddenTitles = userRegistry.hiddenTitles.toSet()
+        return videos.filter { video ->
+            val id = extractId(video.videoUrl)
+            if (id in hiddenIds || id in dislikedIds) false
+            else if (hiddenTitles.any { video.title.contains(it, ignoreCase = true) }) false
+            else true
+        }
+    }
+
+    fun isPreviousVideoDislikedOrHidden(): Boolean {
+        if (currentVideoIndex <= 0 || currentVideoIndex >= currentVideoList.size) return false
+        val prevVideo = currentVideoList[currentVideoIndex - 1]
+        val prevId = extractId(prevVideo.videoUrl)
+        val hiddenIds = userRegistry.hiddenVideos.toSet()
+        val dislikedIds = userRegistry.dislikedVideos.toSet()
+        val hiddenTitles = userRegistry.hiddenTitles.toSet()
+        
+        return prevId in hiddenIds || prevId in dislikedIds || hiddenTitles.any { prevVideo.title.contains(it, ignoreCase = true) }
+    }
     // ── Close player ──
     fun closePlayer() {
         playerState = PlayerState.CLOSED

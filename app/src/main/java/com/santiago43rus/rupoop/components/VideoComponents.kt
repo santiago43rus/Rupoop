@@ -35,11 +35,11 @@ fun VideoDetails(
     registry: UserRegistry,
     onAuthorClick: (Author) -> Unit,
     onToggleSub: (Author) -> Unit,
-    onLike: () -> Unit,
-    onDislike: () -> Unit = {},
-    onShare: () -> Unit,
-    onAddToPlaylist: () -> Unit,
-    onDownload: () -> Unit
+    onLike: (SearchResult) -> Unit,
+    onDislike: (SearchResult) -> Unit = {},
+    onShare: (SearchResult) -> Unit,
+    onAddToPlaylist: (SearchResult) -> Unit,
+    onDownload: (SearchResult) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -76,13 +76,14 @@ fun VideoDetails(
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-            val isLiked = registry.likedVideos.any { it.videoUrl == video?.videoUrl }
-            val isDisliked = registry.dislikedVideos.any { video?.videoUrl?.contains(it) == true }
-            DetailAction(if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, "Лайк", color = if (isLiked) Color.Red else LocalContentColor.current, onClick = onLike)
-            DetailAction(if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Дизлайк", color = if (isDisliked) Color.Red else LocalContentColor.current, onClick = onDislike)
-            DetailAction(Icons.Outlined.Download, "Скачать", onClick = onDownload)
-            DetailAction(Icons.Default.Share, "Поделиться", onClick = onShare)
-            DetailAction(Icons.AutoMirrored.Filled.PlaylistAdd, "В плейлист", onClick = onAddToPlaylist)
+            val currentId = video?.videoUrl?.let { com.santiago43rus.rupoop.util.extractId(it) }
+            val isLiked = currentId != null && registry.likedVideos.any { com.santiago43rus.rupoop.util.extractId(it.videoUrl) == currentId }
+            val isDisliked = currentId != null && registry.dislikedVideos.contains(currentId)
+            DetailAction(if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, "Лайк", color = if (isLiked) Color.Red else LocalContentColor.current, onClick = { video?.let { onLike(it) } })
+            DetailAction(if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Дизлайк", color = if (isDisliked) Color.Red else LocalContentColor.current, onClick = { video?.let { onDislike(it) } })
+            DetailAction(Icons.Outlined.Download, "Скачать", onClick = { video?.let { onDownload(it) } })
+            DetailAction(Icons.Default.Share, "Поделиться", onClick = { video?.let { onShare(it) } })
+            DetailAction(Icons.AutoMirrored.Filled.PlaylistAdd, "В плейлист", onClick = { video?.let { onAddToPlaylist(it) } })
         }
     }
 }
