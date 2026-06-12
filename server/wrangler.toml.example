@@ -1,0 +1,11 @@
+name = "rupoop-proxy"
+main = "index.js"
+compatibility_date = "2024-03-01"
+
+[vars]
+# Здесь указываются только публичные переменные среды
+GH_CLIENT_ID = "Ваш_GitHub_Client_ID"
+
+# Секретные переменные (например, GH_CLIENT_SECRET) добавляются
+# в панели управления Cloudflare в разделе Settings -> Variables -> Environment Variables,
+# либо через команду: npx wrangler secret put GH_CLIENT_SECRET
