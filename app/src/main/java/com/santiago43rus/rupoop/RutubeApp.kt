@@ -373,7 +373,7 @@ fun RutubeApp(
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                 // Background layer with full padding
                 Column(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = realProgress.coerceIn(0f, 1f) }.padding(bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding())) {
-                    if (!vm.isFullscreenVideo) {
+                    if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible) {
                         AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
                             scope.launch { homeListState.scrollToItem(0) }
                         })

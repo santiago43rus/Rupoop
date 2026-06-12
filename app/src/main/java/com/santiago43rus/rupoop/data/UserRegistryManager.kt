@@ -90,14 +90,18 @@ class UserRegistryManager(private val context: Context) {
         }
     }
 
+    private fun extractId(url: String): String {
+        return url.split("/").lastOrNull { it.isNotEmpty() }?.substringBefore("?") ?: ""
+    }
+
     fun toggleDislike(video: SearchResult): Boolean {
-        val videoId = video.videoUrl.substringAfterLast("/").substringBefore("?")
+        val videoId = extractId(video.videoUrl)
         val disliked = registry.dislikedVideos.toMutableList()
         val dislikedList = registry.dislikedVideosList.toMutableList()
         val exists = disliked.contains(videoId)
         if (exists) {
             disliked.remove(videoId)
-            dislikedList.removeAll { it.videoUrl.contains(videoId) }
+            dislikedList.removeAll { extractId(it.videoUrl) == videoId }
         } else {
             disliked.add(videoId)
             dislikedList.add(0, video)
@@ -106,7 +110,7 @@ class UserRegistryManager(private val context: Context) {
         // Also remove from liked if disliking
         val liked = registry.likedVideos.toMutableList()
         if (!exists) {
-            liked.removeAll { it.videoUrl.contains(videoId) }
+            liked.removeAll { extractId(it.videoUrl) == videoId }
         }
         
         updateRegistry(registry.copy(dislikedVideos = disliked, dislikedVideosList = dislikedList, likedVideos = liked))
@@ -114,7 +118,7 @@ class UserRegistryManager(private val context: Context) {
     }
 
     fun hideVideo(video: SearchResult) {
-        val videoId = video.videoUrl.substringAfterLast("/").substringBefore("?")
+        val videoId = extractId(video.videoUrl)
         val hidden = registry.hiddenVideos.toMutableList()
         val hiddenList = registry.hiddenVideosList.toMutableList()
         if (!hidden.contains(videoId)) {
@@ -129,13 +133,13 @@ class UserRegistryManager(private val context: Context) {
         hidden.remove(videoId)
         
         val hiddenList = registry.hiddenVideosList.toMutableList()
-        hiddenList.removeAll { it.videoUrl.contains(videoId) }
+        hiddenList.removeAll { extractId(it.videoUrl) == videoId }
         
         val disliked = registry.dislikedVideos.toMutableList()
         disliked.remove(videoId)
         
         val dislikedList = registry.dislikedVideosList.toMutableList()
-        dislikedList.removeAll { it.videoUrl.contains(videoId) }
+        dislikedList.removeAll { extractId(it.videoUrl) == videoId }
         
         val titles = registry.hiddenTitles.toMutableList()
         titles.removeAll { it.equals(title, ignoreCase = true) }

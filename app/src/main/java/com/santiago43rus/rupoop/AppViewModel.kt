@@ -895,8 +895,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             "not_interested" -> {
                 registryManager.hideVideo(video)
                 registryManager.hideTitle(video.title)
-                val videoId = video.videoUrl.substringAfterLast("/").substringBefore("?")
-                if (!userRegistry.dislikedVideos.contains(videoId)) {
+                val videoId = extractId(video.videoUrl)
+                if (videoId != null && !userRegistry.dislikedVideos.contains(videoId)) {
                     registryManager.toggleDislike(video)
                 }
                 userRegistry = registryManager.registry
