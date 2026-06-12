@@ -5,8 +5,7 @@
 -renamesourcefileattribute SourceFile
 
 # ── Custom App Code Safety ──────────────────────────────────────────────────
-# Preserves all custom application code from being obfuscated/shrunk to prevent runtime JSON model or UI reflection issues.
--keep class com.santiago43rus.rupoop.** { *; }
+# (Removed greedy rule that kept all app code, as it defeats obfuscation)
 
 # ── Kotlin Serialization ────────────────────────────────────────────────────
 -keepclassmembers class * {
