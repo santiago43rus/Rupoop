@@ -37,8 +37,16 @@ data class SearchResult(
 data class Author(
     val id: Long? = null,
     val name: String,
-    @SerialName("avatar_url") val avatarUrl: String? = null
+    @SerialName("avatar_url") val avatarUrl: String? = null,
+    @SerialName("is_verified") val isVerified: Boolean? = null,
+    val verified: Boolean? = null,
+    @SerialName("is_official") val isOfficial: Boolean? = null,
+    val official: Boolean? = null
 )
+
+val Author.isVerifiedChannel: Boolean
+    get() = isVerified == true || verified == true || isOfficial == true || official == true || 
+            listOf("ТНТ", "Пятница", "Пятница!", "Матч ТВ", "Rutube", "Телеканал 360", "Comedy Club", "Comedy Central", "Шоу").any { name.contains(it, ignoreCase = true) }
 
 @Serializable
 data class Playlist(
@@ -108,5 +116,27 @@ data class GistRequest(val description: String, val public: Boolean, val files: 
 @Serializable
 data class GitHubUser(
     val login: String,
+    @SerialName("avatar_url") val avatarUrl: String? = null
+)
+
+@Serializable
+data class CommentsResponse(
+    val results: List<CommentItem> = emptyList(),
+    val next: String? = null,
+    val count: Int? = null
+)
+
+@Serializable
+data class CommentItem(
+    val id: String? = null,
+    val text: String? = null,
+    @SerialName("created_ts") val createdTs: String? = null,
+    val author: CommentAuthor? = null
+)
+
+@Serializable
+data class CommentAuthor(
+    val id: Long? = null,
+    val name: String? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null
 )

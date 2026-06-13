@@ -14,13 +14,18 @@ interface RutubeApi {
     @GET("api/play/options/{id}/?format=json")
     suspend fun getVideoOptions(@Path("id") id: String): RutubeResponse
 
-    @GET("api/video/perso" +
-            "n/{id}/?format=json")
+    @GET("api/video/person/{id}/?format=json")
     suspend fun getAuthorVideos(
         @Path("id") id: String,
         @Query("ordering") ordering: String? = "-hits",
         @Query("page") page: Int = 1
     ): SearchResponse
+
+    @GET("api/video/{id}/comments/?format=json")
+    suspend fun getVideoComments(
+        @Path("id") id: String,
+        @Query("page") page: Int = 1
+    ): CommentsResponse
 }
 
 interface GistApi {

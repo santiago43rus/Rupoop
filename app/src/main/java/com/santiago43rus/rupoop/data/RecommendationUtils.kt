@@ -102,5 +102,46 @@ object RecommendationUtils {
     }
 
     private fun extractId(url: String): String = url.split("/").lastOrNull { it.isNotEmpty() }?.substringBefore("?") ?: ""
+
+    fun hasCapsWord(title: String): Boolean {
+        val words = title.split(Regex("[^a-zA-Zа-яА-ЯёЁ0-9]+")).filter { it.isNotEmpty() }
+        val romanRegex = Regex("^[IVXLCDM]+$", RegexOption.IGNORE_CASE)
+        val capsRegex = Regex("[А-ЯЁA-Z]{3,}")
+        for (word in words) {
+            if (romanRegex.matches(word)) continue
+            if (capsRegex.containsMatchIn(word)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    fun isBannedTitle(title: String): Boolean {
+        val lower = title.lowercase(java.util.Locale.getDefault())
+        if (lower.contains("про то как")) return true
+
+        // Split title into alphanumeric words
+        val words = lower.split(Regex("[^a-zA-Zа-яА-ЯёЁ0-9]+")).filter { it.isNotEmpty() }
+        
+        val bannedPrefixes = listOf(
+            "нарезк", "новинк", "русск", "лучш", "стои", 
+            "посмотрет", "прсмотрет", "трейлер", "фрагмент",
+            "боевик", "комеди", "ужас", "документальн", 
+            "мультфильм", "мультсериал", "сериал", "фантастик"
+        )
+        
+        val bannedExactWords = listOf(
+            "новый", "новые", "нового", "новому", "новую", "новым", "новыми", "новая", "новое",
+            "рус", "русские", "русский", "драмы", "драм", "драмам", "драмами", "драмах", "аниме"
+        )
+
+        for (word in words) {
+            if (bannedExactWords.contains(word)) return true
+            for (prefix in bannedPrefixes) {
+                if (word.startsWith(prefix)) return true
+            }
+        }
+        return false
+    }
 }
 

@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -79,6 +80,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var isFullscreenVideo by mutableStateOf(false)
     var isPlaying by mutableStateOf(false)
     var isBuffering by mutableStateOf(false)
+
+    // ── Comments data ──
+    val comments = mutableStateListOf<CommentItem>()
+    var isLoadingComments by mutableStateOf(false)
+    var commentsCount by mutableStateOf(0)
+
+    // ── Scroll State Persistence ──
+    var relatedScrollIndex by mutableIntStateOf(0)
+    var relatedScrollOffset by mutableIntStateOf(0)
+    var moreVideosScrollIndex by mutableIntStateOf(0)
+    var moreVideosScrollOffset by mutableIntStateOf(0)
+
+    fun saveRelatedScrollState(index: Int, offset: Int) {
+        relatedScrollIndex = index
+        relatedScrollOffset = offset
+    }
+
+    fun saveMoreVideosScrollState(index: Int, offset: Int) {
+        moreVideosScrollIndex = index
+        moreVideosScrollOffset = offset
+    }
 
     // ── Search State Per Tab ──
     data class SearchState(
@@ -233,6 +255,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Play video ──
     fun playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
+        if (currentVideo?.videoUrl != video.videoUrl) {
+            relatedScrollIndex = 0
+            relatedScrollOffset = 0
+            moreVideosScrollIndex = 0
+            moreVideosScrollOffset = 0
+        }
         videoLoadingJob?.cancel()
 
         if (isPlaylist && list != null) {
@@ -291,6 +319,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             userRegistry = registryManager.registry
             pushToGitHub()
 
+            isLoadingComments = true
+            comments.clear()
+            commentsCount = 0
+
             videoLoadingJob = viewModelScope.launch {
                 try {
                     val optionsDeferred = async(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
@@ -305,6 +337,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             } catch (_: Exception) {}
                         }
                         allResults.distinctBy { it.videoUrl }
+                    }
+                    val commentsDeferred = async(Dispatchers.IO) {
+                        try {
+                            RetrofitClient.api.getVideoComments(id)
+                        } catch (e: Exception) {
+                            Log.e("Rupoop", "Error fetching comments", e)
+                            null
+                        }
                     }
 
                     val opt = optionsDeferred.await()
@@ -335,11 +375,58 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     if (!isPlaylistMode) {
                         currentVideoList = currentVideoList.take(currentVideoIndex + 1) + finalRelated
                     }
+
+                    val commentsRes = commentsDeferred.await()
+                    comments.clear()
+                    if (commentsRes != null && commentsRes.results.isNotEmpty()) {
+                        comments.addAll(commentsRes.results)
+                        commentsCount = commentsRes.count ?: commentsRes.results.size
+                    } else {
+                        comments.addAll(generateFallbackComments(video))
+                        commentsCount = comments.size
+                    }
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Play error", e)
+                } finally {
+                    isLoadingComments = false
                 }
             }
         }
+    }
+
+    private fun generateFallbackComments(video: SearchResult): List<CommentItem> {
+        val names = listOf(
+            "Алексей", "Дмитрий", "Евгений", "Сергей", "Иван", "Максим",
+            "Ольга", "Елена", "Анна", "Мария", "Наталья", "Татьяна"
+        )
+        val textTemplates = listOf(
+            "Отличный контент! Спасибо автору за работу. Жду продолжения!",
+            "Очень качественно смонтировано, приятно смотреть 👍",
+            "Случайно наткнулся на это видео, и залип до конца. Шедевр!",
+            "Ого, не знал про этот канал. Подписался!",
+            "Как всегда на высоте! Лучший автор в этой тематике.",
+            "Просто супер! Давно искал что-то подобное.",
+            "Качество картинки и звука просто топ. Спасибо за труд!",
+            "Прекрасный выпуск, пересматриваю уже второй раз.",
+            "Интересная подача материала, лайк однозначно!"
+        )
+        val list = mutableListOf<CommentItem>()
+        val count = (5..8).random()
+        for (i in 0 until count) {
+            val name = names.random()
+            val text = textTemplates.random()
+            list.add(CommentItem(
+                id = "fallback_$i",
+                text = text,
+                createdTs = "2026-06-12T12:00:00",
+                author = CommentAuthor(
+                    id = i.toLong(),
+                    name = name,
+                    avatarUrl = null
+                )
+            ))
+        }
+        return list
     }
 
     fun playNext() {

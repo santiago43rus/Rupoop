@@ -15,18 +15,22 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -78,9 +82,12 @@ fun CustomVideoPlayer(
     isPreviousDisliked: Boolean = false,
     isLastVideo: Boolean = false,
     isTransitioning: Boolean = false,
-    onPlayRelated: (SearchResult) -> Unit = {}
+    onPlayRelated: (SearchResult) -> Unit = {},
+    moreVideosScrollIndex: Int = 0,
+    moreVideosScrollOffset: Int = 0,
+    onMoreVideosScroll: (Int, Int) -> Unit = { _, _ -> }
 ) {
-    var showControls by remember { mutableStateOf(true) }
+    var showControls by remember { mutableStateOf(!isTransitioning) }
     var currentTime by remember { mutableLongStateOf(exoPlayer.currentPosition) }
     var duration by remember { mutableLongStateOf(exoPlayer.duration.coerceAtLeast(0L)) }
     var showSettings by remember { mutableStateOf(false) }
@@ -92,6 +99,8 @@ fun CustomVideoPlayer(
     var showSeekAnimation by remember { mutableStateOf(false) }
     var accumulatedSeekAmount by remember { mutableLongStateOf(0L) }
     var seekAnimationJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var seekStartPos by remember { mutableStateOf<Long?>(null) }
+    var is2xLocked by remember { mutableStateOf(false) }
     var moreVideosDragOffset by remember { mutableFloatStateOf(0f) }
 
     var swipeScale by remember { mutableFloatStateOf(1f) }
@@ -125,6 +134,10 @@ fun CustomVideoPlayer(
         if (isTransitioning) {
             showControls = false
         }
+    }
+
+    LaunchedEffect(currentVideo) {
+        is2xLocked = false
     }
 
 
@@ -300,40 +313,97 @@ fun CustomVideoPlayer(
 
                         seekAnimationJob?.cancel()
 
+                        if (seekStartPos == null) {
+                            seekStartPos = exoPlayer.currentPosition
+                        }
+
                         if (offset.x < size.width / 2) {
-                            if (seekDirection == 1) accumulatedSeekAmount = 0L
+                            if (seekDirection == 1) {
+                                accumulatedSeekAmount = 0L
+                                seekStartPos = exoPlayer.currentPosition
+                            }
                             seekDirection = -1
                             accumulatedSeekAmount += baseSeek
-                            val target = (exoPlayer.currentPosition - baseSeek).coerceAtLeast(0)
+                            val target = (seekStartPos!! - accumulatedSeekAmount).coerceAtLeast(0L)
                             currentTime = target
-                            exoPlayer.seekTo(target)
                         } else {
-                            if (seekDirection == -1) accumulatedSeekAmount = 0L
+                            if (seekDirection == -1) {
+                                accumulatedSeekAmount = 0L
+                                seekStartPos = exoPlayer.currentPosition
+                            }
                             seekDirection = 1
                             accumulatedSeekAmount += baseSeek
-                            val target = (exoPlayer.currentPosition + baseSeek).coerceAtMost(exoPlayer.duration)
+                            val target = (seekStartPos!! + accumulatedSeekAmount).coerceAtMost(duration)
                             currentTime = target
-                            exoPlayer.seekTo(target)
+                        }
+
+                        val finalTarget = if (seekDirection == -1) {
+                            (seekStartPos!! - accumulatedSeekAmount).coerceAtLeast(0L)
+                        } else {
+                            (seekStartPos!! + accumulatedSeekAmount).coerceAtMost(duration)
                         }
 
                         seekAnimationJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                            delay(700)
+                            delay(650)
+                            exoPlayer.seekTo(finalTarget)
                             showSeekAnimation = false
                             accumulatedSeekAmount = 0L
+                            seekStartPos = null
                         }
                     },
                     onLongPress = {
                         isFastForwarding = true
+                        is2xLocked = false
                         exoPlayer.playbackParameters = PlaybackParameters(2f)
                     },
                     onPress = {
                         tryAwaitRelease()
-                        if (isFastForwarding) {
+                        if (isFastForwarding && !is2xLocked) {
                             isFastForwarding = false
                             exoPlayer.playbackParameters = PlaybackParameters(1f)
                         }
                     }
                 )
+            }
+            .pointerInput(isFastForwarding, is2xLocked) {
+                awaitPointerEventScope {
+                    var startY = 0f
+                    var isPressActive = false
+                    var lockTriggered = false
+                    
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull()
+                        if (change != null) {
+                            when (event.type) {
+                                PointerEventType.Press -> {
+                                    startY = change.position.y
+                                    isPressActive = true
+                                    lockTriggered = false
+                                }
+                                PointerEventType.Move -> {
+                                    if (isPressActive && !lockTriggered) {
+                                        val deltaY = change.position.y - startY
+                                        if (deltaY > 100f) {
+                                            if (isFastForwarding && !is2xLocked) {
+                                                is2xLocked = true
+                                                lockTriggered = true
+                                            } else if (is2xLocked) {
+                                                is2xLocked = false
+                                                isFastForwarding = false
+                                                exoPlayer.playbackParameters = PlaybackParameters(1f)
+                                                lockTriggered = true
+                                            }
+                                        }
+                                    }
+                                }
+                                PointerEventType.Release -> {
+                                    isPressActive = false
+                                }
+                            }
+                        }
+                    }
+                }
             }
     ) {
         AndroidView(
@@ -358,12 +428,18 @@ fun CustomVideoPlayer(
         }
 
         // 2x Speed Indicator
+        // 2x Speed Indicator
         if (isFastForwarding) {
-            Box(Modifier.align(Alignment.TopCenter).padding(top = 48.dp).background(Color.Black.copy(0.6f), RoundedCornerShape(20.dp)).padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Box(Modifier.align(Alignment.TopCenter).padding(top = 12.dp).background(Color.Black.copy(0.35f), RoundedCornerShape(12.dp)).padding(horizontal = 8.dp, vertical = 4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("2x", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        text = if (is2xLocked) "2x 🔒" else "2x",
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
                 }
             }
         }

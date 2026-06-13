@@ -62,6 +62,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -117,14 +119,36 @@ fun RutubeApp(
     
     // Handle orientation changes based on fullscreen state
     val context = LocalContext.current
+    // Observe physical screen rotation
+    val isLandscape = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+    LaunchedEffect(isLandscape) {
+        if (vm.playerState == PlayerState.FULL) {
+            if (isLandscape && !vm.isFullscreenVideo) {
+                vm.toggleFullscreen(true)
+            } else if (!isLandscape && vm.isFullscreenVideo) {
+                vm.toggleFullscreen(false)
+            }
+        }
+        if (!isLandscape) {
+            vm.saveMoreVideosScrollState(0, 0)
+        }
+    }
+
     LaunchedEffect(vm.isFullscreenVideo) {
         if (vm.isFullscreenVideo) {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            if (!isLandscape) {
+                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            }
             context.findActivity()?.let { hideSystemBars(it) }
         } else {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            if (isLandscape) {
+                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            }
             context.findActivity()?.let { showSystemBars(it) }
         }
+        delay(1000)
+        setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
     }
 
     // Permission launcher
@@ -134,7 +158,17 @@ fun RutubeApp(
     val homeListState = rememberLazyListState()
     val subsListState = rememberLazyListState()
     val libListState = rememberLazyListState()
-    val relatedListState = rememberLazyListState()
+    val relatedListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = vm.relatedScrollIndex,
+        initialFirstVisibleItemScrollOffset = vm.relatedScrollOffset
+    )
+
+    LaunchedEffect(relatedListState) {
+        snapshotFlow { Pair(relatedListState.firstVisibleItemIndex, relatedListState.firstVisibleItemScrollOffset) }
+            .collect { (index, offset) ->
+                vm.saveRelatedScrollState(index, offset)
+            }
+    }
 
     // Pause on background
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -673,37 +707,33 @@ fun RutubeApp(
                                 }
                         ) {
                             if (!isMiniThresholdReached) {
-                                Column(modifier = Modifier.fillMaxSize()) {
-
-                                    Box(modifier = Modifier.graphicsLayer {
-                                        scaleX = fsScale
-                                        scaleY = fsScale
-                                        translationY = fsOffsetY
-                                    }) {
-                                        CustomVideoPlayer(
-                                            exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo,
-                                            currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
-                                            onMinimize = { vm.playerState = PlayerState.MINI },
-                                            onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
-                                            onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
-                                            isFirstVideo = vm.currentVideoIndex <= 0,
-                                            isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
-                                            isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
-                                            isTransitioning = fsProgress > 0f || realProgress > 0f,
-                                            onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
-                                        )
-                                    }
-                                    if (!vm.isFullscreenVideo) {
-                                        LaunchedEffect(vm.currentVideo) {
-                                            relatedListState.scrollToItem(0)
+                                if (isLandscape && !vm.isFullscreenVideo) {
+                                    // Side-by-side YouTube landscape layout
+                                    Row(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                                        Box(modifier = Modifier
+                                            .weight(1.5f)
+                                            .align(Alignment.CenterVertically)
+                                        ) {
+                                            CustomVideoPlayer(
+                                                exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = false,
+                                                currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
+                                                onMinimize = { vm.playerState = PlayerState.MINI },
+                                                onToggleFullscreen = { vm.toggleFullscreen(true) },
+                                                onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
+                                                isFirstVideo = vm.currentVideoIndex <= 0,
+                                                isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
+                                                isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
+                                                isTransitioning = false,
+                                                onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
+                                            )
                                         }
                                         RelatedVideosList(
-                                            modifier = Modifier.weight(1f),
+                                            modifier = Modifier.weight(1.2f).fillMaxHeight(),
                                             listState = relatedListState,
                                             currentVideo = vm.currentVideo,
                                             relatedVideos = vm.relatedVideos,
                                             userRegistry = vm.userRegistry,
-                                            alphaProgress = realProgress,
+                                            alphaProgress = 0f,
                                             onAuthorClick = { vm.loadAuthorVideos(it, false) },
                                             onToggleSub = { vm.toggleSubscription(it) },
                                             onLike = { video -> vm.toggleLike(video) },
@@ -712,8 +742,58 @@ fun RutubeApp(
                                             onAddToPlaylist = { video -> vm.showPlaylistDialog = video },
                                             onDownload = { video -> vm.startDownload(video) },
                                             onVideoClick = { video, list -> vm.playVideo(video, list) },
-                                            onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
+                                            onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                                            comments = vm.comments,
+                                            isLoadingComments = vm.isLoadingComments,
+                                            commentsCount = vm.commentsCount
                                         )
+                                    }
+                                } else {
+                                    // Vertical portrait layout
+                                    Column(modifier = Modifier.fillMaxSize()) {
+                                        Box(modifier = Modifier.graphicsLayer {
+                                            scaleX = fsScale
+                                            scaleY = fsScale
+                                            translationY = fsOffsetY
+                                        }) {
+                                            CustomVideoPlayer(
+                                                exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo,
+                                                currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
+                                                onMinimize = { vm.playerState = PlayerState.MINI },
+                                                onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
+                                                onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
+                                                isFirstVideo = vm.currentVideoIndex <= 0,
+                                                isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
+                                                isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
+                                                isTransitioning = fsProgress > 0f || realProgress > 0f,
+                                                onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
+                                            )
+                                        }
+                                        if (!vm.isFullscreenVideo) {
+                                            LaunchedEffect(vm.currentVideo) {
+                                                relatedListState.scrollToItem(0)
+                                            }
+                                            RelatedVideosList(
+                                                modifier = Modifier.weight(1f),
+                                                listState = relatedListState,
+                                                currentVideo = vm.currentVideo,
+                                                relatedVideos = vm.relatedVideos,
+                                                userRegistry = vm.userRegistry,
+                                                alphaProgress = realProgress,
+                                                onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                                                onToggleSub = { vm.toggleSubscription(it) },
+                                                onLike = { video -> vm.toggleLike(video) },
+                                                onDislike = { video -> vm.handleVideoMoreAction(video, "dislike") },
+                                                onShare = { video -> vm.shareVideo(video) },
+                                                onAddToPlaylist = { video -> vm.showPlaylistDialog = video },
+                                                onDownload = { video -> vm.startDownload(video) },
+                                                onVideoClick = { video, list -> vm.playVideo(video, list) },
+                                                onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                                                comments = vm.comments,
+                                                isLoadingComments = vm.isLoadingComments,
+                                                commentsCount = vm.commentsCount
+                                            )
+                                        }
                                     }
                                 }
                             } else {
@@ -763,6 +843,9 @@ private fun AppTopBar(
 ) {
     val context = LocalContext.current
     var isListening by remember { mutableStateOf(false) }
+    var searchQueryValue by remember(vm.searchQuery) {
+        mutableStateOf(TextFieldValue(text = vm.searchQuery, selection = TextRange(vm.searchQuery.length)))
+    }
 
     // Speech recognizer setup
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
@@ -870,10 +953,13 @@ private fun AppTopBar(
                         tonalElevation = 2.dp
                     ) {
                         BasicTextField(
-                            value = vm.searchQuery,
-                            onValueChange = {
-                                vm.updateSearchQuery(it)
-                                vm.isSearchExpanded = true
+                            value = searchQueryValue,
+                            onValueChange = { newValue ->
+                                searchQueryValue = newValue
+                                if (vm.searchQuery != newValue.text) {
+                                    vm.updateSearchQuery(newValue.text)
+                                    vm.isSearchExpanded = true
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()

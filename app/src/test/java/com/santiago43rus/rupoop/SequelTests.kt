@@ -31,6 +31,8 @@ data class SequenceInfo(
     val baseName: String,
     val season: Int? = null,
     val episode: Int? = null,
+    val episodeStart: Int? = null,
+    val episodeEnd: Int? = null,
     val part: Int? = null,
     val year: Int? = null
 )
@@ -56,70 +58,86 @@ class SequelTests {
         // Season and Episode multiple formats
         var season: Int? = null
         var episode: Int? = null
+        var episodeStart: Int? = null
+        var episodeEnd: Int? = null
 
         // Formats:
-        val numPattern = "(\\d+|[IVXLCDM]+)"
+        val numPattern = "\\d+|[IVXLCDM]+"
 
         // Format: с01э05
-        val seRegex1 = Regex("с(\\d{1,2})э(\\d{1,2})", RegexOption.IGNORE_CASE)
-        // Format: 1 сезон 5 серия
-        val seRegex2 = Regex("$numPattern\\s*-?я?\\s*(?:сезон|season).*?$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep)", RegexOption.IGNORE_CASE)
-        // Format: сезон 1 серия 5
-        val seRegex3 = Regex("(?:сезон|season|s)\\s*$numPattern.*?(?:серия|эпизод|episode|ep|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
-        // Format: 5 серия (without season)
-        val eRegexOnly = Regex("$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep|выпуск)", RegexOption.IGNORE_CASE)
-        val eRegexOnly2 = Regex("(?:серия|эпизод|episode|ep|выпуск|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
+        val seRegex1 = Regex("с(\\d{1,2})э(\\d{1,2})(?:\\s*-\\s*(\\d{1,2}))?", RegexOption.IGNORE_CASE)
+        // Format: 1 сезон 5-6 серии
+        val seRegex2 = Regex("($numPattern)\\s*-?я?\\s*(?:сезон|season).*?($numPattern)(?:\\s*-\\s*($numPattern))?\\s*-?я?\\s*(?:серия|сериая|серии|эпизод|episode|ep)", RegexOption.IGNORE_CASE)
+        // Format: сезон 1 серия 5-6
+        val seRegex3 = Regex("(?:сезон|season|s)\\s*($numPattern).*?(?:серия|сериая|серии|эпизод|episode|ep|e)\\s*($numPattern)(?:\\s*-\\s*($numPattern))?", RegexOption.IGNORE_CASE)
+        // Format: 5-6 серии (without season)
+        val eRegexOnly = Regex("($numPattern)(?:\\s*-\\s*($numPattern))?\\s*-?я?\\s*(?:серия|сериая|серии|эпизод|episode|ep|выпуск)", RegexOption.IGNORE_CASE)
+        val eRegexOnly2 = Regex("(?:серия|сериая|серии|эпизод|episode|ep|выпуск|e)\\s*($numPattern)(?:\\s*-\\s*($numPattern))?", RegexOption.IGNORE_CASE)
         // Format: s01e05 or s1e5
-        val seRegexUniversal = Regex("s(\\d{1,2})\\s*e(\\d{1,3})", RegexOption.IGNORE_CASE)
+        val seRegexUniversal = Regex("s(\\d{1,2})\\s*e(\\d{1,3})(?:\\s*-\\s*(\\d{1,3}))?", RegexOption.IGNORE_CASE)
         // Format: 01x05
-        val seRegexXFormat = Regex("(\\d{1,2})x(\\d{1,3})", RegexOption.IGNORE_CASE)
+        val seRegexXFormat = Regex("(\\d{1,2})x(\\d{1,3})(?:\\s*-\\s*(\\d{1,3}))?", RegexOption.IGNORE_CASE)
 
         when {
             seRegex1.containsMatchIn(base) -> {
                 val match = seRegex1.find(base)!!
                 season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
+                episodeStart = match.groupValues[2].toIntOrNull()
+                episodeEnd = match.groupValues[3].toIntOrNull() ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             seRegexUniversal.containsMatchIn(base) -> {
                 val match = seRegexUniversal.find(base)!!
                 season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
+                episodeStart = match.groupValues[2].toIntOrNull()
+                episodeEnd = match.groupValues[3].toIntOrNull() ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             seRegexXFormat.containsMatchIn(base) -> {
                 val match = seRegexXFormat.find(base)!!
                 season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
+                episodeStart = match.groupValues[2].toIntOrNull()
+                episodeEnd = match.groupValues[3].toIntOrNull() ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             seRegex2.containsMatchIn(base) -> {
                 val match = seRegex2.find(base)!!
                 season = parseRomanOrInt(match.groupValues[1])
-                episode = parseRomanOrInt(match.groupValues[2])
+                episodeStart = parseRomanOrInt(match.groupValues[2])
+                episodeEnd = parseRomanOrInt(match.groupValues[3]) ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             seRegex3.containsMatchIn(base) -> {
                 val match = seRegex3.find(base)!!
                 season = parseRomanOrInt(match.groupValues[1])
-                episode = parseRomanOrInt(match.groupValues[2])
+                episodeStart = parseRomanOrInt(match.groupValues[2])
+                episodeEnd = parseRomanOrInt(match.groupValues[3]) ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             eRegexOnly.containsMatchIn(base) -> {
                 val match = eRegexOnly.find(base)!!
-                episode = parseRomanOrInt(match.groupValues[1])
+                episodeStart = parseRomanOrInt(match.groupValues[1])
+                episodeEnd = parseRomanOrInt(match.groupValues[2]) ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             eRegexOnly2.containsMatchIn(base) -> {
                 val match = eRegexOnly2.find(base)!!
-                episode = parseRomanOrInt(match.groupValues[1])
+                episodeStart = parseRomanOrInt(match.groupValues[1])
+                episodeEnd = parseRomanOrInt(match.groupValues[2]) ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
         }
 
         var part: Int? = null
-        val pRegex1 = Regex("(?:часть|part|ч|p|фильм)\\s*$numPattern\\b", RegexOption.IGNORE_CASE)
-        val pRegex2 = Regex("$numPattern\\s*-?я?\\s*(?:часть|part)", RegexOption.IGNORE_CASE)
+        val pRegex1 = Regex("(?:часть|part|ч|p|фильм)\\s*($numPattern)\\b", RegexOption.IGNORE_CASE)
+        val pRegex2 = Regex("($numPattern)\\s*-?я?\\s*(?:часть|part)", RegexOption.IGNORE_CASE)
         val pRegex3 = Regex("\\s+(\\d+|(?![iI]\\b)[IVXLCDM]+)\\s*$")
 
         if (season == null && episode == null) {
@@ -157,7 +175,41 @@ class SequelTests {
         base = base.replace(Regex("сериал|мультфильм|фильм|серия", RegexOption.IGNORE_CASE), "")
         base = base.replace(Regex("[^a-zA-Zа-яА-Я0-9]"), "").lowercase(Locale.getDefault())
 
-        return SequenceInfo(base, season, episode, part, year)
+        return SequenceInfo(base, season, episode, episodeStart, episodeEnd, part, year)
+    }
+
+    private fun isStrictSequel(current: SequenceInfo, candidate: SequenceInfo): Boolean {
+        if (current.baseName != candidate.baseName) return false
+
+        // Episodic
+        if (current.episodeStart != null || candidate.episodeStart != null) {
+            val cSeason = current.season ?: 1
+            val candSeason = candidate.season ?: 1
+
+            if (cSeason == candSeason) {
+                val cEpEnd = current.episodeEnd ?: current.episodeStart ?: 1
+                val candEpStart = candidate.episodeStart ?: candidate.episode ?: 1
+                return candEpStart == cEpEnd + 1
+            } else if (candSeason == cSeason + 1) {
+                val candEpStart = candidate.episodeStart ?: candidate.episode ?: 1
+                return candEpStart == 1
+            }
+            return false
+        }
+
+        // Parts / Movies - prioritize part if available
+        if (current.part != null || candidate.part != null) {
+            val cPart = current.part ?: 1
+            val candPart = candidate.part ?: 1
+            return candPart == cPart + 1
+        }
+
+        // Fallback to year if no parts or episodes are specified
+        if (current.year != null && candidate.year != null) {
+            return candidate.year > current.year
+        }
+
+        return false
     }
 
     @Test
@@ -194,5 +246,28 @@ class SequelTests {
         val pluribus = parseSequenceInfo("Одна из многих / Pluribus 1 сезон 4 серия LE-Production")
         assertEquals(1, pluribus.season)
         assertEquals(4, pluribus.episode)
+    }
+
+    @Test
+    fun testEpisodeRanges() {
+        val current = parseSequenceInfo("Удивительный мир Гамбола 1 сезон 1-2 серии")
+        val candidate = parseSequenceInfo("Удивительный мир Гамбола 1 сезон 3-5 серии")
+        val candidate2 = parseSequenceInfo("Удивительный мир Гамбола 1 сезон 3 серия")
+
+        assertEquals(1, current.season)
+        assertEquals(1, current.episodeStart)
+        assertEquals(2, current.episodeEnd)
+
+        assertEquals(1, candidate.season)
+        assertEquals(3, candidate.episodeStart)
+        assertEquals(5, candidate.episodeEnd)
+
+        // Assert isStrictSequel
+        assertTrue(isStrictSequel(current, candidate))
+        assertTrue(isStrictSequel(current, candidate2))
+
+        val currentTypo = parseSequenceInfo("Удивительный мир Гамбола 1 сезон сериая 1-2")
+        val candidateTypo = parseSequenceInfo("Удивительный мир Гамбола 1 сезон сериая 3-5")
+        assertTrue(isStrictSequel(currentTypo, candidateTypo))
     }
 }

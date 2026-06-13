@@ -32,6 +32,8 @@ data class SequenceInfo(
     val baseName: String,
     val season: Int?,
     val episode: Int?,
+    val episodeStart: Int?,
+    val episodeEnd: Int?,
     val part: Int?,
     val year: Int?
 )
@@ -58,71 +60,87 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
         // Season and Episode multiple formats
         var season: Int? = null
         var episode: Int? = null
+        var episodeStart: Int? = null
+        var episodeEnd: Int? = null
         
         // Formats:
-        val numPattern = "(\\d+|[IVXLCDM]+)"
+        val numPattern = "\\d+|[IVXLCDM]+"
         
         // Format: с01э05
-        val seRegex1 = Regex("с(\\d{1,2})э(\\d{1,2})", RegexOption.IGNORE_CASE)
-        // Format: 1 сезон 5 серия
-        val seRegex2 = Regex("$numPattern\\s*-?я?\\s*(?:сезон|season).*?$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep)", RegexOption.IGNORE_CASE)
-        // Format: сезон 1 серия 5
-        val seRegex3 = Regex("(?:сезон|season|s)\\s*$numPattern.*?(?:серия|эпизод|episode|ep|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
-        // Format: 5 серия (without season)
-        val eRegexOnly = Regex("$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep|выпуск)", RegexOption.IGNORE_CASE)
-        val eRegexOnly2 = Regex("(?:серия|эпизод|episode|ep|выпуск|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
+        val seRegex1 = Regex("с(\\d{1,2})э(\\d{1,2})(?:\\s*-\\s*(\\d{1,2}))?", RegexOption.IGNORE_CASE)
+        // Format: 1 сезон 5-6 серии
+        val seRegex2 = Regex("($numPattern)\\s*-?я?\\s*(?:сезон|season).*?($numPattern)(?:\\s*-\\s*($numPattern))?\\s*-?я?\\s*(?:серия|сериая|серии|эпизод|episode|ep)", RegexOption.IGNORE_CASE)
+        // Format: сезон 1 серия 5-6
+        val seRegex3 = Regex("(?:сезон|season|s)\\s*($numPattern).*?(?:серия|сериая|серии|эпизод|episode|ep|e)\\s*($numPattern)(?:\\s*-\\s*($numPattern))?", RegexOption.IGNORE_CASE)
+        // Format: 5-6 серии (without season)
+        val eRegexOnly = Regex("($numPattern)(?:\\s*-\\s*($numPattern))?\\s*-?я?\\s*(?:серия|сериая|серии|эпизод|episode|ep|выпуск)", RegexOption.IGNORE_CASE)
+        val eRegexOnly2 = Regex("(?:серия|сериая|серии|эпизод|episode|ep|выпуск|e)\\s*($numPattern)(?:\\s*-\\s*($numPattern))?", RegexOption.IGNORE_CASE)
         // Format: s01e05 or s1e5
-        val seRegexUniversal = Regex("s(\\d{1,2})\\s*e(\\d{1,3})", RegexOption.IGNORE_CASE)
+        val seRegexUniversal = Regex("s(\\d{1,2})\\s*e(\\d{1,3})(?:\\s*-\\s*(\\d{1,3}))?", RegexOption.IGNORE_CASE)
         // Format: 01x05
-        val seRegexXFormat = Regex("(\\d{1,2})x(\\d{1,3})", RegexOption.IGNORE_CASE)
+        val seRegexXFormat = Regex("(\\d{1,2})x(\\d{1,3})(?:\\s*-\\s*(\\d{1,3}))?", RegexOption.IGNORE_CASE)
 
         when {
             seRegex1.containsMatchIn(base) -> {
                 val match = seRegex1.find(base)!!
                 season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
+                episodeStart = match.groupValues[2].toIntOrNull()
+                episodeEnd = match.groupValues[3].toIntOrNull() ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             seRegexUniversal.containsMatchIn(base) -> {
                 val match = seRegexUniversal.find(base)!!
                 season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
+                episodeStart = match.groupValues[2].toIntOrNull()
+                episodeEnd = match.groupValues[3].toIntOrNull() ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             seRegexXFormat.containsMatchIn(base) -> {
                 val match = seRegexXFormat.find(base)!!
                 season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
+                episodeStart = match.groupValues[2].toIntOrNull()
+                episodeEnd = match.groupValues[3].toIntOrNull() ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             seRegex2.containsMatchIn(base) -> {
                 val match = seRegex2.find(base)!!
                 season = parseRomanOrInt(match.groupValues[1])
-                episode = parseRomanOrInt(match.groupValues[2])
+                episodeStart = parseRomanOrInt(match.groupValues[2])
+                episodeEnd = parseRomanOrInt(match.groupValues[3]) ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             seRegex3.containsMatchIn(base) -> {
                 val match = seRegex3.find(base)!!
                 season = parseRomanOrInt(match.groupValues[1])
-                episode = parseRomanOrInt(match.groupValues[2])
+                episodeStart = parseRomanOrInt(match.groupValues[2])
+                episodeEnd = parseRomanOrInt(match.groupValues[3]) ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             eRegexOnly.containsMatchIn(base) -> {
                 val match = eRegexOnly.find(base)!!
-                episode = parseRomanOrInt(match.groupValues[1])
+                episodeStart = parseRomanOrInt(match.groupValues[1])
+                episodeEnd = parseRomanOrInt(match.groupValues[2]) ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
             eRegexOnly2.containsMatchIn(base) -> {
                 val match = eRegexOnly2.find(base)!!
-                episode = parseRomanOrInt(match.groupValues[1])
+                episodeStart = parseRomanOrInt(match.groupValues[1])
+                episodeEnd = parseRomanOrInt(match.groupValues[2]) ?: episodeStart
+                episode = episodeStart
                 base = base.replace(match.value, "")
             }
         }
 
         // Part
         var part: Int? = null
-        val pRegex1 = Regex("(?:часть|part|ч|p|фильм)\\s*$numPattern\\b", RegexOption.IGNORE_CASE)
-        val pRegex2 = Regex("$numPattern\\s*-?я?\\s*(?:часть|part)", RegexOption.IGNORE_CASE)
+        val pRegex1 = Regex("(?:часть|part|ч|p|фильм)\\s*($numPattern)\\b", RegexOption.IGNORE_CASE)
+        val pRegex2 = Regex("($numPattern)\\s*-?я?\\s*(?:часть|part)", RegexOption.IGNORE_CASE)
         // Just number at the end
         val pRegex3 = Regex("\\s+(\\d+|(?![iI]\\b)[IVXLCDM]+)\\s*$")
 
@@ -161,23 +179,24 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
         base = base.replace(Regex("сериал|мультфильм|фильм|серия", RegexOption.IGNORE_CASE), "")
         base = base.replace(Regex("[^a-zA-Zа-яА-Я0-9]"), "").lowercase(Locale.getDefault())
 
-        return SequenceInfo(base, season, episode, part, year)
+        return SequenceInfo(base, season, episode, episodeStart, episodeEnd, part, year)
     }
 
     private fun isStrictSequel(current: SequenceInfo, candidate: SequenceInfo): Boolean {
         if (current.baseName != candidate.baseName) return false
         
         // Episodic
-        if (current.episode != null || candidate.episode != null) {
+        if (current.episodeStart != null || candidate.episodeStart != null) {
             val cSeason = current.season ?: 1
             val candSeason = candidate.season ?: 1
             
             if (cSeason == candSeason) {
-                val cEp = current.episode ?: 1
-                val candEp = candidate.episode ?: 1
-                return candEp == cEp + 1
+                val cEpEnd = current.episodeEnd ?: current.episodeStart ?: 1
+                val candEpStart = candidate.episodeStart ?: candidate.episode ?: 1
+                return candEpStart == cEpEnd + 1
             } else if (candSeason == cSeason + 1) {
-                return candidate.episode == 1
+                val candEpStart = candidate.episodeStart ?: candidate.episode ?: 1
+                return candEpStart == 1
             }
             return false
         }
@@ -208,13 +227,20 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
             if (candidate.videoUrl == video.videoUrl) continue
             if (candidate.title.contains("мультик", ignoreCase = true)) continue
             
+            // Filter out verified channels (original Rutube content)
+            if (candidate.author?.isVerifiedChannel == true) continue
+
+            // Filter CAPS lock, banned words and genre plurals
+            if (RecommendationUtils.hasCapsWord(candidate.title)) continue
+            if (RecommendationUtils.isBannedTitle(candidate.title)) continue
+            
             val candInfo = parseSequenceInfo(candidate.title)
             
             // Strict Sequel Logic
             if (candidate.author?.name == video.author?.name &&
                 isStrictSequel(currentInfo, candInfo)) {
                 // If we rely on year, pick the closest future year
-                if (currentInfo.part == null && currentInfo.episode == null && candInfo.part == null && candInfo.episode == null && currentInfo.year != null && candInfo.year != null) {
+                if (currentInfo.part == null && currentInfo.episodeStart == null && candInfo.part == null && candInfo.episodeStart == null && currentInfo.year != null && candInfo.year != null) {
                     if (strictSequel == null) {
                         strictSequel = candidate
                     } else {

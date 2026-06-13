@@ -22,6 +22,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import com.santiago43rus.rupoop.components.VideoCardItem
 import com.santiago43rus.rupoop.data.Author
 import com.santiago43rus.rupoop.data.SearchResult
@@ -43,6 +49,9 @@ fun SubscriptionsScreen(
     onMoreClick: (SearchResult, String) -> Unit,
     listState: LazyListState = rememberLazyListState()
 ) {
+    val config = LocalConfiguration.current
+    val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
@@ -53,45 +62,100 @@ fun SubscriptionsScreen(
                 Text("У вас пока нет подписок")
             }
         } else {
-            LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                // Stories (Authors row)
-                item {
-                    LazyRow(
-                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp)
-                    ) {
-                        items(userRegistry.subscriptions) { author ->
-                            Column(
-                                Modifier.padding(end = 16.dp).width(70.dp).clickable { onAuthorClick(author) },
-                                horizontalAlignment = Alignment.CenterHorizontally
+            if (isLandscape) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(300.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(8.dp)
+                ) {
+                    // Stories (Authors row) as a full span header
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Column {
+                            LazyRow(
+                                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp)
                             ) {
-                                AsyncImage(
-                                    model = author.avatarUrl ?: "", contentDescription = null,
-                                    modifier = Modifier.size(50.dp).clip(CircleShape).background(Color.Gray)
-                                )
-                                Text(author.name, maxLines = 1, style = MaterialTheme.typography.labelSmall, overflow = TextOverflow.Ellipsis)
+                                items(userRegistry.subscriptions) { author ->
+                                    Column(
+                                        Modifier.padding(end = 16.dp).width(70.dp).clickable { onAuthorClick(author) },
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        AsyncImage(
+                                            model = author.avatarUrl ?: "", contentDescription = null,
+                                            modifier = Modifier.size(50.dp).clip(CircleShape).background(Color.Gray)
+                                        )
+                                        Text(author.name, maxLines = 1, style = MaterialTheme.typography.labelSmall, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+
+                    itemsIndexed(subscriptionVideos) { index, video ->
+                        val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                        VideoCardItem(
+                            video = video,
+                            history = history,
+                            modifier = Modifier.padding(4.dp),
+                            onClick = { onVideoClick(video, subscriptionVideos) },
+                            onAuthorClick = onAuthorClick,
+                            onMoreClick = { action -> onMoreClick(video, action) }
+                        )
+                        if (index == subscriptionVideos.lastIndex && !isLoadingMore && hasMoreVideos) {
+                            LaunchedEffect(video.videoUrl) { onLoadMore() }
+                        }
+                    }
+
+                    if (isLoadingMore) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Color.Red)
                             }
                         }
                     }
-                    HorizontalDivider()
                 }
-                itemsIndexed(subscriptionVideos) { index, video ->
-                    if (index == 0) Spacer(Modifier.height(8.dp))
-                    val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                    VideoCardItem(
-                        video = video, history = history,
-                        onClick = { onVideoClick(video, subscriptionVideos) },
-                        onAuthorClick = onAuthorClick,
-                        onMoreClick = { action -> onMoreClick(video, action) }
-                    )
-                    if (index == subscriptionVideos.lastIndex && !isLoadingMore && hasMoreVideos) {
-                        LaunchedEffect(video.videoUrl) { onLoadMore() }
-                    }
-                }
-                if (isLoadingMore) {
+            } else {
+                LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                    // Stories (Authors row)
                     item {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Color.Red)
+                        LazyRow(
+                            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp)
+                        ) {
+                            items(userRegistry.subscriptions) { author ->
+                                Column(
+                                    Modifier.padding(end = 16.dp).width(70.dp).clickable { onAuthorClick(author) },
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    AsyncImage(
+                                        model = author.avatarUrl ?: "", contentDescription = null,
+                                        modifier = Modifier.size(50.dp).clip(CircleShape).background(Color.Gray)
+                                    )
+                                    Text(author.name, maxLines = 1, style = MaterialTheme.typography.labelSmall, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                    itemsIndexed(subscriptionVideos) { index, video ->
+                        if (index == 0) Spacer(Modifier.height(8.dp))
+                        val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                        VideoCardItem(
+                            video = video, history = history,
+                            onClick = { onVideoClick(video, subscriptionVideos) },
+                            onAuthorClick = onAuthorClick,
+                            onMoreClick = { action -> onMoreClick(video, action) }
+                        )
+                        if (index == subscriptionVideos.lastIndex && !isLoadingMore && hasMoreVideos) {
+                            LaunchedEffect(video.videoUrl) { onLoadMore() }
+                        }
+                    }
+                    if (isLoadingMore) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Color.Red)
+                            }
                         }
                     }
                 }

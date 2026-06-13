@@ -29,13 +29,12 @@ class MainFeedRecommendationStrategy(private val registryManager: UserRegistryMa
             if (videoId in hiddenIds || videoId in dislikedIds) return@filter false
             if (hiddenTitles.any { result.title.contains(it, ignoreCase = true) }) return@filter false
 
-            // Filter spam words
-            val spamWords = listOf("топ", "лучшие", "подборка", "лучшее", "top")
-            if (spamWords.any { result.title.contains(Regex("\\b$it\\b", RegexOption.IGNORE_CASE)) }) return@filter false
+            // Filter out verified channels (original Rutube content)
+            if (result.author?.isVerifiedChannel == true) return@filter false
 
-            // Filter out titles with any word written entirely in CAPS (min 2 letters), excluding Roman numerals
-            val allCapsWordPattern = Regex("\\b(?![IVXLCDM]+\\b)[А-ЯЁA-Z]{2,}\\b")
-            if (allCapsWordPattern.containsMatchIn(result.title)) return@filter false
+            // Filter CAPS lock, banned words and genre plurals
+            if (RecommendationUtils.hasCapsWord(result.title)) return@filter false
+            if (RecommendationUtils.isBannedTitle(result.title)) return@filter false
 
             val historyItem = historyMap[videoId]
 
