@@ -103,6 +103,18 @@ fun CustomVideoPlayer(
     var is2xLocked by remember { mutableStateOf(false) }
     var moreVideosDragOffset by remember { mutableFloatStateOf(0f) }
 
+    val moreVideosRowState = rememberLazyListState(
+        initialFirstVisibleItemIndex = moreVideosScrollIndex,
+        initialFirstVisibleItemScrollOffset = moreVideosScrollOffset
+    )
+
+    LaunchedEffect(moreVideosRowState) {
+        snapshotFlow { Pair(moreVideosRowState.firstVisibleItemIndex, moreVideosRowState.firstVisibleItemScrollOffset) }
+            .collect { (index, offset) ->
+                onMoreVideosScroll(index, offset)
+            }
+    }
+
     var swipeScale by remember { mutableFloatStateOf(1f) }
     var swipeOffsetY by remember { mutableFloatStateOf(0f) }
     var swipeOffsetX by remember { mutableFloatStateOf(0f) }
@@ -733,6 +745,7 @@ fun CustomVideoPlayer(
                     }
 
                     LazyRow(
+                        state = moreVideosRowState,
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(start = if (isFullscreen) 48.dp else 16.dp, end = if (isFullscreen) 32.dp else 16.dp)

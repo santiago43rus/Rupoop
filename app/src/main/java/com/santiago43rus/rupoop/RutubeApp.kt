@@ -32,11 +32,16 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -48,6 +53,10 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,7 +129,7 @@ fun RutubeApp(
     // Handle orientation changes based on fullscreen state
     val context = LocalContext.current
     // Observe physical screen rotation
-    val isLandscape = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    val isLandscape = config.screenWidthDp > config.screenHeightDp
 
     LaunchedEffect(isLandscape) {
         if (vm.playerState == PlayerState.FULL) {
@@ -218,6 +227,13 @@ fun RutubeApp(
         if (vm.currentNav == NavItem.HOME && vm.homeVideos.isEmpty()) vm.loadHome(false)
     }
 
+    val isTablet = config.smallestScreenWidthDp >= 600
+    LaunchedEffect(vm.currentVideo) {
+        if (vm.currentVideo != null && isLandscape && !isTablet) {
+            vm.toggleFullscreen(true)
+        }
+    }
+
     // Back handler
     BackHandler(
         enabled = vm.playerState != PlayerState.CLOSED || vm.isSearchExpanded || vm.isSearchVisible || vm.isAuthorVisible || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME
@@ -232,6 +248,33 @@ fun RutubeApp(
     }
 
     val density = androidx.compose.ui.platform.LocalDensity.current
+    val topBarHeightDp = 46.dp
+    val bottomBarHeightDp = 48.dp
+
+    val topBarHeightPx = with(density) { topBarHeightDp.roundToPx().toFloat() }
+    val bottomBarHeightPx = with(density) { bottomBarHeightDp.roundToPx().toFloat() }
+    val navBarHeightPx = WindowInsets.navigationBars.getBottom(density).toFloat()
+    val bottomBarTotalHeightPx = bottomBarHeightPx + navBarHeightPx
+
+    var topBarOffsetHeightPx by remember { mutableFloatStateOf(0f) }
+    var bottomBarOffsetHeightPx by remember { mutableFloatStateOf(0f) }
+
+    val nestedScrollConnection = remember(bottomBarTotalHeightPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (vm.isFullscreenVideo || vm.playerState == PlayerState.FULL) return Offset.Zero
+
+                val delta = available.y
+                val newTopOffset = topBarOffsetHeightPx + delta
+                topBarOffsetHeightPx = newTopOffset.coerceIn(-topBarHeightPx, 0f)
+
+                val newBottomOffset = bottomBarOffsetHeightPx - delta
+                bottomBarOffsetHeightPx = newBottomOffset.coerceIn(0f, bottomBarTotalHeightPx)
+
+                return Offset.Zero
+            }
+        }
+    }
     var bottomPaddingPx by remember { mutableStateOf(0f) }
     var topPaddingPx by remember { mutableStateOf(0f) }
     val maxDragDistanceVertical = 150f
@@ -270,10 +313,13 @@ fun RutubeApp(
                         tonalElevation = 3.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .graphicsLayer { translationY = size.height * (1f - progress.coerceIn(0f, 1f)) }
+                            .graphicsLayer {
+                                val collapseOffset = size.height * (1f - progress.coerceIn(0f, 1f))
+                                translationY = collapseOffset + bottomBarOffsetHeightPx
+                            }
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(64.dp),
+                            modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(48.dp),
                             horizontalArrangement = Arrangement.SpaceAround,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -288,7 +334,7 @@ fun RutubeApp(
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth(0.9f)
-                                        .height(56.dp)
+                                        .height(42.dp)
                                         .clip(androidx.compose.foundation.shape.CircleShape)
                                         .clickable {
                                             if (vm.currentNav == NavItem.HOME) {
@@ -303,11 +349,11 @@ fun RutubeApp(
                                                 vm.isSettingsVisible = false
                                             }
                                         }
-                                        .padding(4.dp),
+                                        .padding(2.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(if (isHome) Icons.Filled.Home else Icons.Outlined.Home, "Home", tint = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                                    Icon(if (isHome) Icons.Filled.Home else Icons.Outlined.Home, "Home", modifier = Modifier.size(20.dp), tint = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
                                     Text("Главная", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 }
                             }
@@ -323,7 +369,7 @@ fun RutubeApp(
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth(0.9f)
-                                        .height(56.dp)
+                                        .height(42.dp)
                                         .clip(androidx.compose.foundation.shape.CircleShape)
                                         .clickable {
                                             if (vm.currentNav == NavItem.SUBSCRIPTIONS) {
@@ -337,11 +383,11 @@ fun RutubeApp(
                                                 vm.isAuthorVisible = false; vm.isSettingsVisible = false
                                             }
                                         }
-                                        .padding(4.dp),
+                                        .padding(2.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(if (isSubs) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs", tint = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                                    Icon(if (isSubs) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions, "Subs", modifier = Modifier.size(20.dp), tint = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
                                     Text("Подписки", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 }
                             }
@@ -357,7 +403,7 @@ fun RutubeApp(
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth(0.9f)
-                                        .height(56.dp)
+                                        .height(42.dp)
                                         .clip(androidx.compose.foundation.shape.CircleShape)
                                         .clickable {
                                             if (vm.currentNav == NavItem.LIBRARY) {
@@ -372,11 +418,11 @@ fun RutubeApp(
                                                 vm.isAuthorVisible = false; vm.isSettingsVisible = false
                                             }
                                         }
-                                        .padding(4.dp),
+                                        .padding(2.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(if (isLib) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib", tint = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+                                    Icon(if (isLib) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary, "Lib", modifier = Modifier.size(20.dp), tint = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
                                     Text("Библиотека", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 }
                             }
@@ -389,7 +435,7 @@ fun RutubeApp(
                 bottomPaddingPx = with(density) { padding.calculateBottomPadding().toPx() }
                 topPaddingPx = with(density) { padding.calculateTopPadding().toPx() }
             }
-            val realProgress = if (maxDrag > 0) (dragOffsetY.value / maxDrag) else 0f
+            val realProgress = if (vm.playerState == PlayerState.MINI) 1f else if (maxDrag > 0) (dragOffsetY.value / maxDrag) else 0f
             val isMiniThresholdReached = realProgress >= 1f
 
             LaunchedEffect(vm.playerState, vm.isFullscreenVideo, maxDrag) {
@@ -404,15 +450,27 @@ fun RutubeApp(
                 }
             }
 
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .nestedScroll(nestedScrollConnection)
+            ) {
                 // Background layer with full padding
-                Column(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = realProgress.coerceIn(0f, 1f) }.padding(bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding())) {
-                    if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible) {
-                        AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
-                            scope.launch { homeListState.scrollToItem(0) }
-                        })
-                    }
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .safeDrawingPadding()
+                        .graphicsLayer {
+                            alpha = realProgress.coerceIn(0f, 1f)
+                            translationY = topBarOffsetHeightPx
+                        }
+                        .padding(
+                            top = topBarHeightDp,
+                            bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding()
+                        )
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
                         // Main content by nav with animated transitions
                         AnimatedContent(
                         targetState = vm.currentNav,
@@ -595,23 +653,44 @@ fun RutubeApp(
                         )
                     }
                     } // Closes Background Content Nested Box
-                } // Closes Background Content Column
+                } // Closes Background Content Box (which was previously Column)
+
+                // Top Bar on top of the content
+                if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(topBarHeightDp)
+                            .graphicsLayer { 
+                                alpha = realProgress.coerceIn(0f, 1f)
+                                translationY = topBarOffsetHeightPx 
+                            }
+                            .background(MaterialTheme.colorScheme.background)
+                    ) {
+                        AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
+                            scope.launch { homeListState.scrollToItem(0) }
+                        })
+                    }
+                }
 
                 // Player Overlay (Inside Scaffold, but only respects bottom padding)
                 if (vm.playerState != PlayerState.CLOSED && !vm.isSettingsVisible) {
-                    val topPadding = padding.calculateTopPadding()
                     val bottomPadding = padding.calculateBottomPadding()
-                    val targetFullHeight = config.screenHeightDp.dp - topPadding
-                    val miniPlayerHeight = 64.dp
+                    val miniPlayerHeight = 56.dp
 
                     val playerHeight = if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
                         config.screenHeightDp.dp
                     } else {
-                        targetFullHeight - (targetFullHeight - miniPlayerHeight) * realProgress.coerceIn(0f, 1f)
+                        val fullHeight = config.screenHeightDp.dp
+                        fullHeight - (fullHeight - miniPlayerHeight) * realProgress.coerceIn(0f, 1f)
                     }
 
                     val playerOffsetY = if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) 0.dp else {
-                        topPadding + (config.screenHeightDp.dp - bottomPadding - miniPlayerHeight - topPadding) * realProgress.coerceIn(0f, 1f) + if (realProgress > 1f) ((realProgress - 1f) * maxDrag).dp else 0.dp
+                        val targetBottomOffset = config.screenHeightDp.dp - bottomPadding - miniPlayerHeight
+                        val scrollOffset = if (vm.playerState == PlayerState.MINI) {
+                            with(density) { bottomBarOffsetHeightPx.toDp() }
+                        } else 0.dp
+                        targetBottomOffset * realProgress.coerceIn(0f, 1f) + scrollOffset + if (realProgress > 1f) ((realProgress - 1f) * maxDrag).dp else 0.dp
                     }
 
                     val playerWidthFraction = if (vm.isFullscreenVideo || isMiniThresholdReached) 1f else {
@@ -676,29 +755,24 @@ fun RutubeApp(
                                             
                                             val activeDragAmount = dragAmount * 1.1f
                                             val isAtTop = relatedListState.firstVisibleItemIndex == 0 && relatedListState.firstVisibleItemScrollOffset == 0
-                                            val isTouchOnPlayer = touchStartY < size.width * (9f / 16f)
+                                            val isTouchOnPlayer = touchStartY < (config.screenWidthDp.dp * (9f / 16f)).toPx()
 
                                             if (dragStartedFrom == PlayerState.MINI) {
                                                 change.consume()
                                                 if (initialDragDirection > 0f) {
-                                                    // Swipe down to close
                                                     coroutineScope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceAtMost(maxDrag + 300f).coerceAtLeast(maxDrag)) }
                                                 } else if (initialDragDirection < 0f) {
-                                                    // Swipe up to expand
                                                     coroutineScope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDrag)) }
                                                 }
                                             } else if (dragStartedFrom == PlayerState.FULL && (isAtTop || isTouchOnPlayer)) {
                                                 if (initialDragDirection > 0f) {
-                                                    // Swipe down to minimize
                                                     change.consume()
                                                     coroutineScope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDrag)) }
                                                 } else if (initialDragDirection < 0f) {
-                                                    // Swipe UP to fullscreen
                                                     change.consume()
                                                     coroutineScope.launch { fullscreenDragOffsetY.snapTo((fullscreenDragOffsetY.value - activeDragAmount).coerceIn(0f, maxDragDistanceVertical)) }
                                                 }
                                             } else if (dragOffsetY.value > 0 && dragOffsetY.value < maxDrag) {
-                                                // Handle drag while mid-transition
                                                 change.consume()
                                                 coroutineScope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDrag)) }
                                             }
@@ -706,73 +780,63 @@ fun RutubeApp(
                                     }
                                 }
                         ) {
-                            if (!isMiniThresholdReached) {
-                                if (isLandscape && !vm.isFullscreenVideo) {
-                                    // Side-by-side YouTube landscape layout
-                                    Row(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-                                        Box(modifier = Modifier
-                                            .weight(1.5f)
-                                            .align(Alignment.CenterVertically)
-                                        ) {
-                                            CustomVideoPlayer(
-                                                exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = false,
-                                                currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
-                                                onMinimize = { vm.playerState = PlayerState.MINI },
-                                                onToggleFullscreen = { vm.toggleFullscreen(true) },
-                                                onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
-                                                isFirstVideo = vm.currentVideoIndex <= 0,
-                                                isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
-                                                isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
-                                                isTransitioning = false,
-                                                onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
-                                            )
-                                        }
-                                        RelatedVideosList(
-                                            modifier = Modifier.weight(1.2f).fillMaxHeight(),
-                                            listState = relatedListState,
-                                            currentVideo = vm.currentVideo,
-                                            relatedVideos = vm.relatedVideos,
-                                            userRegistry = vm.userRegistry,
-                                            alphaProgress = 0f,
-                                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                                            onToggleSub = { vm.toggleSubscription(it) },
-                                            onLike = { video -> vm.toggleLike(video) },
-                                            onDislike = { video -> vm.handleVideoMoreAction(video, "dislike") },
-                                            onShare = { video -> vm.shareVideo(video) },
-                                            onAddToPlaylist = { video -> vm.showPlaylistDialog = video },
-                                            onDownload = { video -> vm.startDownload(video) },
-                                            onVideoClick = { video, list -> vm.playVideo(video, list) },
-                                            onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
-                                            comments = vm.comments,
-                                            isLoadingComments = vm.isLoadingComments,
-                                            commentsCount = vm.commentsCount
-                                        )
-                                    }
-                                } else {
-                                    // Vertical portrait layout
-                                    Column(modifier = Modifier.fillMaxSize()) {
-                                        Box(modifier = Modifier.graphicsLayer {
-                                            scaleX = fsScale
-                                            scaleY = fsScale
-                                            translationY = fsOffsetY
-                                        }) {
-                                            CustomVideoPlayer(
-                                                exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo,
-                                                currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
-                                                onMinimize = { vm.playerState = PlayerState.MINI },
-                                                onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
-                                                onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
-                                                isFirstVideo = vm.currentVideoIndex <= 0,
-                                                isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
-                                                isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
-                                                isTransitioning = fsProgress > 0f || realProgress > 0f,
-                                                onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
-                                            )
-                                        }
-                                        if (!vm.isFullscreenVideo) {
-                                            LaunchedEffect(vm.currentVideo) {
-                                                relatedListState.scrollToItem(0)
+                            val isTablet = config.smallestScreenWidthDp >= 600
+                            val showSplitLayout = isLandscape && isTablet && !vm.isFullscreenVideo
+
+                            val currentWidth = config.screenWidthDp.dp
+                            val videoFullWidth = currentWidth
+                            val videoFullHeight = currentWidth * (9f / 16f)
+                            val videoMiniWidth = 100.dp
+                            val videoMiniHeight = 56.dp
+
+                            val videoWidth = videoFullWidth - (videoFullWidth - videoMiniWidth) * realProgress.coerceIn(0f, 1f)
+                            val videoHeight = videoFullHeight - (videoFullHeight - videoMiniHeight) * realProgress.coerceIn(0f, 1f)
+
+                            // Main expanded player details page (fades out as progress increases)
+                            if (realProgress < 0.95f) {
+                                val detailsAlpha = (1f - realProgress * 2.5f).coerceIn(0f, 1f)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer { alpha = detailsAlpha }
+                                ) {
+                                    if (showSplitLayout) {
+                                        // Side-by-side YouTube landscape layout
+                                        Row(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+                                            Box(modifier = Modifier
+                                                .weight(1.5f)
+                                                .fillMaxHeight()
+                                            ) {
+                                                // Spacer to leave space for the video at the top/left
                                             }
+                                            RelatedVideosList(
+                                                modifier = Modifier.weight(1.2f).fillMaxHeight(),
+                                                listState = relatedListState,
+                                                currentVideo = vm.currentVideo,
+                                                relatedVideos = vm.relatedVideos,
+                                                userRegistry = vm.userRegistry,
+                                                alphaProgress = realProgress,
+                                                onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                                                onToggleSub = { vm.toggleSubscription(it) },
+                                                onLike = { video -> vm.toggleLike(video) },
+                                                onDislike = { video -> vm.handleVideoMoreAction(video, "dislike") },
+                                                onShare = { video -> vm.shareVideo(video) },
+                                                onAddToPlaylist = { video -> vm.showPlaylistDialog = video },
+                                                onDownload = { video -> vm.startDownload(video) },
+                                                onVideoClick = { video, list -> vm.playVideo(video, list) },
+                                                onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                                                comments = vm.comments,
+                                                isLoadingComments = vm.isLoadingComments,
+                                                commentsCount = vm.commentsCount
+                                            )
+                                        }
+                                    } else {
+                                        // Vertical portrait layout details page below the video
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(top = videoHeight)
+                                        ) {
                                             RelatedVideosList(
                                                 modifier = Modifier.weight(1f),
                                                 listState = relatedListState,
@@ -796,8 +860,73 @@ fun RutubeApp(
                                         }
                                     }
                                 }
-                            } else {
-                                MiniPlayer(vm.currentVideo, vm.isPlaying, vm.exoPlayer, onClose = { vm.closePlayer() }, onClick = { vm.playerState = PlayerState.FULL })
+                            }
+
+                            // The shrinking video box sits on top and scales smoothly
+                            Box(
+                                modifier = Modifier
+                                    .size(width = videoWidth, height = videoHeight)
+                                    .align(Alignment.TopStart)
+                                    .background(Color.Black)
+                            ) {
+                                CustomVideoPlayer(
+                                    exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo,
+                                    currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
+                                    onMinimize = { vm.playerState = PlayerState.MINI },
+                                    onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
+                                    onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
+                                    isFirstVideo = vm.currentVideoIndex <= 0,
+                                    isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
+                                    isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
+                                    isTransitioning = realProgress > 0.05f || fsProgress > 0f || realProgress > 0f,
+                                    onPlayRelated = { vm.playVideo(it, vm.relatedVideos) },
+                                    moreVideosScrollIndex = vm.moreVideosScrollIndex,
+                                    moreVideosScrollOffset = vm.moreVideosScrollOffset,
+                                    onMoreVideosScroll = { index, offset -> vm.saveMoreVideosScrollState(index, offset) }
+                                )
+                            }
+
+                            // Mini-player title text and control buttons (fades in as progress approaches 1f)
+                            if (realProgress > 0.5f) {
+                                val miniAlpha = ((realProgress - 0.5f) / 0.5f).coerceIn(0f, 1f)
+                                Row(
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(start = videoWidth) // Sits exactly to the right of the shrinking video!
+                                        .fillMaxWidth()
+                                        .height(videoMiniHeight)
+                                        .graphicsLayer { alpha = miniAlpha }
+                                        .clickable {
+                                            coroutineScope.launch {
+                                                vm.playerState = PlayerState.FULL
+                                                dragOffsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow))
+                                            }
+                                        }
+                                        .padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(vm.currentVideo?.title ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
+                                        Text(vm.currentVideo?.author?.name ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(0.7f))
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            if (vm.isPlaying) {
+                                                vm.exoPlayer.pause()
+                                                vm.isPlaying = false
+                                            } else {
+                                                vm.exoPlayer.play()
+                                                vm.isPlaying = true
+                                            }
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(if (vm.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, null)
+                                    }
+                                    IconButton(onClick = { vm.closePlayer() }, modifier = Modifier.size(36.dp)) {
+                                        Icon(Icons.Default.Close, null)
+                                    }
+                                }
                             }
                         }
                     }
@@ -901,20 +1030,30 @@ private fun AppTopBar(
         if (granted) startVoiceInput()
     }
 
-    TopAppBar(
-        title = {
-                            val topVisible = vm.overlayOrder.lastOrNull {
-                                (it == OverlayState.SEARCH && vm.isSearchVisible) ||
-                                (it == OverlayState.AUTHOR && vm.isAuthorVisible && vm.currentNav == NavItem.HOME)
-                            }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Left Title block
+        Box(modifier = Modifier.weight(1f)) {
+            val topVisible = vm.overlayOrder.lastOrNull {
+                (it == OverlayState.SEARCH && vm.isSearchVisible) ||
+                (it == OverlayState.AUTHOR && vm.isAuthorVisible && vm.currentNav == NavItem.HOME)
+            }
             if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (topVisible != null || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME) {
-                        IconButton(onClick = {
-                            vm.handleBack()
-                        }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                        IconButton(
+                            onClick = { vm.handleBack() },
+                            modifier = Modifier.size(36.dp)
+                        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, modifier = Modifier.size(20.dp)) }
                     }
-                    Icon(Icons.Default.PlayCircleFilled, null, tint = Color(0xFFE53935), modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.PlayCircleFilled, null, tint = Color(0xFFE53935), modifier = Modifier.size(28.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(
                         when {
@@ -932,23 +1071,30 @@ private fun AppTopBar(
                                 else -> "Rupoop"
                             }
                         },
-                        fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        fontSize = 16.sp
                     )
                 }
             } else {
                 // Styled search bar
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (vm.isSearchExpanded) {
-                        IconButton(onClick = { 
-                            vm.isSearchExpanded = false
-                            focusManager.clearFocus()
-                        }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") }
+                        IconButton(
+                            onClick = { 
+                                vm.isSearchExpanded = false
+                                focusManager.clearFocus()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", modifier = Modifier.size(20.dp)) }
                     } else if (topVisible == OverlayState.SEARCH) {
-                        IconButton(onClick = { vm.isSearchVisible = false; vm.searchQuery = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                        IconButton(
+                            onClick = { vm.isSearchVisible = false; vm.searchQuery = "" },
+                            modifier = Modifier.size(36.dp)
+                        ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null, modifier = Modifier.size(20.dp)) }
                     }
                     Surface(
                         modifier = Modifier.weight(1f).padding(end = 4.dp),
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(20.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         tonalElevation = 2.dp
                     ) {
@@ -963,14 +1109,14 @@ private fun AppTopBar(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp)
+                                .height(32.dp)
                                 .onFocusChanged { focusState ->
                                     if (focusState.isFocused) {
                                         vm.isSearchExpanded = true
                                     }
                                 },
                             singleLine = true,
-                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp),
+                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
@@ -980,19 +1126,19 @@ private fun AppTopBar(
                             }),
                             decorationBox = { innerTextField ->
                                 Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(modifier = Modifier.weight(1f)) {
                                         if (vm.searchQuery.isEmpty()) {
-                                            Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 16.sp)
+                                            Text("Поиск...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 14.sp)
                                         }
                                         innerTextField()
                                     }
                                     if (vm.searchQuery.isNotEmpty()) {
                                         Row {
-                                            IconButton(onClick = { vm.searchQuery = ""; vm.isSearchExpanded = true }, modifier = Modifier.size(36.dp)) {
-                                                Icon(Icons.Default.Close, "Очистить", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                            IconButton(onClick = { vm.searchQuery = ""; vm.isSearchExpanded = true }, modifier = Modifier.size(28.dp)) {
+                                                Icon(Icons.Default.Close, "Очистить", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                             }
                                             IconButton(onClick = {
                                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -1000,10 +1146,11 @@ private fun AppTopBar(
                                                 } else {
                                                     micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                                 }
-                                            }, modifier = Modifier.size(36.dp)) {
+                                            }, modifier = Modifier.size(28.dp)) {
                                                 Icon(
                                                     if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
                                                     "Голосовой поиск",
+                                                    modifier = Modifier.size(16.dp),
                                                     tint = if (isListening) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                                 )
                                             }
@@ -1015,10 +1162,11 @@ private fun AppTopBar(
                                             } else {
                                                 micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                             }
-                                        }, modifier = Modifier.size(36.dp)) {
+                                        }, modifier = Modifier.size(28.dp)) {
                                             Icon(
                                                 if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
                                                 "Голосовой поиск",
+                                                modifier = Modifier.size(16.dp),
                                                 tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
                                             )
                                         }
@@ -1029,37 +1177,44 @@ private fun AppTopBar(
                     }
                 }
             }
-        },
-        actions = {
+        }
+
+        // Actions Block on the Right
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
             val topVisible = vm.overlayOrder.lastOrNull {
                 (it == OverlayState.SEARCH && vm.isSearchVisible) ||
                 (it == OverlayState.AUTHOR && vm.isAuthorVisible)
             }
             if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
                 if (topVisible == null && vm.currentLibSub == LibrarySubScreen.NONE && !vm.isSettingsVisible) {
-                    IconButton(onClick = { vm.isSearchExpanded = true }) { Icon(Icons.Default.Search, null) }
+                    IconButton(onClick = { vm.isSearchExpanded = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp)) }
                     IconButton(onClick = {
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                             startVoiceInput()
                         } else {
                             micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
-                    }) {
+                    }, modifier = Modifier.size(36.dp)) {
                         Icon(
                             if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
                             "Голосовой поиск",
+                            modifier = Modifier.size(20.dp),
                             tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
                         )
                     }
-                    IconButton(onClick = { vm.isSettingsVisible = true }) { Icon(Icons.Default.Settings, null) }
+                    IconButton(onClick = { vm.isSettingsVisible = true }, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Settings, null, modifier = Modifier.size(20.dp)) }
                     Box(contentAlignment = Alignment.Center) {
                         IconButton(onClick = {
                             if (!vm.isAuthenticated && !vm.isAuthenticating) authLauncher.launch(vm.authManager.createAuthIntent())
                             else if (vm.isAuthenticated) vm.isAccountMenuExpanded = true
-                        }) {
-                            if (vm.isAuthenticating) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        }, modifier = Modifier.size(36.dp)) {
+                            if (vm.isAuthenticating) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             else Icon(
                                 if (vm.isAuthenticated) Icons.Default.AccountCircle else Icons.Outlined.AccountCircle, null,
+                                modifier = Modifier.size(20.dp),
                                 tint = if (vm.isAuthenticated) Color(0xFF4CAF50) else LocalContentColor.current
                             )
                         }
@@ -1075,13 +1230,11 @@ private fun AppTopBar(
                         }
                     }
                 } else if (vm.isSettingsVisible && vm.isAuthenticated) {
-                    IconButton(onClick = { vm.logout() }) { Icon(Icons.AutoMirrored.Filled.Logout, "Выйти") }
+                    IconButton(onClick = { vm.logout() }, modifier = Modifier.size(36.dp)) { Icon(Icons.AutoMirrored.Filled.Logout, "Выйти", modifier = Modifier.size(20.dp)) }
                 }
-            } else {
-                // Actions are hidden when search is expanded or showing results because the search bar fills the title area (or we put close button inside the textfield)
             }
         }
-    )
+    }
 }
 
 // Search overlay
@@ -1096,16 +1249,40 @@ private fun SearchOverlay(vm: AppViewModel) {
     }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        LazyColumn(Modifier.fillMaxSize(), state = listState) {
-            items(vm.searchResults) { video ->
-                val history =
-                    vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                VideoCardItem(
-                    video = video, history = history,
-                    onClick = { vm.playVideo(video, vm.searchResults) },
-                    onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                    onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
-                )
+        val config = LocalConfiguration.current
+        val isLandscape = config.screenWidthDp > config.screenHeightDp
+
+        if (isLandscape) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(300.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(vm.searchResults) { video ->
+                    val history =
+                        vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                    VideoCardItem(
+                        video = video, history = history,
+                        onClick = { vm.playVideo(video, vm.searchResults) },
+                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                        onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
+                    )
+                }
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                items(vm.searchResults) { video ->
+                    val history =
+                        vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                    VideoCardItem(
+                        video = video, history = history,
+                        onClick = { vm.playVideo(video, vm.searchResults) },
+                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                        onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
+                    )
+                }
             }
         }
     }
@@ -1114,6 +1291,9 @@ private fun SearchOverlay(vm: AppViewModel) {
 // Library content (with sub-screens)
 @Composable
 private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
+    val config = LocalConfiguration.current
+    val isLandscape = config.screenWidthDp > config.screenHeightDp
+
     when (vm.currentLibSub) {
         LibrarySubScreen.NONE -> {
             LibraryScreen(
@@ -1144,54 +1324,114 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         "downloads" -> vm.currentLibSub = LibrarySubScreen.DOWNLOADS
                     }
                 },
-                listState = listState
+                listState = listState,
+                isMiniPlayerActive = (vm.playerState == PlayerState.MINI)
             )
         }
         LibrarySubScreen.HISTORY -> {
-            LazyColumn(Modifier.fillMaxSize()) {
-                val historyVideos = vm.userRegistry.watchHistory.map { item ->
-                    SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl), duration = (item.totalDuration / 1000).toInt())
+            val historyVideos = vm.userRegistry.watchHistory.map { item ->
+                SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl), duration = (item.totalDuration / 1000).toInt())
+            }
+
+            if (isLandscape) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(300.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(vm.userRegistry.watchHistory) { item ->
+                        val video = SearchResult(
+                            videoUrl = item.videoUrl,
+                            title = item.title ?: "",
+                            thumbnailUrl = item.thumbnailUrl,
+                            author = Author(
+                                id = item.authorId,
+                                name = item.authorName ?: "",
+                                avatarUrl = item.authorAvatarUrl
+                            ),
+                            duration = (item.totalDuration / 1000).toInt()
+                        )
+                        VideoCardItem(
+                            video = video, history = item,
+                            onClick = { vm.playVideo(video, historyVideos, false) },
+                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                            onMoreClick = { action ->
+                                when (action) {
+                                    "remove" -> vm.removeFromHistory(item.videoId)
+                                    "share" -> vm.shareVideo(video)
+                                    "download" -> vm.startDownload(video)
+                                }
+                            },
+                            isEditMode = true
+                        )
+                    }
                 }
-                items(vm.userRegistry.watchHistory) { item ->
-                    val video = SearchResult(
-                        videoUrl = item.videoUrl,
-                        title = item.title ?: "",
-                        thumbnailUrl = item.thumbnailUrl,
-                        author = Author(
-                            id = item.authorId,
-                            name = item.authorName ?: "",
-                            avatarUrl = item.authorAvatarUrl
-                        ),
-                        duration = (item.totalDuration / 1000).toInt()
-                    )
-                    VideoCardItem(
-                        video = video, history = item,
-                        onClick = { vm.playVideo(video, historyVideos, false) },
-                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onMoreClick = { action ->
-                            when (action) {
-                                "remove" -> vm.removeFromHistory(item.videoId)
-                                "share" -> vm.shareVideo(video)
-                                "download" -> vm.startDownload(video)
-                            }
-                        },
-                        isEditMode = true
-                    )
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(vm.userRegistry.watchHistory) { item ->
+                        val video = SearchResult(
+                            videoUrl = item.videoUrl,
+                            title = item.title ?: "",
+                            thumbnailUrl = item.thumbnailUrl,
+                            author = Author(
+                                id = item.authorId,
+                                name = item.authorName ?: "",
+                                avatarUrl = item.authorAvatarUrl
+                            ),
+                            duration = (item.totalDuration / 1000).toInt()
+                        )
+                        VideoCardItem(
+                            video = video, history = item,
+                            onClick = { vm.playVideo(video, historyVideos, false) },
+                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                            onMoreClick = { action ->
+                                when (action) {
+                                    "remove" -> vm.removeFromHistory(item.videoId)
+                                    "share" -> vm.shareVideo(video)
+                                    "download" -> vm.startDownload(video)
+                                }
+                            },
+                            isEditMode = true
+                        )
+                    }
                 }
             }
         }
         LibrarySubScreen.LIKED -> VideoListScreen(vm.userRegistry.likedVideos, { v -> vm.playVideo(v, vm.userRegistry.likedVideos, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleLike(video) }, { vm.startDownload(it) })
         LibrarySubScreen.WATCH_LATER -> VideoListScreen(vm.userRegistry.watchLater, { v -> vm.playVideo(v, vm.userRegistry.watchLater, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleWatchLater(video) }, { vm.startDownload(it) })
         LibrarySubScreen.PLAYLISTS -> {
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(vm.userRegistry.playlists) { playlist ->
-                    LibraryRow(
-                        Icons.AutoMirrored.Filled.PlaylistPlay,
-                        playlist.name,
-                        playlist.videos.size.toString(),
-                        onAction = { vm.deletePlaylist(playlist.id) }) {
-                        vm.selectedPlaylist = playlist
-                        vm.currentLibSub = LibrarySubScreen.PLAYLIST_DETAIL
+            if (isLandscape) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(300.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(vm.userRegistry.playlists) { playlist ->
+                        LibraryRow(
+                            Icons.AutoMirrored.Filled.PlaylistPlay,
+                            playlist.name,
+                            playlist.videos.size.toString(),
+                            onAction = { vm.deletePlaylist(playlist.id) }) {
+                            vm.selectedPlaylist = playlist
+                            vm.currentLibSub = LibrarySubScreen.PLAYLIST_DETAIL
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(vm.userRegistry.playlists) { playlist ->
+                        LibraryRow(
+                            Icons.AutoMirrored.Filled.PlaylistPlay,
+                            playlist.name,
+                            playlist.videos.size.toString(),
+                            onAction = { vm.deletePlaylist(playlist.id) }) {
+                            vm.selectedPlaylist = playlist
+                            vm.currentLibSub = LibrarySubScreen.PLAYLIST_DETAIL
+                        }
                     }
                 }
             }

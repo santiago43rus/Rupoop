@@ -37,9 +37,14 @@ fun LibraryScreen(
     onAuthorClick: (Author) -> Unit,
     onMoreClick: (WatchHistoryItem, String) -> Unit,
     onActionClick: (String) -> Unit,
-    listState: LazyListState = rememberLazyListState()
+    listState: LazyListState = rememberLazyListState(),
+    isMiniPlayerActive: Boolean = false
 ) {
-    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = listState,
+        contentPadding = PaddingValues(bottom = if (isMiniPlayerActive) 80.dp else 16.dp)
+    ) {
         item {
             Row(
                 Modifier.fillMaxWidth().padding(12.dp),

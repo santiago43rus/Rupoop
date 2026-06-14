@@ -5,6 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -108,19 +112,46 @@ fun VideoListScreen(
     if (videos.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Список пуст") }
     } else {
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(videos) { video ->
-                VideoCardItem(
-                    video = video, history = null,
-                    onClick = { onVideoClick(video) },
-                    onAuthorClick = onAuthorClick,
-                    onMoreClick = { action ->
-                    when (action) {
-                        "remove" -> onRemove(video)
-                        "share" -> onShare(video)
-                        "download" -> onDownload(video)
-                    }
-                }, isEditMode = true)
+        val config = LocalConfiguration.current
+        val isLandscape = config.screenWidthDp > config.screenHeightDp
+
+        if (isLandscape) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(300.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(videos) { video ->
+                    VideoCardItem(
+                        video = video, history = null,
+                        onClick = { onVideoClick(video) },
+                        onAuthorClick = onAuthorClick,
+                        onMoreClick = { action ->
+                            when (action) {
+                                "remove" -> onRemove(video)
+                                "share" -> onShare(video)
+                                "download" -> onDownload(video)
+                            }
+                        }, isEditMode = true)
+                }
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(videos) { video ->
+                    VideoCardItem(
+                        video = video, history = null,
+                        onClick = { onVideoClick(video) },
+                        onAuthorClick = onAuthorClick,
+                        onMoreClick = { action ->
+                            when (action) {
+                                "remove" -> onRemove(video)
+                                "share" -> onShare(video)
+                                "download" -> onDownload(video)
+                            }
+                        }, isEditMode = true)
+                }
             }
         }
     }

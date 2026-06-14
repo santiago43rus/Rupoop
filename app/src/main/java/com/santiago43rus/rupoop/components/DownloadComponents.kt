@@ -11,6 +11,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -53,96 +58,196 @@ fun DownloadsScreen(
         hasNotificationPermission = granted
     }
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Notification permission card
-        if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().animateContentSize(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+    val config = LocalConfiguration.current
+    val isLandscape = config.screenWidthDp > config.screenHeightDp
+
+    if (isLandscape) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(320.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Notification permission card
+            if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().animateContentSize(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(
-                            Icons.Default.NotificationsOff,
-                            null,
-                            tint = Color(0xFFE65100),
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Уведомления отключены",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color(0xFF212121)
-                            )
-                            Text(
-                                "Включите уведомления, чтобы следить за загрузками в шторке",
-                                fontSize = 12.sp,
-                                color = Color(0xFF616161)
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                            modifier = Modifier.height(32.dp)
+                        Row(
+                            Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Включить", fontSize = 12.sp)
+                            Icon(
+                                Icons.Default.NotificationsOff,
+                                null,
+                                tint = Color(0xFFE65100),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "Уведомления отключены",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF212121)
+                                )
+                                Text(
+                                    "Включите уведомления, чтобы следить за загрузками в шторке",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF616161)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Включить", fontSize = 12.sp)
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if (downloads.isEmpty()) {
-            item {
-                Box(
-                    Modifier.fillMaxWidth().height(300.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.Download,
-                            null,
-                            modifier = Modifier.size(64.dp),
-                            tint = Color.Gray
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text("Нет загрузок", color = Color.Gray, fontSize = 16.sp)
-                        Text(
-                            "Скачанные видео будут отображаться здесь",
-                            color = Color.Gray.copy(alpha = 0.7f),
-                            fontSize = 13.sp
-                        )
+            if (downloads.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        Modifier.fillMaxWidth().height(300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Download,
+                                null,
+                                modifier = Modifier.size(64.dp),
+                                tint = Color.Gray
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text("Нет загрузок", color = Color.Gray, fontSize = 16.sp)
+                            Text(
+                                "Скачанные видео будут отображаться здесь",
+                                color = Color.Gray.copy(alpha = 0.7f),
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        items(downloads) { item ->
-            DownloadCard(
-                item = item,
-                onPause = { onPause(item.videoId) },
-                onResume = { onResume(item.videoId) },
-                onCancel = { onCancel(item.videoId) },
-                onDelete = { onDelete(item.videoId) },
-                onRetry = { onRetry(item.videoId) },
-                onPlay = { onPlay(item) }
-            )
+            items(downloads) { item ->
+                DownloadCard(
+                    item = item,
+                    onPause = { onPause(item.videoId) },
+                    onResume = { onResume(item.videoId) },
+                    onCancel = { onCancel(item.videoId) },
+                    onDelete = { onDelete(item.videoId) },
+                    onRetry = { onRetry(item.videoId) },
+                    onPlay = { onPlay(item) }
+                )
+            }
+        }
+    } else {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Notification permission card
+            if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().animateContentSize(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.NotificationsOff,
+                                null,
+                                tint = Color(0xFFE65100),
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "Уведомления отключены",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF212121)
+                                )
+                                Text(
+                                    "Включите уведомления, чтобы следить за загрузками в шторке",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF616161)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(32.dp)
+                            ) {
+                                Text("Включить", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (downloads.isEmpty()) {
+                item {
+                    Box(
+                        Modifier.fillMaxWidth().height(300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Download,
+                                null,
+                                modifier = Modifier.size(64.dp),
+                                tint = Color.Gray
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text("Нет загрузок", color = Color.Gray, fontSize = 16.sp)
+                            Text(
+                                "Скачанные видео будут отображаться здесь",
+                                color = Color.Gray.copy(alpha = 0.7f),
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            items(downloads) { item ->
+                DownloadCard(
+                    item = item,
+                    onPause = { onPause(item.videoId) },
+                    onResume = { onResume(item.videoId) },
+                    onCancel = { onCancel(item.videoId) },
+                    onDelete = { onDelete(item.videoId) },
+                    onRetry = { onRetry(item.videoId) },
+                    onPlay = { onPlay(item) }
+                )
+            }
         }
     }
 }

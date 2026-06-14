@@ -5,6 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -43,70 +48,144 @@ fun AuthorScreen(
     currentSort: String = "-created_ts",
     onSortChange: (String) -> Unit = {}
 ) {
+    val config = LocalConfiguration.current
+    val isLandscape = config.screenWidthDp > config.screenHeightDp
+
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = onRefresh,
             state = rememberPullToRefreshState()
         ) {
-            LazyColumn(Modifier.fillMaxSize()) {
-                item {
-                    author?.let { a ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = a.avatarUrl ?: "", contentDescription = null,
-                                modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                a.name, style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
-                            )
-                            val isSubbed = userRegistry.subscriptions.any { it.name.equals(a.name, ignoreCase = true) }
-                            Button(
-                                onClick = { onToggleSubscription(a) },
-                                colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                                modifier = Modifier.height(32.dp)
+            if (isLandscape) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(320.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        author?.let { a ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(if (isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
+                                AsyncImage(
+                                    model = a.avatarUrl ?: "", contentDescription = null,
+                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    a.name, style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
+                                )
+                                val isSubbed = userRegistry.subscriptions.any { it.name.equals(a.name, ignoreCase = true) }
+                                Button(
+                                    onClick = { onToggleSubscription(a) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(if (isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                    // Sort chips
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = true,
+                                onClick = { },
+                                label = { Text("От новых") }
+                            )
+                        }
+                    }
+                    gridItemsIndexed(authorVideos) { index, video ->
+                        val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                        VideoCardItem(
+                            video = video, history = history,
+                            onClick = { onVideoClick(video, authorVideos) },
+                            onAuthorClick = onAuthorClick,
+                            onMoreClick = { action -> onMoreClick(video, action) }
+                        )
+                        if (index == authorVideos.lastIndex && !isLoadingMore && hasMoreVideos) {
+                            LaunchedEffect(video.videoUrl) { onLoadMore() }
+                        }
+                    }
+                    if (isLoadingMore) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Color.Red)
                             }
                         }
-                        HorizontalDivider()
                     }
                 }
-                // Sort chips
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        FilterChip(
-                            selected = true,
-                            onClick = { },
-                            label = { Text("От новых") }
-                        )
-                    }
-                }
-                itemsIndexed(authorVideos) { index, video ->
-                    val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                    VideoCardItem(
-                        video = video, history = history,
-                        onClick = { onVideoClick(video, authorVideos) },
-                        onAuthorClick = onAuthorClick,
-                        onMoreClick = { action -> onMoreClick(video, action) }
-                    )
-                    if (index == authorVideos.lastIndex && !isLoadingMore && hasMoreVideos) {
-                        LaunchedEffect(video.videoUrl) { onLoadMore() }
-                    }
-                }
-                if (isLoadingMore) {
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
                     item {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Color.Red)
+                        author?.let { a ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = a.avatarUrl ?: "", contentDescription = null,
+                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    a.name, style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
+                                )
+                                val isSubbed = userRegistry.subscriptions.any { it.name.equals(a.name, ignoreCase = true) }
+                                Button(
+                                    onClick = { onToggleSubscription(a) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(if (isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                    // Sort chips
+                    item {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = true,
+                                onClick = { },
+                                label = { Text("От новых") }
+                            )
+                        }
+                    }
+                    itemsIndexed(authorVideos) { index, video ->
+                        val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                        VideoCardItem(
+                            video = video, history = history,
+                            onClick = { onVideoClick(video, authorVideos) },
+                            onAuthorClick = onAuthorClick,
+                            onMoreClick = { action -> onMoreClick(video, action) }
+                        )
+                        if (index == authorVideos.lastIndex && !isLoadingMore && hasMoreVideos) {
+                            LaunchedEffect(video.videoUrl) { onLoadMore() }
+                        }
+                    }
+                    if (isLoadingMore) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = Color.Red)
+                            }
                         }
                     }
                 }
