@@ -1,5 +1,6 @@
 package com.santiago43rus.rupoop
 
+import android.util.Log
 import android.app.Application
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -80,6 +81,7 @@ import kotlinx.coroutines.launch
 import net.openid.appauth.AuthorizationResponse
 import java.util.Locale
 
+@androidx.media3.common.util.UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RutubeApp(
@@ -141,8 +143,10 @@ fun RutubeApp(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
-                vm.exoPlayer.pause()
-                vm.isPlaying = false
+                if (!vm.isBackgroundPlaybackEnabled) {
+                    vm.exoPlayer.pause()
+                    vm.isPlaying = false
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -153,7 +157,9 @@ fun RutubeApp(
 
     LaunchedEffect(vm.isSettingsVisible) {
         if (vm.isSettingsVisible && vm.isPlaying) {
-            vm.exoPlayer.pause()
+            if (!vm.isBackgroundPlaybackEnabled) {
+                vm.exoPlayer.pause()
+            }
             // Keep player state intact, it's just hidden via !vm.isSettingsVisible condition
         }
     }
@@ -373,7 +379,7 @@ fun RutubeApp(
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                 // Background layer with full padding
                 Column(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = realProgress.coerceIn(0f, 1f) }.padding(bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding())) {
-                    if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible) {
+                    if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible && !vm.isNotificationSettingsVisible) {
                         AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
                             scope.launch { homeListState.scrollToItem(0) }
                         })
@@ -527,11 +533,68 @@ fun RutubeApp(
                     ) {
                         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                             SettingsScreen(
-                                settingsManager = vm.settingsManager,
+                                vm = vm,
                                 onThemeToggle = onThemeToggle,
-                                registryManager = vm.registryManager,
-                                onRegistryUpdate = { vm.onRegistryUpdate(it) },
-                                onShowHiddenVideos = { vm.isHiddenVideosVisible = true }
+                                onShowHiddenVideos = { vm.isHiddenVideosVisible = true },
+                                onOpenNotificationSettings = { vm.isNotificationSettingsVisible = true },
+                                onNotificationsChanged = {
+                                    val showBg = vm.showBackgroundNotifications
+                                    if (!showBg) {
+                                        try {
+                                            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                                            context.stopService(intent)
+                                        } catch (e: Exception) {
+                                            Log.e("Rupoop", "Failed to stop PlaybackService", e)
+                                        }
+                                    } else if (vm.playerState != PlayerState.CLOSED) {
+                                        try {
+                                            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                context.startForegroundService(intent)
+                                            } else {
+                                                context.startService(intent)
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e("Rupoop", "Failed to start PlaybackService", e)
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    // Notification Settings overlay
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = vm.isNotificationSettingsVisible,
+                        enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
+                        exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
+                    ) {
+                        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                            com.santiago43rus.rupoop.screen.NotificationSettingsScreen(
+                                vm = vm,
+                                onDismiss = { vm.isNotificationSettingsVisible = false },
+                                onSettingsChanged = {
+                                    val showBg = vm.showBackgroundNotifications
+                                    if (!showBg) {
+                                        try {
+                                            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                                            context.stopService(intent)
+                                        } catch (e: Exception) {
+                                            Log.e("Rupoop", "Failed to stop PlaybackService", e)
+                                        }
+                                    } else if (vm.playerState != PlayerState.CLOSED) {
+                                        try {
+                                            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                                context.startForegroundService(intent)
+                                            } else {
+                                                context.startService(intent)
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e("Rupoop", "Failed to start PlaybackService", e)
+                                        }
+                                    }
+                                }
                             )
                         }
                     }
@@ -698,21 +761,28 @@ fun RutubeApp(
                                             relatedListState.scrollToItem(0)
                                         }
                                         RelatedVideosList(
-                                            modifier = Modifier.weight(1f),
+                                            modifier = Modifier.fillMaxSize(),
                                             listState = relatedListState,
                                             currentVideo = vm.currentVideo,
                                             relatedVideos = vm.relatedVideos,
                                             userRegistry = vm.userRegistry,
-                                            alphaProgress = realProgress,
                                             onAuthorClick = { vm.loadAuthorVideos(it, false) },
                                             onToggleSub = { vm.toggleSubscription(it) },
-                                            onLike = { video -> vm.toggleLike(video) },
-                                            onDislike = { video -> vm.handleVideoMoreAction(video, "dislike") },
-                                            onShare = { video -> vm.shareVideo(video) },
-                                            onAddToPlaylist = { video -> vm.showPlaylistDialog = video },
-                                            onDownload = { video -> vm.startDownload(video) },
-                                            onVideoClick = { video, list -> vm.playVideo(video, list) },
-                                            onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
+                                            onLike = { vm.toggleLike(it) },
+                                            onDislike = {
+                                                vm.registryManager.toggleDislike(it)
+                                                vm.userRegistry = vm.registryManager.registry
+                                                vm.removeVideoFromUiLists(it)
+                                                vm.pushToGitHub()
+                                            },
+                                            onShare = { vm.shareVideo(it) },
+                                            onAddToPlaylist = { vm.showPlaylistDialog = it },
+                                            onDownload = { vm.startDownload(it) },
+                                            onVideoClick = { v, list -> vm.playVideo(v, list, false) },
+                                            onMoreClick = { item, action -> vm.handleVideoMoreAction(item, action) },
+                                            alphaProgress = realProgress,
+                                            isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
+                                            onBackgroundPlayToggle = { vm.isBackgroundPlaybackEnabled = !vm.isBackgroundPlaybackEnabled }
                                         )
                                     }
                                 }

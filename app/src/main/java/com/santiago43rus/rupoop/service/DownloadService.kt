@@ -21,6 +21,7 @@ import kotlin.math.abs
 class DownloadService : Service() {
     private val CHANNEL_ID = "download_channel"
     private val CHANNEL_COMPLETE_ID = "download_complete_channel"
+    private val CHANNEL_SILENT_ID = "download_silent_channel"
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var downloadJob: Job? = null
@@ -154,7 +155,9 @@ class DownloadService : Service() {
                         fos.close()
                         downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Соединение потеряно")
                         sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", "Соединение потеряно"))
-                        updateNotification(currentTitle, 0, false, "Ошибка: Нет интернета")
+                        if (com.santiago43rus.rupoop.data.SettingsManager(this@DownloadService).showDownloadNotifications) {
+                            updateNotification(currentTitle, 0, false, "Ошибка: Нет интернета")
+                        }
                         stopForeground(STOP_FOREGROUND_DETACH)
                         stopSelf()
                         return@launch
@@ -184,7 +187,9 @@ class DownloadService : Service() {
                 Log.e("RupoopDownload", "Download error", e)
                 downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, e.message)
                 sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", e.message))
-                updateNotification(currentTitle, 0, false, "Ошибка: ${e.message}")
+                if (com.santiago43rus.rupoop.data.SettingsManager(this@DownloadService).showDownloadNotifications) {
+                    updateNotification(currentTitle, 0, false, "Ошибка: ${e.message}")
+                }
                 stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
             }
@@ -195,37 +200,39 @@ class DownloadService : Service() {
         // Remove the progress notification
         stopForeground(STOP_FOREGROUND_REMOVE)
 
-        // Post a separate completion notification with a different ID
-        val manager = getSystemService(NotificationManager::class.java)
-        val completeNotifId = getNotificationId() + 10000
+        if (com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications) {
+            // Post a separate completion notification with a different ID
+            val manager = getSystemService(NotificationManager::class.java)
+            val completeNotifId = getNotificationId() + 10000
 
-        val builder = NotificationCompat.Builder(this, CHANNEL_COMPLETE_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Загрузка завершена")
-            .setContentText(currentTitle)
-            .setAutoCancel(true)
-            .setOngoing(false)
+            val builder = NotificationCompat.Builder(this, CHANNEL_COMPLETE_ID)
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setContentTitle("Загрузка завершена")
+                .setContentText(currentTitle)
+                .setAutoCancel(true)
+                .setOngoing(false)
 
-        // Create intent to open app and play the local file
-        try {
-            val playIntent = Intent(this, Class.forName("com.santiago43rus.rupoop.MainActivity")).apply {
-                action = "PLAY_LOCAL_FILE"
-                putExtra("FILE_PATH", outputFile?.absolutePath)
-                putExtra("TITLE", currentTitle)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            // Create intent to open app and play the local file
+            try {
+                val playIntent = Intent(this, Class.forName("com.santiago43rus.rupoop.MainActivity")).apply {
+                    action = "PLAY_LOCAL_FILE"
+                    putExtra("FILE_PATH", outputFile?.absolutePath)
+                    putExtra("TITLE", currentTitle)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                val viewPendingIntent = PendingIntent.getActivity(
+                    this,
+                    completeNotifId,
+                    playIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                builder.setContentIntent(viewPendingIntent)
+            } catch (e: Exception) {
+                Log.e("DownloadService", "Error creating play intent for completion notification", e)
             }
-            val viewPendingIntent = PendingIntent.getActivity(
-                this,
-                completeNotifId,
-                playIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            builder.setContentIntent(viewPendingIntent)
-        } catch (e: Exception) {
-            Log.e("DownloadService", "Error creating play intent for completion notification", e)
-        }
 
-        manager?.notify(completeNotifId, builder.build())
+            manager?.notify(completeNotifId, builder.build())
+        }
         stopSelf()
     }
 
@@ -329,6 +336,10 @@ class DownloadService : Service() {
             description = "Уведомления о завершении загрузки"
         }
         manager?.createNotificationChannel(completeChannel)
+        val silentChannel = NotificationChannel(CHANNEL_SILENT_ID, "Download Service (Silent)", NotificationManager.IMPORTANCE_MIN).apply {
+            description = "Тихие уведомления для скачивания в фоновом режиме"
+        }
+        manager?.createNotificationChannel(silentChannel)
     }
 
     private fun createNotification(title: String, progress: Int, isComplete: Boolean = false, statusText: String? = null): Notification {
@@ -340,7 +351,10 @@ class DownloadService : Service() {
         }
         val cancelPendingIntent = PendingIntent.getService(this, vidHash + 1, cancelIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+        val showNotif = com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications
+        val channelId = if (showNotif) CHANNEL_ID else CHANNEL_SILENT_ID
+
+        val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(statusText ?: "Загрузка: $title")
             .setOngoing(statusText == null)

@@ -39,7 +39,9 @@ fun VideoDetails(
     onDislike: (SearchResult) -> Unit = {},
     onShare: (SearchResult) -> Unit,
     onAddToPlaylist: (SearchResult) -> Unit,
-    onDownload: (SearchResult) -> Unit
+    onDownload: (SearchResult) -> Unit,
+    onBackgroundPlayToggle: () -> Unit = {},
+    isBackgroundEnabled: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -84,6 +86,7 @@ fun VideoDetails(
             DetailAction(Icons.Outlined.Download, "Скачать", onClick = { video?.let { onDownload(it) } })
             DetailAction(Icons.Default.Share, "Поделиться", onClick = { video?.let { onShare(it) } })
             DetailAction(Icons.AutoMirrored.Filled.PlaylistAdd, "В плейлист", onClick = { video?.let { onAddToPlaylist(it) } })
+            DetailAction(Icons.Default.Headphones, "Фон", color = if (isBackgroundEnabled) Color(0xFFE53935) else LocalContentColor.current, onClick = onBackgroundPlayToggle)
         }
     }
 }

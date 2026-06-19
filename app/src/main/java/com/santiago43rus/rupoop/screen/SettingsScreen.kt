@@ -26,18 +26,21 @@ import androidx.compose.ui.Alignment
 import com.santiago43rus.rupoop.components.VideoCardItem
 import com.santiago43rus.rupoop.data.SearchResult
 import com.santiago43rus.rupoop.util.*
+import com.santiago43rus.rupoop.AppViewModel
 
 @Composable
 fun SettingsScreen(
-    settingsManager: SettingsManager,
+    vm: AppViewModel,
     onThemeToggle: (String) -> Unit,
-    registryManager: UserRegistryManager,
-    onRegistryUpdate: (UserRegistry) -> Unit,
-    onShowHiddenVideos: () -> Unit
+    onShowHiddenVideos: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onNotificationsChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
+    val settingsManager = vm.settingsManager
+    val registryManager = vm.registryManager
 
     var downloadQuality by remember { mutableStateOf(settingsManager.downloadQuality) }
     var syncFreq by remember { mutableStateOf(settingsManager.syncFrequencyHours.toString()) }
@@ -115,6 +118,27 @@ fun SettingsScreen(
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
+            // ── Уведомления ──
+            Text("Уведомления", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            ListItem(
+                headlineContent = { Text("Настройки уведомлений") },
+                supportingContent = { Text("Управление уведомлениями загрузки и воспроизведения") },
+                leadingContent = { Icon(Icons.Default.Notifications, null, tint = Color.Gray) },
+                trailingContent = {
+                    val isAllOn = vm.showDownloadNotifications && vm.showBackgroundNotifications
+                    Switch(
+                        checked = isAllOn,
+                        onCheckedChange = { checked ->
+                            vm.updateDownloadNotifications(checked)
+                            vm.updateBackgroundNotifications(checked)
+                            onNotificationsChanged()
+                        }
+                    )
+                },
+                modifier = Modifier.clickable { onOpenNotificationSettings() }
+            )
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
             // ── Жанры ──
             Text("Жанры", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
             Spacer(Modifier.height(4.dp))
@@ -136,7 +160,7 @@ fun SettingsScreen(
                             registryManager.updateRegistry(registryManager.registry.copy(
                                 appSettings = registryManager.registry.appSettings.copy(enabledGenres = enabledGenres.toList())
                             ))
-                            onRegistryUpdate(registryManager.registry)
+                            vm.onRegistryUpdate(registryManager.registry)
                         },
                         label = { Text(genre.replaceFirstChar { it.uppercase() }) }
                     )
@@ -152,7 +176,7 @@ fun SettingsScreen(
                     FilterChip(selected = downloadQuality == q, onClick = {
                         downloadQuality = q; settingsManager.downloadQuality = q
                         registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(downloadQuality = q)))
-                        onRegistryUpdate(registryManager.registry)
+                        vm.onRegistryUpdate(registryManager.registry)
                     }, label = { Text(q + "p") })
                 }
             }
@@ -177,13 +201,13 @@ fun SettingsScreen(
             // ── История и конфиденциальность ──
             Text("История и конфиденциальность", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
             Button(
-                onClick = { registryManager.clearWatchHistory(); onRegistryUpdate(registryManager.registry) },
+                onClick = { registryManager.clearWatchHistory(); vm.onRegistryUpdate(registryManager.registry) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
             ) { Text("Очистить историю просмотра") }
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { registryManager.clearSearchHistory(); onRegistryUpdate(registryManager.registry) },
+                onClick = { registryManager.clearSearchHistory(); vm.onRegistryUpdate(registryManager.registry) },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
             ) { Text("Очистить историю поиска") }
@@ -211,7 +235,7 @@ fun SettingsScreen(
                             newValue.toIntOrNull()?.let { hours ->
                                 settingsManager.syncFrequencyHours = hours
                                 registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = hours)))
-                                onRegistryUpdate(registryManager.registry)
+                                vm.onRegistryUpdate(registryManager.registry)
                             }
                         },
                         modifier = Modifier.width(60.dp),

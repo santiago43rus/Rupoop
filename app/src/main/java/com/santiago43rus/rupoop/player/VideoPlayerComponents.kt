@@ -78,7 +78,9 @@ fun CustomVideoPlayer(
     isPreviousDisliked: Boolean = false,
     isLastVideo: Boolean = false,
     isTransitioning: Boolean = false,
-    onPlayRelated: (SearchResult) -> Unit = {}
+    onPlayRelated: (SearchResult) -> Unit = {},
+    isBackgroundEnabled: Boolean = false,
+    onBackgroundToggle: () -> Unit = {}
 ) {
     var showControls by remember { mutableStateOf(true) }
     var currentTime by remember { mutableLongStateOf(exoPlayer.currentPosition) }
@@ -725,13 +727,13 @@ fun CustomVideoPlayer(
     }
 
     if (showSettings) {
-        SettingsDialog(exoPlayer, selectedQuality, { selectedQuality = it }, { showSettings = false })
+        SettingsDialog(exoPlayer, selectedQuality, { selectedQuality = it }, { showSettings = false }, isBackgroundEnabled, onBackgroundToggle)
     }
 }
 
 @OptIn(UnstableApi::class)
 @Composable
-fun SettingsDialog(exoPlayer: ExoPlayer, currentQuality: String, onQualitySelected: (String) -> Unit, onDismiss: () -> Unit) {
+fun SettingsDialog(exoPlayer: ExoPlayer, currentQuality: String, onQualitySelected: (String) -> Unit, onDismiss: () -> Unit, isBackgroundEnabled: Boolean = false, onBackgroundToggle: () -> Unit = {}) {
     var showQuality by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
 
@@ -741,6 +743,11 @@ fun SettingsDialog(exoPlayer: ExoPlayer, currentQuality: String, onQualitySelect
                 Text("Настройки видео", style = MaterialTheme.typography.titleLarge)
                 ListItem(headlineContent = { Text("Качество") }, trailingContent = { Text(currentQuality) }, modifier = Modifier.clickable { showQuality = true })
                 ListItem(headlineContent = { Text("Скорость") }, trailingContent = { Text("${exoPlayer.playbackParameters.speed}x") }, modifier = Modifier.clickable { showSpeed = true })
+                ListItem(
+                    headlineContent = { Text("Фоновый режим") },
+                    trailingContent = { Switch(checked = isBackgroundEnabled, onCheckedChange = { onBackgroundToggle() }) },
+                    modifier = Modifier.clickable { onBackgroundToggle() }
+                )
             }
         }
     }

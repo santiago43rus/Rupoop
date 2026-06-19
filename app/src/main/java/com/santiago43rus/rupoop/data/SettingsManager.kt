@@ -26,6 +26,14 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("download_quality", "1080") ?: "1080"
         set(value) = prefs.edit { putString("download_quality", value) }
 
+    var showDownloadNotifications: Boolean
+        get() = prefs.getBoolean("show_download_notifications", true)
+        set(value) = prefs.edit { putBoolean("show_download_notifications", value) }
+
+    var showBackgroundNotifications: Boolean
+        get() = prefs.getBoolean("show_background_notifications", true)
+        set(value) = prefs.edit { putBoolean("show_background_notifications", value) }
+
     var syncFrequencyHours: Int
         get() = prefs.getInt("sync_frequency", 24)
         set(value) = prefs.edit { putInt("sync_frequency", value) }

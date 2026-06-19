@@ -33,7 +33,9 @@ fun RelatedVideosList(
     onDownload: (SearchResult) -> Unit,
     onVideoClick: (SearchResult, List<SearchResult>) -> Unit,
     onMoreClick: (SearchResult, String) -> Unit,
-    alphaProgress: Float
+    alphaProgress: Float,
+    isBackgroundEnabled: Boolean = false,
+    onBackgroundPlayToggle: () -> Unit = {}
 ) {
     LazyColumn(
         modifier = modifier.graphicsLayer {
@@ -50,7 +52,9 @@ fun RelatedVideosList(
                 onDislike = onDislike,
                 onShare = onShare,
                 onAddToPlaylist = onAddToPlaylist,
-                onDownload = onDownload
+                onDownload = onDownload,
+                isBackgroundEnabled = isBackgroundEnabled,
+                onBackgroundPlayToggle = onBackgroundPlayToggle
             )
             HorizontalDivider()
             Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)

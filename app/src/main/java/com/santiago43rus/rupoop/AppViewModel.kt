@@ -28,7 +28,11 @@ import kotlinx.coroutines.flow.asSharedFlow
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     @SuppressLint("StaticFieldLeak")
-    private val context = application.applicationContext
+    val context = application.applicationContext
+
+    init {
+        instance = this
+    }
     val settingsManager = SettingsManager(context)
     val registryManager = UserRegistryManager(context)
     val mainFeedRecommender = MainFeedRecommendationStrategy(registryManager)
@@ -135,7 +139,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var isAuthorVisible by mutableStateOf(false)
     var isSettingsVisible by mutableStateOf(false)
     var isHiddenVideosVisible by mutableStateOf(false)
+    var isNotificationSettingsVisible by mutableStateOf(false)
     var overlayOrder by mutableStateOf(listOf(OverlayState.SEARCH, OverlayState.AUTHOR))
+    
+    var isBackgroundPlaybackEnabled by mutableStateOf(false)
+    
+    var showDownloadNotifications by mutableStateOf(settingsManager.showDownloadNotifications)
+    var showBackgroundNotifications by mutableStateOf(settingsManager.showBackgroundNotifications)
+
+    fun updateDownloadNotifications(enabled: Boolean) {
+        showDownloadNotifications = enabled
+        settingsManager.showDownloadNotifications = enabled
+    }
+
+    fun updateBackgroundNotifications(enabled: Boolean) {
+        showBackgroundNotifications = enabled
+        settingsManager.showBackgroundNotifications = enabled
+    }
 
     // ── Dialogs ──
     var showPlaylistDialog by mutableStateOf<SearchResult?>(null)
@@ -154,7 +174,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var authorPage by mutableIntStateOf(1)
     var hasMoreAuthorVideos by mutableStateOf(true)
 
-    // ─�� Pagination: Subscriptions ──
+    // ── Pagination: Subscriptions ──
     private var subsPage by mutableIntStateOf(1)
     var hasMoreSubsVideos by mutableStateOf(true)
     var isSubsLoadingMore by mutableStateOf(false)
@@ -163,6 +183,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── ExoPlayer ──
     val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build().also { player ->
         player.playWhenReady = true
+        sharedPlayer = player
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) { this@AppViewModel.isPlaying = playing }
             override fun onPlaybackStateChanged(state: Int) {
@@ -218,7 +239,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             delay(5000) // debounce 5 seconds
             
             val appSettings = AppSettings(
-                theme = if (settingsManager.isDarkTheme) "dark" else "light",
+                theme = settingsManager.themeMode,
                 downloadQuality = settingsManager.downloadQuality,
                 syncFrequencyHours = settingsManager.syncFrequencyHours,
                 adultContentEnabled = settingsManager.adultContentEnabled,
@@ -311,8 +332,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     opt.videoBalancer?.m3u8?.let { url ->
                         exoPlayer.stop()
                         exoPlayer.clearMediaItems()
-                        exoPlayer.setMediaItem(MediaItem.fromUri(url))
+                        
+                        val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
+                            .setTitle(video.title)
+                            .setArtist(video.author?.name)
+                            .setArtworkUri(video.thumbnailUrl?.let { android.net.Uri.parse(it) })
+                            .build()
+                        val mediaItem = MediaItem.Builder()
+                            .setUri(url)
+                            .setMediaId(id)
+                            .setMediaMetadata(mediaMetadata)
+                            .build()
+                        exoPlayer.setMediaItem(mediaItem)
                         exoPlayer.prepare()
+                        
+                        if (showBackgroundNotifications) {
+                            try {
+                                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    context.startForegroundService(intent)
+                                } else {
+                                    context.startService(intent)
+                                }
+                            } catch (e: Exception) {
+                                Log.e("Rupoop", "Failed to start PlaybackService", e)
+                            }
+                        }
                         
                         val historyProg = historyItem?.progress ?: 0
                         val historyTotal = historyItem?.totalDuration ?: 0
@@ -382,10 +427,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         relatedVideos = emptyList()
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
-        exoPlayer.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(file)))
+        
+        val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
+            .setTitle(title)
+            .build()
+        val mediaItem = MediaItem.Builder()
+            .setUri(android.net.Uri.fromFile(file))
+            .setMediaId(filePath)
+            .setMediaMetadata(mediaMetadata)
+            .build()
+        exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
         exoPlayer.play()
         playerState = PlayerState.FULL
+
+        if (showBackgroundNotifications) {
+            try {
+                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e("Rupoop", "Failed to start PlaybackService", e)
+            }
+        }
     }
 
     // ── Deep link ──
@@ -572,7 +639,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 userRegistry = withContext(Dispatchers.IO) { syncManager.sync(token) }
                 settingsManager.lastSyncTime = System.currentTimeMillis()
-                _snackbarMessage.emit("Синхронизация зав��ршена")
+                pushJob = null
+
+                try {
+                    val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                    context.startService(intent)
+                } catch (e: Exception) {
+                    Log.e("Rupoop", "Failed to start PlaybackService", e)
+                }
             } catch (_: Exception) {
                 _snackbarMessage.emit("Ошибка синхронизации")
             }
@@ -772,7 +846,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ─��� Playlist ──
+    // ── Playlist ──
     fun addToPlaylist(name: String, video: SearchResult) {
         val added = registryManager.addToPlaylist(name, video)
         userRegistry = registryManager.registry
@@ -827,6 +901,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun handleBack(): Boolean {
         if (isFullscreenVideo) { toggleFullscreen(false); return true }
         if (playerState == PlayerState.FULL) { playerState = PlayerState.MINI; return true }
+        if (isNotificationSettingsVisible) { isNotificationSettingsVisible = false; return true }
         if (isHiddenVideosVisible) { isHiddenVideosVisible = false; return true }
         if (isSettingsVisible) { isSettingsVisible = false; return true }
         if (isSearchExpanded) {
@@ -947,6 +1022,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun closePlayer() {
         playerState = PlayerState.CLOSED
         exoPlayer.stop()
+        try {
+            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+            context.stopService(intent)
+        } catch (e: Exception) {
+            Log.e("Rupoop", "Failed to stop PlaybackService", e)
+        }
         pushToGitHub()
     }
 
@@ -965,6 +1046,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         exoPlayer.release()
+        sharedPlayer = null
+        if (instance == this) {
+            instance = null
+        }
         progressSavingJob?.cancel()
+    }
+
+    companion object {
+        var sharedPlayer: ExoPlayer? = null
+        var instance: AppViewModel? = null
     }
 }
