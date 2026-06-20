@@ -2,6 +2,8 @@ package com.santiago43rus.rupoop.service
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +17,12 @@ import com.santiago43rus.rupoop.AppViewModel
 @androidx.media3.common.util.UnstableApi
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+
+    private val playerListener = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            updateNotification()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -32,6 +40,7 @@ class PlaybackService : MediaSessionService() {
         }
 
         val basePlayer = AppViewModel.sharedPlayer ?: return
+        basePlayer.addListener(playerListener)
 
         val forwardingPlayer = object : ForwardingPlayer(basePlayer) {
             override fun getAvailableCommands(): Player.Commands {
@@ -113,6 +122,153 @@ class PlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, forwardingPlayer)
             .setMediaButtonPreferences(listOf(seekBackButton, seekForwardButton))
             .build()
+
+        // Start manual foreground service and notification!
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(2026, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } else {
+            startForeground(2026, createNotification())
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val action = intent?.action
+        when (action) {
+            "PLAY" -> AppViewModel.sharedPlayer?.play()
+            "PAUSE" -> AppViewModel.sharedPlayer?.pause()
+            "NEXT" -> AppViewModel.instance?.playNext()
+            "PREVIOUS" -> AppViewModel.instance?.playPrevious()
+            "REWIND" -> {
+                val baseSeek = (AppViewModel.instance?.settingsManager?.doubleTapSeekDuration ?: 10) * 1000L
+                val player = AppViewModel.sharedPlayer
+                if (player != null) {
+                    player.seekTo((player.currentPosition - baseSeek).coerceAtLeast(0L))
+                }
+            }
+            "FAST_FORWARD" -> {
+                val baseSeek = (AppViewModel.instance?.settingsManager?.doubleTapSeekDuration ?: 10) * 1000L
+                val player = AppViewModel.sharedPlayer
+                if (player != null) {
+                    player.seekTo((player.currentPosition + baseSeek).coerceAtMost(player.duration))
+                }
+            }
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    private fun createNotification(): android.app.Notification {
+        val basePlayer = AppViewModel.sharedPlayer ?: return buildFallbackNotification()
+        val currentVideo = AppViewModel.instance?.currentVideo
+        val title = currentVideo?.title ?: "Воспроизведение"
+        val author = currentVideo?.author?.name ?: "Rupoop"
+        val isPlaying = basePlayer.isPlaying
+
+        val vm = AppViewModel.instance
+        val hasPrevious = vm != null && vm.currentVideoIndex > 0
+        val hasNext = vm != null && (vm.currentVideoIndex < vm.currentVideoList.size - 1 || (!vm.isPlaylistMode && vm.relatedVideos.isNotEmpty()))
+
+        // Programmatically generate greyed-out icons for disabled actions
+        val prevIcon = if (hasPrevious) {
+            androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_previous)
+        } else {
+            val drawable = androidx.core.content.ContextCompat.getDrawable(this, android.R.drawable.ic_media_previous)?.mutate()
+            if (drawable != null) {
+                androidx.core.graphics.drawable.DrawableCompat.setTint(drawable, android.graphics.Color.GRAY)
+                val bitmap = android.graphics.Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bitmap)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
+            } else {
+                androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_previous)
+            }
+        }
+
+        val nextIcon = if (hasNext) {
+            androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_next)
+        } else {
+            val drawable = androidx.core.content.ContextCompat.getDrawable(this, android.R.drawable.ic_media_next)?.mutate()
+            if (drawable != null) {
+                androidx.core.graphics.drawable.DrawableCompat.setTint(drawable, android.graphics.Color.GRAY)
+                val bitmap = android.graphics.Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bitmap)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
+            } else {
+                androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_next)
+            }
+        }
+
+        val prevPendingIntent = if (hasPrevious) {
+            PendingIntent.getService(this, 10, Intent(this, PlaybackService::class.java).apply { action = "PREVIOUS" }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        } else {
+            null
+        }
+
+        val rewindIntent = Intent(this, PlaybackService::class.java).apply { action = "REWIND" }
+        val rewindPendingIntent = PendingIntent.getService(this, 11, rewindIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val playPauseIntent = Intent(this, PlaybackService::class.java).apply { action = if (isPlaying) "PAUSE" else "PLAY" }
+        val playPausePendingIntent = PendingIntent.getService(this, 12, playPauseIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val playPauseIcon = if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+
+        val ffIntent = Intent(this, PlaybackService::class.java).apply { action = "FAST_FORWARD" }
+        val ffPendingIntent = PendingIntent.getService(this, 13, ffIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val nextPendingIntent = if (hasNext) {
+            PendingIntent.getService(this, 14, Intent(this, PlaybackService::class.java).apply { action = "NEXT" }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        } else {
+            null
+        }
+
+        val prevAction = androidx.core.app.NotificationCompat.Action.Builder(prevIcon, "Previous", prevPendingIntent).build()
+        val rewindAction = androidx.core.app.NotificationCompat.Action(android.R.drawable.ic_media_rew, "Rewind", rewindPendingIntent)
+        val playPauseAction = androidx.core.app.NotificationCompat.Action(playPauseIcon, if (isPlaying) "Pause" else "Play", playPausePendingIntent)
+        val ffAction = androidx.core.app.NotificationCompat.Action(android.R.drawable.ic_media_ff, "Fast Forward", ffPendingIntent)
+        val nextAction = androidx.core.app.NotificationCompat.Action(nextIcon, "Next", nextPendingIntent)
+
+        val session = mediaSession ?: return buildFallbackNotification()
+
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            2026,
+            Intent(this, com.santiago43rus.rupoop.MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return androidx.core.app.NotificationCompat.Builder(this, "default_channel_id")
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title)
+            .setContentText(author)
+            .setContentIntent(contentIntent)
+            .addAction(prevAction)
+            .addAction(rewindAction)
+            .addAction(playPauseAction)
+            .addAction(ffAction)
+            .addAction(nextAction)
+            .setStyle(
+                androidx.media3.session.MediaStyleNotificationHelper.MediaStyle(session)
+                    .setShowActionsInCompactView(0, 2, 4)
+            )
+            .setOngoing(isPlaying)
+            .setSilent(true)
+            .build()
+    }
+
+    private fun buildFallbackNotification(): android.app.Notification {
+        return androidx.core.app.NotificationCompat.Builder(this, "default_channel_id")
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle("Воспроизведение")
+            .setSilent(true)
+            .build()
+    }
+
+    private fun updateNotification() {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager?.notify(2026, createNotification())
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -120,6 +276,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        AppViewModel.sharedPlayer?.removeListener(playerListener)
         mediaSession?.release()
         super.onDestroy()
     }

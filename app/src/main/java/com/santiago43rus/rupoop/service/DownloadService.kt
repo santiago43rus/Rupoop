@@ -21,7 +21,7 @@ import kotlin.math.abs
 class DownloadService : Service() {
     private val CHANNEL_ID = "download_channel"
     private val CHANNEL_COMPLETE_ID = "download_complete_channel"
-    private val CHANNEL_SILENT_ID = "download_silent_channel"
+    private val CHANNEL_SILENT_ID = "download_silent_channel_v2"
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
     private var downloadJob: Job? = null
@@ -69,7 +69,7 @@ class DownloadService : Service() {
                 if (currentVideoId.isEmpty() && actionVideoId != null) {
                     currentVideoId = actionVideoId
                 }
-                try { startForeground(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0)) } catch (_: Exception) {}
+                startForegroundSafely(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0))
                 if (actionVideoId == null || actionVideoId == currentVideoId) {
                     cancelDownload()
                 } else {
@@ -78,14 +78,14 @@ class DownloadService : Service() {
                 return START_NOT_STICKY
             }
             "PAUSE" -> {
-                try { startForeground(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0)) } catch (_: Exception) {}
+                startForegroundSafely(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0))
                 if (actionVideoId == null || actionVideoId == currentVideoId) {
                     pauseDownload()
                 }
                 return START_NOT_STICKY
             }
             "RESUME" -> {
-                try { startForeground(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0)) } catch (_: Exception) {}
+                startForegroundSafely(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0))
                 if (actionVideoId == null || actionVideoId == currentVideoId) {
                     resumeDownload()
                 }
@@ -117,7 +117,7 @@ class DownloadService : Service() {
             status = DownloadStatus.DOWNLOADING
         ))
 
-        startForeground(getNotificationId(), createNotification(currentTitle, 0))
+        startForegroundSafely(getNotificationId(), createNotification(currentTitle, 0))
         startDownload()
         
         return START_NOT_STICKY
@@ -131,7 +131,7 @@ class DownloadService : Service() {
                 if (!isNetworkAvailable(this@DownloadService)) {
                     downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Нет подключения к интернету")
                     sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", "Нет интернета"))
-                    stopForeground(STOP_FOREGROUND_DETACH)
+                    stopForegroundSafely(STOP_FOREGROUND_DETACH)
                     stopSelf()
                     return@launch
                 }
@@ -158,7 +158,7 @@ class DownloadService : Service() {
                         if (com.santiago43rus.rupoop.data.SettingsManager(this@DownloadService).showDownloadNotifications) {
                             updateNotification(currentTitle, 0, false, "Ошибка: Нет интернета")
                         }
-                        stopForeground(STOP_FOREGROUND_DETACH)
+                        stopForegroundSafely(STOP_FOREGROUND_DETACH)
                         stopSelf()
                         return@launch
                     }
@@ -190,7 +190,7 @@ class DownloadService : Service() {
                 if (com.santiago43rus.rupoop.data.SettingsManager(this@DownloadService).showDownloadNotifications) {
                     updateNotification(currentTitle, 0, false, "Ошибка: ${e.message}")
                 }
-                stopForeground(STOP_FOREGROUND_DETACH)
+                stopForegroundSafely(STOP_FOREGROUND_DETACH)
                 stopSelf()
             }
         }
@@ -198,7 +198,7 @@ class DownloadService : Service() {
 
     private fun onDownloadComplete() {
         // Remove the progress notification
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopForegroundSafely(STOP_FOREGROUND_REMOVE)
 
         if (com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications) {
             // Post a separate completion notification with a different ID
@@ -212,12 +212,10 @@ class DownloadService : Service() {
                 .setAutoCancel(true)
                 .setOngoing(false)
 
-            // Create intent to open app and play the local file
+            // Create intent to open app's Downloads screen
             try {
                 val playIntent = Intent(this, Class.forName("com.santiago43rus.rupoop.MainActivity")).apply {
-                    action = "PLAY_LOCAL_FILE"
-                    putExtra("FILE_PATH", outputFile?.absolutePath)
-                    putExtra("TITLE", currentTitle)
+                    action = "OPEN_DOWNLOADS"
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 val viewPendingIntent = PendingIntent.getActivity(
@@ -324,7 +322,7 @@ class DownloadService : Service() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.cancel(getNotificationId())
         
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopForegroundSafely(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
@@ -338,6 +336,10 @@ class DownloadService : Service() {
         manager?.createNotificationChannel(completeChannel)
         val silentChannel = NotificationChannel(CHANNEL_SILENT_ID, "Download Service (Silent)", NotificationManager.IMPORTANCE_MIN).apply {
             description = "Тихие уведомления для скачивания в фоновом режиме"
+            setShowBadge(false)
+            enableLights(false)
+            enableVibration(false)
+            setSound(null, null)
         }
         manager?.createNotificationChannel(silentChannel)
     }
@@ -354,11 +356,23 @@ class DownloadService : Service() {
         val showNotif = com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications
         val channelId = if (showNotif) CHANNEL_ID else CHANNEL_SILENT_ID
 
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            vidHash,
+            Intent(this, Class.forName("com.santiago43rus.rupoop.MainActivity")).apply {
+                action = "OPEN_DOWNLOADS"
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(statusText ?: "Загрузка: $title")
             .setOngoing(statusText == null)
             .setProgress(100, progress, false)
+            .setPriority(if (showNotif) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
+            .setContentIntent(contentIntent)
             .setSilent(true)
 
         if (statusText == null) {
@@ -386,8 +400,30 @@ class DownloadService : Service() {
     }
 
     private fun updateNotification(title: String, progress: Int, isComplete: Boolean, statusText: String? = null) {
+        val showNotif = com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications
+        if (!showNotif) return
         val manager = getSystemService(NotificationManager::class.java)
         manager?.notify(getNotificationId(), createNotification(title, progress, isComplete, statusText))
+    }
+
+    private fun startForegroundSafely(id: Int, notification: Notification) {
+        if (com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications) {
+            try {
+                startForeground(id, notification)
+            } catch (e: Exception) {
+                Log.e("DownloadService", "Error starting foreground", e)
+            }
+        }
+    }
+
+    private fun stopForegroundSafely(flags: Int) {
+        if (com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications) {
+            try {
+                stopForeground(flags)
+            } catch (e: Exception) {
+                Log.e("DownloadService", "Error stopping foreground", e)
+            }
+        }
     }
 
     override fun onDestroy() {

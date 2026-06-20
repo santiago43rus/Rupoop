@@ -769,12 +769,7 @@ fun RutubeApp(
                                             onAuthorClick = { vm.loadAuthorVideos(it, false) },
                                             onToggleSub = { vm.toggleSubscription(it) },
                                             onLike = { vm.toggleLike(it) },
-                                            onDislike = {
-                                                vm.registryManager.toggleDislike(it)
-                                                vm.userRegistry = vm.registryManager.registry
-                                                vm.removeVideoFromUiLists(it)
-                                                vm.pushToGitHub()
-                                            },
+                                            onDislike = { vm.toggleDislike(it) },
                                             onShare = { vm.shareVideo(it) },
                                             onAddToPlaylist = { vm.showPlaylistDialog = it },
                                             onDownload = { vm.startDownload(it) },
@@ -782,7 +777,7 @@ fun RutubeApp(
                                             onMoreClick = { item, action -> vm.handleVideoMoreAction(item, action) },
                                             alphaProgress = realProgress,
                                             isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
-                                            onBackgroundPlayToggle = { vm.isBackgroundPlaybackEnabled = !vm.isBackgroundPlaybackEnabled }
+                                            onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() }
                                         )
                                     }
                                 }
@@ -1206,21 +1201,36 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         action = "PAUSE"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    vm.getApplication<Application>().startForegroundService(intent)
+                    val showNotif = vm.settingsManager.showDownloadNotifications
+                    if (showNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vm.getApplication<Application>().startForegroundService(intent)
+                    } else {
+                        vm.getApplication<Application>().startService(intent)
+                    }
                 },
                 onResume = { videoId ->
                     val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
                         action = "RESUME"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    vm.getApplication<Application>().startForegroundService(intent)
+                    val showNotif = vm.settingsManager.showDownloadNotifications
+                    if (showNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vm.getApplication<Application>().startForegroundService(intent)
+                    } else {
+                        vm.getApplication<Application>().startService(intent)
+                    }
                 },
                 onCancel = { videoId ->
                     val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
                         action = "CANCEL"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    vm.getApplication<Application>().startForegroundService(intent)
+                    val showNotif = vm.settingsManager.showDownloadNotifications
+                    if (showNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vm.getApplication<Application>().startForegroundService(intent)
+                    } else {
+                        vm.getApplication<Application>().startService(intent)
+                    }
                 },
                 onDelete = { videoId -> vm.downloadTracker.removeDownload(videoId) },
                 onRetry = { videoId ->

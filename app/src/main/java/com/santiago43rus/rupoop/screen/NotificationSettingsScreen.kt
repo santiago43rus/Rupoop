@@ -23,7 +23,7 @@ fun NotificationSettingsScreen(
     val showDownloadNotifications = vm.showDownloadNotifications
     val showBackgroundNotifications = vm.showBackgroundNotifications
 
-    val isAllOn = showDownloadNotifications && showBackgroundNotifications
+    val isAllOn = showDownloadNotifications || showBackgroundNotifications
 
     Scaffold(
         topBar = {

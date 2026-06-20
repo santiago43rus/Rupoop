@@ -1,6 +1,7 @@
 package com.santiago43rus.rupoop.screen
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
@@ -125,15 +126,21 @@ fun SettingsScreen(
                 supportingContent = { Text("Управление уведомлениями загрузки и воспроизведения") },
                 leadingContent = { Icon(Icons.Default.Notifications, null, tint = Color.Gray) },
                 trailingContent = {
-                    val isAllOn = vm.showDownloadNotifications && vm.showBackgroundNotifications
-                    Switch(
-                        checked = isAllOn,
-                        onCheckedChange = { checked ->
-                            vm.updateDownloadNotifications(checked)
-                            vm.updateBackgroundNotifications(checked)
-                            onNotificationsChanged()
-                        }
-                    )
+                    val isAllOn = vm.showDownloadNotifications || vm.showBackgroundNotifications
+                    Box(modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {} // Consumes click, stops propagation to ListItem
+                    )) {
+                        Switch(
+                            checked = isAllOn,
+                            onCheckedChange = { checked ->
+                                vm.updateDownloadNotifications(checked)
+                                vm.updateBackgroundNotifications(checked)
+                                onNotificationsChanged()
+                            }
+                        )
+                    }
                 },
                 modifier = Modifier.clickable { onOpenNotificationSettings() }
             )

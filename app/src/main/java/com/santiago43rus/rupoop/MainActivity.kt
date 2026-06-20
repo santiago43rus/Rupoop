@@ -11,15 +11,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.annotation.OptIn
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.santiago43rus.rupoop.theme.RupoopTheme
+import com.santiago43rus.rupoop.util.*
 
 class MainActivity : ComponentActivity() {
     private var deepLinkVideoUrl by mutableStateOf<String?>(null)
     private var pendingLocalFilePath by mutableStateOf<String?>(null)
     private var pendingLocalFileTitle by mutableStateOf<String?>(null)
+    private var pendingOpenDownloads by mutableStateOf(false)
 
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleIntent(intent)
@@ -40,6 +44,15 @@ class MainActivity : ComponentActivity() {
                     vm.playLocalFile(path, pendingLocalFileTitle ?: "Видео")
                     pendingLocalFilePath = null
                     pendingLocalFileTitle = null
+                }
+            }
+
+            // Handle pending navigation to downloads
+            LaunchedEffect(pendingOpenDownloads) {
+                if (pendingOpenDownloads) {
+                    vm.currentNav = NavItem.LIBRARY
+                    vm.currentLibSub = LibrarySubScreen.DOWNLOADS
+                    pendingOpenDownloads = false
                 }
             }
 
@@ -71,7 +84,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == "PLAY_LOCAL_FILE") {
+        if (intent?.action == "OPEN_DOWNLOADS") {
+            pendingOpenDownloads = true
+        } else if (intent?.action == "PLAY_LOCAL_FILE") {
             pendingLocalFilePath = intent.getStringExtra("FILE_PATH")
             pendingLocalFileTitle = intent.getStringExtra("TITLE")
         } else if (intent?.action == Intent.ACTION_VIEW) {

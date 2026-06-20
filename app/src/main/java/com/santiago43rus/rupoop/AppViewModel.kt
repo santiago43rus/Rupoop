@@ -25,6 +25,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     @SuppressLint("StaticFieldLeak")
@@ -132,7 +133,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var searchSuggestions by mutableStateOf<List<String>>(emptyList())
     var isSearchExpanded by mutableStateOf(false)
     var searchSortOrder by mutableStateOf<String?>(null) // null = default, "-created_ts" = newest
-    var authorSortOrder by mutableStateOf("-created_ts") // default newest
+    var authorSortOrder by mutableStateOf("-publication_ts") // default newest
 
     // ── Overlays ──
     var isSearchVisible by mutableStateOf(false)
@@ -143,9 +144,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var overlayOrder by mutableStateOf(listOf(OverlayState.SEARCH, OverlayState.AUTHOR))
     
     var isBackgroundPlaybackEnabled by mutableStateOf(false)
+
+    fun toggleBackgroundPlayback() {
+        isBackgroundPlaybackEnabled = !isBackgroundPlaybackEnabled
+        syncPlaybackService()
+    }
     
     var showDownloadNotifications by mutableStateOf(settingsManager.showDownloadNotifications)
     var showBackgroundNotifications by mutableStateOf(settingsManager.showBackgroundNotifications)
+
+    fun syncPlaybackService() {
+        val shouldRun = showBackgroundNotifications && isBackgroundPlaybackEnabled && playerState != PlayerState.CLOSED
+        if (shouldRun) {
+            try {
+                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e("Rupoop", "Failed to start PlaybackService", e)
+            }
+        } else {
+            try {
+                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
+                context.stopService(intent)
+            } catch (e: Exception) {
+                Log.e("Rupoop", "Failed to stop PlaybackService", e)
+            }
+        }
+    }
 
     fun updateDownloadNotifications(enabled: Boolean) {
         showDownloadNotifications = enabled
@@ -155,6 +184,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateBackgroundNotifications(enabled: Boolean) {
         showBackgroundNotifications = enabled
         settingsManager.showBackgroundNotifications = enabled
+        syncPlaybackService()
     }
 
     // ── Dialogs ──
@@ -346,18 +376,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         exoPlayer.setMediaItem(mediaItem)
                         exoPlayer.prepare()
                         
-                        if (showBackgroundNotifications) {
-                            try {
-                                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                    context.startForegroundService(intent)
-                                } else {
-                                    context.startService(intent)
-                                }
-                            } catch (e: Exception) {
-                                Log.e("Rupoop", "Failed to start PlaybackService", e)
-                            }
-                        }
+                        syncPlaybackService()
                         
                         val historyProg = historyItem?.progress ?: 0
                         val historyTotal = historyItem?.totalDuration ?: 0
@@ -441,18 +460,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         exoPlayer.play()
         playerState = PlayerState.FULL
 
-        if (showBackgroundNotifications) {
-            try {
-                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-            } catch (e: Exception) {
-                Log.e("Rupoop", "Failed to start PlaybackService", e)
-            }
-        }
+        syncPlaybackService()
     }
 
     // ── Deep link ──
@@ -590,7 +598,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         hasMoreAuthorVideos = false
                     } else {
                         val filteredNewVideos = filterHiddenAndDisliked(resp.results)
-                        authorVideos = if (isLoadMore) (authorVideos + filteredNewVideos).distinctBy { it.videoUrl } else filteredNewVideos
+                        val combined = if (isLoadMore) (authorVideos + filteredNewVideos) else filteredNewVideos
+                        authorVideos = combined.sortedWith(
+                            compareByDescending<SearchResult> { it.publicationTs ?: "" }
+                                .thenByDescending { it.createdTs ?: "" }
+                        ).distinctBy { it.videoUrl }
                     }
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Author videos error", e)
@@ -622,7 +634,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             putExtra("THUMBNAIL_URL", video.thumbnailUrl)
                             putExtra("QUALITY", settingsManager.downloadQuality)
                         }
-                        context.startForegroundService(serviceIntent)
+                        val showNotif = settingsManager.showDownloadNotifications
+                        if (showNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(serviceIntent)
+                        } else {
+                            context.startService(serviceIntent)
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e("RupoopDownload", "Error starting download", e)
@@ -816,7 +833,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         userRegistry = registryManager.registry
         pushToGitHub()
         viewModelScope.launch {
-            _snackbarMessage.emit(if (added) "Добавлено in Понравившиеся" else "Удалено из Понравившихся")
+            _snackbarMessage.emit(if (added) "Добавлено в Понравившиеся" else "Удалено из Понравившихся")
+        }
+    }
+
+    // ── Dislike ──
+    fun toggleDislike(video: SearchResult) {
+        val added = registryManager.toggleDislike(video)
+        userRegistry = registryManager.registry
+        if (added) {
+            removeVideoFromUiLists(video)
+        }
+        pushToGitHub()
+        viewModelScope.launch {
+            _snackbarMessage.emit(if (added) "Добавлено в Не нравится" else "Удалено из Не нравится")
         }
     }
 
@@ -1022,12 +1052,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun closePlayer() {
         playerState = PlayerState.CLOSED
         exoPlayer.stop()
-        try {
-            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-            context.stopService(intent)
-        } catch (e: Exception) {
-            Log.e("Rupoop", "Failed to stop PlaybackService", e)
-        }
+        syncPlaybackService()
         pushToGitHub()
     }
 

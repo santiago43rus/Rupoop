@@ -67,9 +67,30 @@ class UserRegistryManager(private val context: Context) {
     fun toggleLike(video: SearchResult): Boolean {
         val liked = registry.likedVideos.toMutableList()
         val exists = liked.any { it.videoUrl == video.videoUrl }
-        if (exists) liked.removeAll { it.videoUrl == video.videoUrl }
-        else liked.add(0, video)
-        updateRegistry(registry.copy(likedVideos = liked))
+        
+        val videoId = extractId(video.videoUrl)
+        val disliked = registry.dislikedVideos.toMutableList()
+        val dislikedList = registry.dislikedVideosList.toMutableList()
+        val hidden = registry.hiddenVideos.toMutableList()
+        val hiddenList = registry.hiddenVideosList.toMutableList()
+        
+        if (exists) {
+            liked.removeAll { it.videoUrl == video.videoUrl }
+        } else {
+            liked.add(0, video)
+            disliked.remove(videoId)
+            dislikedList.removeAll { extractId(it.videoUrl) == videoId }
+            hidden.remove(videoId)
+            hiddenList.removeAll { extractId(it.videoUrl) == videoId }
+        }
+        
+        updateRegistry(registry.copy(
+            likedVideos = liked,
+            dislikedVideos = disliked,
+            dislikedVideosList = dislikedList,
+            hiddenVideos = hidden,
+            hiddenVideosList = hiddenList
+        ))
         return !exists
     }
 

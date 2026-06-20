@@ -48,7 +48,7 @@ fun HiddenVideosScreen(
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
                 items(videos) { video ->
-                    val videoId = video.videoUrl.substringAfterLast("/").substringBefore("?")
+                    val videoId = com.santiago43rus.rupoop.util.extractId(video.videoUrl) ?: ""
                     VideoCardItem(
                         video = video,
                         history = null,
