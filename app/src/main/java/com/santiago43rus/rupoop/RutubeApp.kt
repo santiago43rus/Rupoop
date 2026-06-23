@@ -68,7 +68,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.geometry.Rect
+import android.content.res.Resources
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.santiago43rus.rupoop.components.*
@@ -137,6 +148,25 @@ fun RutubeApp(
     val subsListState = rememberLazyListState()
     val libListState = rememberLazyListState()
     val relatedListState = rememberLazyListState()
+
+    // Search query textfield state
+    val searchState = rememberTextFieldState(vm.searchQuery)
+
+    LaunchedEffect(vm.searchQuery) {
+        if (searchState.text.toString() != vm.searchQuery) {
+            searchState.edit {
+                replace(0, length, vm.searchQuery)
+            }
+        }
+    }
+
+    LaunchedEffect(searchState.text) {
+        val newText = searchState.text.toString()
+        if (newText != vm.searchQuery) {
+            vm.updateSearchQuery(newText)
+            vm.isSearchExpanded = true
+        }
+    }
 
     // Pause on background
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -380,7 +410,7 @@ fun RutubeApp(
                 // Background layer with full padding
                 Column(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = realProgress.coerceIn(0f, 1f) }.padding(bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding())) {
                     if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible && !vm.isNotificationSettingsVisible) {
-                        AppTopBar(vm = vm, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
+                        AppTopBar(vm = vm, searchState = searchState, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
                             scope.launch { homeListState.scrollToItem(0) }
                         })
                     }
@@ -822,12 +852,38 @@ fun RutubeApp(
 @Composable
 private fun AppTopBar(
     vm: AppViewModel,
+    searchState: TextFieldState,
     focusManager: FocusManager,
     authLauncher: ActivityResultLauncher<Intent>,
     onSearch: () -> Unit
 ) {
     val context = LocalContext.current
     var isListening by remember { mutableStateOf(false) }
+
+    val scrollState = rememberScrollState()
+    val interactionSource = remember { MutableInteractionSource() }
+    var layoutCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var cursorRect by remember { mutableStateOf<Rect?>(null) }
+
+    LaunchedEffect(searchState.selection, textLayoutResult) {
+        val result = textLayoutResult ?: return@LaunchedEffect
+        cursorRect = runCatching { result.getCursorRect(searchState.selection.start) }.getOrNull()
+    }
+
+    LaunchedEffect(
+        scrollState,
+        cursorRect,
+        layoutCoords
+    ) {
+        val rect = cursorRect ?: return@LaunchedEffect
+        val coords = layoutCoords ?: return@LaunchedEffect
+        val topLeft = coords.localToWindow(rect.topLeft)
+        val screenWidthPx = Resources.getSystem().displayMetrics.widthPixels.toFloat()
+
+        val cursorX = topLeft.x - scrollState.value
+        val percentage = (cursorX / screenWidthPx) * 100f
+    }
 
     // Speech recognizer setup
     val speechRecognizer = remember { SpeechRecognizer.createSpeechRecognizer(context) }
@@ -935,43 +991,37 @@ private fun AppTopBar(
                         tonalElevation = 2.dp
                     ) {
                         BasicTextField(
-                            value = vm.searchQuery,
-                            onValueChange = {
-                                vm.updateSearchQuery(it)
-                                vm.isSearchExpanded = true
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .onFocusChanged { focusState ->
-                                    if (focusState.isFocused) {
-                                        vm.isSearchExpanded = true
-                                    }
-                                },
-                            singleLine = true,
-                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp),
+                            state = searchState,
+                            scrollState = scrollState,
+                            interactionSource = interactionSource,
+                            onTextLayout = { textLayoutResult = it() },
+                            lineLimits = TextFieldLineLimits.SingleLine,
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            textStyle = LocalTextStyle.current.copy(MaterialTheme.colorScheme.onBackground, fontSize = 16.sp),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = {
+                            onKeyboardAction = {
                                 focusManager.clearFocus()
                                 vm.performSearch(vm.searchQuery)
                                 onSearch()
-                            }),
-                            decorationBox = { innerTextField ->
-                                Row(
-                                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        if (vm.searchQuery.isEmpty()) {
-                                            Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 16.sp)
-                                        }
-                                        innerTextField()
-                                    }
-                                    if (vm.searchQuery.isNotEmpty()) {
-                                        Row {
-                                            IconButton(onClick = { vm.searchQuery = ""; vm.isSearchExpanded = true }, modifier = Modifier.size(36.dp)) {
-                                                Icon(Icons.Default.Close, "Очистить", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            },
+                            decorator = { innerTextField ->
+                                OutlinedTextFieldDefaults.DecorationBox(
+                                    value = searchState.text.toString(),
+                                    innerTextField = innerTextField,
+                                    enabled = true,
+                                    singleLine = true,
+                                    visualTransformation = VisualTransformation.None,
+                                    interactionSource = interactionSource,
+                                    placeholder = {
+                                        Text("Поиск видео...", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 16.sp)
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                    trailingIcon = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (vm.searchQuery.isNotEmpty()) {
+                                                IconButton(onClick = { vm.searchQuery = ""; vm.isSearchExpanded = true }, modifier = Modifier.size(36.dp)) {
+                                                    Icon(Icons.Default.Close, "Очистить", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                                }
                                             }
                                             IconButton(onClick = {
                                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -987,23 +1037,34 @@ private fun AppTopBar(
                                                 )
                                             }
                                         }
-                                    } else {
-                                        IconButton(onClick = {
-                                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                                startVoiceInput()
-                                            } else {
-                                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                            }
-                                        }, modifier = Modifier.size(36.dp)) {
-                                            Icon(
-                                                if (isListening) Icons.Default.GraphicEq else Icons.Default.Mic,
-                                                "Голосовой поиск",
-                                                tint = if (isListening) Color(0xFFE53935) else LocalContentColor.current
-                                            )
-                                        }
+                                    },
+                                    container = {
+                                        OutlinedTextFieldDefaults.Container(
+                                            enabled = true,
+                                            isError = false,
+                                            interactionSource = interactionSource,
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Color.Transparent,
+                                                unfocusedBorderColor = Color.Transparent,
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent,
+                                                disabledBorderColor = Color.Transparent,
+                                                disabledContainerColor = Color.Transparent
+                                            ),
+                                            shape = RoundedCornerShape(24.dp)
+                                        )
+                                    }
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        vm.isSearchExpanded = true
                                     }
                                 }
-                            }
+                                .onGloballyPositioned { layoutCoords = it }
                         )
                     }
                 }
