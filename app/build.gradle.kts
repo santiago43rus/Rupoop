@@ -119,6 +119,8 @@ dependencies {
     // Compose animations
     implementation(libs.androidx.compose.animation)
 
+    implementation(libs.androidx.media3.transformer)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -39,11 +39,33 @@ data class SequenceInfo(
 class RelatedVideoRecommendationStrategy(private val registryManager: UserRegistryManager) {
 
     fun parseSequenceInfo(title: String): SequenceInfo {
-        var base = title
-        
-        // Remove quotes like «...»
-        base = base.replace(Regex("«[^»]*»?"), "")
-        
+        // Remove quotes like «...» first from the whole title to avoid splitting on slashes inside quotes
+        val cleanedTitle = title.replace(Regex("«[^»]*»?"), "")
+        val splitBySlash = cleanedTitle.split("/")
+
+        // Parse the first part to get the baseName and initial sequence info
+        val firstPartInfo = parseSinglePart(splitBySlash[0])
+
+        var season = firstPartInfo.season
+        var episode = firstPartInfo.episode
+        var part = firstPartInfo.part
+        var year = firstPartInfo.year
+
+        // If some information is missing, try to find it in subsequent parts
+        for (i in 1 until splitBySlash.size) {
+            val otherInfo = parseSinglePart(splitBySlash[i])
+            if (year == null) year = otherInfo.year
+            if (season == null) season = otherInfo.season
+            if (episode == null) episode = otherInfo.episode
+            if (part == null) part = otherInfo.part
+        }
+
+        return SequenceInfo(firstPartInfo.baseName, season, episode, part, year)
+    }
+
+    private fun parseSinglePart(partStr: String): SequenceInfo {
+        var base = partStr
+
         // Year
         val yearRegex = Regex("\\((\\d{4})\\)")
         var year: Int? = null
@@ -58,10 +80,10 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
         // Season and Episode multiple formats
         var season: Int? = null
         var episode: Int? = null
-        
+
         // Formats:
         val numPattern = "(\\d+|[IVXLCDM]+)"
-        
+
         // Format: с01э05
         val seRegex1 = Regex("с(\\d{1,2})э(\\d{1,2})", RegexOption.IGNORE_CASE)
         // Format: 1 сезон 5 серия
@@ -119,11 +141,9 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
             }
         }
 
-        // Part
         var part: Int? = null
         val pRegex1 = Regex("(?:часть|part|ч|p|фильм)\\s*$numPattern\\b", RegexOption.IGNORE_CASE)
         val pRegex2 = Regex("$numPattern\\s*-?я?\\s*(?:часть|part)", RegexOption.IGNORE_CASE)
-        // Just number at the end
         val pRegex3 = Regex("\\s+(\\d+|(?![iI]\\b)[IVXLCDM]+)\\s*$")
 
         if (season == null && episode == null) {
@@ -144,12 +164,6 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
                     base = base.replace(match.value, "")
                 }
             }
-        }
-        
-        // Split by slash and keep first part AFTER removing season/episode info
-        val splitBySlash = base.split("/")
-        if (splitBySlash.size > 1) {
-            base = splitBySlash[0]
         }
 
         // Cut off subtitles to make base names match for series with subtitles (e.g., Star Wars, Minions)

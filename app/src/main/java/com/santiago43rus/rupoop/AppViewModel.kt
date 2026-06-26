@@ -189,6 +189,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Dialogs ──
     var showPlaylistDialog by mutableStateOf<SearchResult?>(null)
+    var showDownloadDialog by mutableStateOf<SearchResult?>(null)
     var showOnboarding by mutableStateOf(settingsManager.isFirstLaunch)
 
     // ── Registry snapshot (observable) ──
@@ -454,6 +455,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .setUri(android.net.Uri.fromFile(file))
             .setMediaId(filePath)
             .setMediaMetadata(mediaMetadata)
+            .apply {
+                if (filePath.endsWith(".mp3") || filePath.endsWith(".m4a")) {
+                    setMimeType("audio/mp4")
+                }
+            }
             .build()
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
@@ -616,7 +622,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── Download ──
-    fun startDownload(video: SearchResult) {
+    fun startDownload(video: SearchResult, isAudio: Boolean = false) {
         viewModelScope.launch {
             if (!isNetworkAvailable(context)) {
                 _snackbarMessage.emit("Нет подключения к интернету")
@@ -633,6 +639,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             putExtra("VIDEO_ID", id)
                             putExtra("THUMBNAIL_URL", video.thumbnailUrl)
                             putExtra("QUALITY", settingsManager.downloadQuality)
+                            putExtra("IS_AUDIO", isAudio)
                         }
                         val showNotif = settingsManager.showDownloadNotifications
                         if (showNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -989,7 +996,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             "later" -> addToWatchLaterViaMenu(video)
             "playlist" -> showPlaylistDialog = video
             "share" -> shareVideo(video)
-            "download" -> startDownload(video)
+            "download" -> showDownloadDialog = video
             "dislike" -> {
                 registryManager.toggleDislike(video)
                 userRegistry = registryManager.registry

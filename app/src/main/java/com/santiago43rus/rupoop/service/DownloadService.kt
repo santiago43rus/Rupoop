@@ -3,7 +3,6 @@ package com.santiago43rus.rupoop.service
 import android.app.*
 import android.content.Intent
 import android.media.MediaScannerConnection
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -17,6 +16,16 @@ import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.transformer.Composition
+import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.ExportException
+import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.Transformer
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class DownloadService : Service() {
     private val CHANNEL_ID = "download_channel"
@@ -33,6 +42,7 @@ class DownloadService : Service() {
     private var currentUrl: String = ""
     private var currentVideoId: String = ""
     private var targetQuality: String = "1080"
+    private var isAudio = false
     private var isPaused = false
     private var downloadedSegments = 0
     private var totalSegments = 0
@@ -54,12 +64,24 @@ class DownloadService : Service() {
         super.onCreate()
         createNotificationChannel()
         downloadTracker = DownloadTracker(applicationContext)
+
+        // Log all available encoders to understand what formats are natively supported on this device
+        try {
+            val list = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS)
+            for (info in list.codecInfos) {
+                if (info.isEncoder) {
+                    Log.d("CodecList", "Encoder: ${info.name}, types: ${info.supportedTypes.joinToString()}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("CodecList", "Error logging codecs", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         Log.d("DownloadService", "onStartCommand action: $action")
-        
+
         // Read videoId from action intents
         val actionVideoId = intent?.getStringExtra("VIDEO_ID")
         
@@ -97,6 +119,7 @@ class DownloadService : Service() {
         currentTitle = intent.getStringExtra("TITLE") ?: "Video"
         currentVideoId = intent.getStringExtra("VIDEO_ID") ?: ""
         targetQuality = intent.getStringExtra("QUALITY") ?: "1080"
+        isAudio = intent.getBooleanExtra("IS_AUDIO", false)
         downloadedSegments = 0
         totalSegments = 0
         isPaused = false
@@ -114,12 +137,16 @@ class DownloadService : Service() {
             videoId = currentVideoId,
             title = currentTitle,
             thumbnailUrl = intent.getStringExtra("THUMBNAIL_URL"),
+            filePath = if (isAudio) {
+                val musicDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC)
+                File(musicDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}.m4a").absolutePath
+            } else null,
             status = DownloadStatus.DOWNLOADING
         ))
 
         startForegroundSafely(getNotificationId(), createNotification(currentTitle, 0))
         startDownload()
-        
+
         return START_NOT_STICKY
     }
 
@@ -136,17 +163,35 @@ class DownloadService : Service() {
                     return@launch
                 }
 
-                val mediaPlaylistUrl = resolveMediaPlaylist(currentUrl, targetQuality)
+                val trackedItem = downloadTracker.downloads.value.find { it.videoId == currentVideoId }
+                if (trackedItem != null && (trackedItem.filePath?.endsWith(".m4a") == true || trackedItem.filePath?.endsWith(".mp3") == true)) {
+                    isAudio = true
+                }
+
+                val mediaPlaylistUrl = resolveMediaPlaylist(currentUrl, if (isAudio) "LOWEST" else targetQuality)
                 val segments = fetchSegments(mediaPlaylistUrl)
                 totalSegments = segments.size
 
                 val moviesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES)
+                val musicDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC)
                 if (!moviesDir.exists()) moviesDir.mkdirs()
+                if (!musicDir.exists()) musicDir.mkdirs()
 
-                outputFile = File(moviesDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}.mp4")
-                
-                val fos = FileOutputStream(outputFile!!, downloadedSegments > 0)
-                
+                val finalFile = if (isAudio) {
+                    File(musicDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}.m4a")
+                } else {
+                    File(moviesDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}.mp4")
+                }
+
+                val downloadFile = if (isAudio) {
+                    File(applicationContext.cacheDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_temp.mp4")
+                } else {
+                    finalFile
+                }
+                outputFile = downloadFile
+
+                val fos = FileOutputStream(downloadFile, downloadedSegments > 0)
+
                 for (i in downloadedSegments until totalSegments) {
                     if (!isActive || isPaused) break
 
@@ -162,20 +207,30 @@ class DownloadService : Service() {
                         stopSelf()
                         return@launch
                     }
-                    
+
                     val segmentUrl = segments[i]
                     downloadSegment(segmentUrl, fos)
-                    
+
                     downloadedSegments++
                     val progress = (downloadedSegments * 100) / totalSegments
                     updateNotification(currentTitle, progress, false)
                     downloadTracker.updateProgress(currentVideoId, progress)
                 }
-                
+
                 fos.close()
                 
                 if (downloadedSegments == totalSegments) {
-                    MediaScannerConnection.scanFile(this@DownloadService, arrayOf(outputFile!!.absolutePath), arrayOf("video/mp4")) { path, uri ->
+                    if (isAudio) {
+                        try {
+                            extractAudioTrack(downloadFile, finalFile)
+                        } finally {
+                            if (downloadFile.exists()) {
+                                downloadFile.delete()
+                            }
+                        }
+                        outputFile = finalFile
+                    }
+                    MediaScannerConnection.scanFile(this@DownloadService, arrayOf(outputFile!!.absolutePath), arrayOf(if (isAudio) "audio/mp4" else "video/mp4")) { path, uri ->
                         Log.d("DownloadService", "Scanned $path: uri=$uri")
                     }
                     downloadTracker.updateStatus(currentVideoId, DownloadStatus.COMPLETED, filePath = outputFile!!.absolutePath)
@@ -192,6 +247,61 @@ class DownloadService : Service() {
                 }
                 stopForegroundSafely(STOP_FOREGROUND_DETACH)
                 stopSelf()
+            }
+        }
+    }
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private suspend fun extractAudioTrack(inputFile: File, outputFile: File) {
+        suspendCancellableCoroutine { continuation ->
+            try {
+                val mediaItem = MediaItem.fromUri(inputFile.toURI().toString())
+
+                // Настраиваем элемент: говорим, что нам нужно вырезать видео
+                val editedMediaItem = EditedMediaItem.Builder(mediaItem)
+                    .setRemoveVideo(true)
+                    .build()
+
+                // Настраиваем Трансформер
+                val transformer = Transformer.Builder(applicationContext)
+                    .setAudioMimeType(MimeTypes.AUDIO_AAC) // Жестко задаем AAC (.m4a)
+                    .addListener(object : Transformer.Listener {
+                        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                            Log.d("DownloadService", "Audio extraction completed successfully via Media3")
+                            continuation.resume(Unit)
+                        }
+
+                        override fun onError(
+                            composition: Composition,
+                            exportResult: ExportResult,
+                            exportException: ExportException
+                        ) {
+                            Log.e("DownloadService", "Media3 Export error", exportException)
+                            // В случае ошибки пробуем просто скопировать файл, чтобы не оставлять пользователя ни с чем
+                            try {
+                                inputFile.copyTo(outputFile, overwrite = true)
+                                continuation.resume(Unit)
+                            } catch (e: Exception) {
+                                continuation.resumeWithException(exportException)
+                            }
+                        }
+                    })
+                    .build()
+
+                // Запускаем процесс конвертации
+                transformer.start(editedMediaItem, outputFile.absolutePath)
+
+                // Если корутину отменят (например, пользователь нажал Отмена), останавливаем трансформер
+                continuation.invokeOnCancellation {
+                    transformer.cancel()
+                    if (outputFile.exists()) {
+                        outputFile.delete()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("DownloadService", "Failed to setup Media3 Transformer", e)
+                // Фолбэк на прямое копирование, если Трансформер вообще не смог завестись
+                inputFile.copyTo(outputFile, overwrite = true)
+                continuation.resume(Unit)
             }
         }
     }
@@ -238,31 +348,40 @@ class DownloadService : Service() {
         val request = Request.Builder().url(url).build()
         val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
         val body = response.body?.string() ?: throw Exception("Empty playlist")
-        
+
         if (body.contains("#EXT-X-STREAM-INF")) {
             val lines = body.lines()
             var bestUrl: String? = null
             var maxRes = 0
-            
+            var minRes = Int.MAX_VALUE
+            var worstUrl: String? = null
+
             for (i in lines.indices) {
                 if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
                     val info = lines[i]
                     val resMatch = "RESOLUTION=(\\d+)x(\\d+)".toRegex().find(info)
                     val h = resMatch?.groupValues?.get(2)?.toInt() ?: 0
-                    
+
                     val streamUrl = lines.getOrNull(i + 1)?.let {
-                        if (it.startsWith("http")) it 
+                        if (it.startsWith("http")) it
                         else url.substringBeforeLast("/") + "/" + it
                     }
-                    
+
                     if (streamUrl != null) {
-                        if (h.toString() == quality) return streamUrl
+                        if (quality != "LOWEST" && quality != "LOW_RESOLUTION" && quality != "LOWEST_RESOLUTION" && h.toString() == quality) return streamUrl
                         if (h > maxRes) {
                             maxRes = h
                             bestUrl = streamUrl
                         }
+                        if (h < minRes && h > 0) {
+                            minRes = h
+                            worstUrl = streamUrl
+                        }
                     }
                 }
+            }
+            if (quality == "LOWEST" || isAudio) {
+                return worstUrl ?: bestUrl ?: url
             }
             return bestUrl ?: url
         }
@@ -273,7 +392,7 @@ class DownloadService : Service() {
         val request = Request.Builder().url(url).build()
         val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
         val body = response.body?.string() ?: throw Exception("Empty media playlist")
-        
+
         val baseUrl = url.substringBeforeLast("/")
         return body.lines().filter { it.isNotEmpty() && !it.startsWith("#") }.map {
             if (it.startsWith("http")) it else "$baseUrl/$it"
@@ -311,17 +430,17 @@ class DownloadService : Service() {
     private fun cancelDownload() {
         Log.d("DownloadService", "Cancelling download...")
         downloadJob?.cancel()
-        
+
         outputFile?.let {
             if (it.exists()) it.delete()
         }
-        
+
         downloadTracker.updateStatus(currentVideoId, DownloadStatus.CANCELLED)
         sendBroadcast(Intent(ACTION_DOWNLOAD_CANCELLED).putExtra("title", currentTitle))
-        
+
         val manager = getSystemService(NotificationManager::class.java)
         manager.cancel(getNotificationId())
-        
+
         stopForegroundSafely(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -346,7 +465,7 @@ class DownloadService : Service() {
 
     private fun createNotification(title: String, progress: Int, isComplete: Boolean = false, statusText: String? = null): Notification {
         val vidHash = currentVideoId.hashCode()
-        
+
         val cancelIntent = Intent(this, DownloadService::class.java).apply {
             action = "CANCEL"
             putExtra("VIDEO_ID", currentVideoId)
@@ -368,7 +487,7 @@ class DownloadService : Service() {
 
         val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(statusText ?: "Загрузка: $title")
+            .setContentTitle(statusText ?: (if (isAudio) "Загрузка аудио: $title" else "Загрузка: $title"))
             .setOngoing(statusText == null)
             .setProgress(100, progress, false)
             .setPriority(if (showNotif) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)

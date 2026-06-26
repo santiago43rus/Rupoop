@@ -294,15 +294,22 @@ fun RutubeApp(
                                         .clip(androidx.compose.foundation.shape.CircleShape)
                                         .clickable {
                                             if (vm.currentNav == NavItem.HOME) {
-                                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                                else if (vm.isSearchExpanded) { vm.isSearchExpanded = false; vm.searchQuery = "" }
-                                                else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = ""; vm.clearCurrentSearchStack() }
-                                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                                else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                                                else scope.launch { homeListState.animateScrollToItem(0) }
+                                                if (vm.isSettingsVisible || vm.isSearchExpanded || vm.isSearchVisible || vm.isAuthorVisible || vm.currentLibSub != LibrarySubScreen.NONE) {
+                                                    vm.isSettingsVisible = false
+                                                    vm.isSearchExpanded = false
+                                                    vm.clearCurrentSearchStack()
+                                                    vm.isAuthorVisible = false
+                                                    vm.currentLibSub = LibrarySubScreen.NONE
+                                                } else {
+                                                    scope.launch { homeListState.animateScrollToItem(0) }
+                                                }
                                             } else {
-                                                vm.currentNav = NavItem.HOME; vm.currentLibSub = LibrarySubScreen.NONE
+                                                vm.currentNav = NavItem.HOME
+                                                vm.currentLibSub = LibrarySubScreen.NONE
                                                 vm.isSettingsVisible = false
+                                                vm.isSearchExpanded = false
+                                                vm.clearCurrentSearchStack()
+                                                vm.isAuthorVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -329,14 +336,21 @@ fun RutubeApp(
                                         .clip(androidx.compose.foundation.shape.CircleShape)
                                         .clickable {
                                             if (vm.currentNav == NavItem.SUBSCRIPTIONS) {
-                                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                                else if (vm.isSearchExpanded) { vm.isSearchExpanded = false; vm.searchQuery = "" }
-                                                else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = "" }
-                                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                                else scope.launch { subsListState.animateScrollToItem(0) }
+                                                if (vm.isSettingsVisible || vm.isSearchExpanded || vm.isSearchVisible || vm.isAuthorVisible) {
+                                                    vm.isSettingsVisible = false
+                                                    vm.isSearchExpanded = false
+                                                    vm.clearCurrentSearchStack()
+                                                    vm.isAuthorVisible = false
+                                                } else {
+                                                    scope.launch { subsListState.animateScrollToItem(0) }
+                                                }
                                             } else {
-                                                vm.currentNav = NavItem.SUBSCRIPTIONS; vm.currentLibSub = LibrarySubScreen.NONE
-                                                vm.isAuthorVisible = false; vm.isSettingsVisible = false
+                                                vm.currentNav = NavItem.SUBSCRIPTIONS
+                                                vm.currentLibSub = LibrarySubScreen.NONE
+                                                vm.isSettingsVisible = false
+                                                vm.isSearchExpanded = false
+                                                vm.clearCurrentSearchStack()
+                                                vm.isAuthorVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -363,15 +377,22 @@ fun RutubeApp(
                                         .clip(androidx.compose.foundation.shape.CircleShape)
                                         .clickable {
                                             if (vm.currentNav == NavItem.LIBRARY) {
-                                                if (vm.isSettingsVisible) vm.isSettingsVisible = false
-                                                else if (vm.isSearchExpanded) { vm.isSearchExpanded = false; vm.searchQuery = "" }
-                                                else if (vm.isSearchVisible) { vm.isSearchVisible = false; vm.searchQuery = "" }
-                                                else if (vm.isAuthorVisible) vm.isAuthorVisible = false
-                                                else if (vm.currentLibSub != LibrarySubScreen.NONE) vm.currentLibSub = LibrarySubScreen.NONE
-                                                else scope.launch { libListState.animateScrollToItem(0) }
+                                                if (vm.isSettingsVisible || vm.isSearchExpanded || vm.isSearchVisible || vm.isAuthorVisible || vm.currentLibSub != LibrarySubScreen.NONE) {
+                                                    vm.isSettingsVisible = false
+                                                    vm.isSearchExpanded = false
+                                                    vm.clearCurrentSearchStack()
+                                                    vm.isAuthorVisible = false
+                                                    vm.currentLibSub = LibrarySubScreen.NONE
+                                                } else {
+                                                    scope.launch { libListState.animateScrollToItem(0) }
+                                                }
                                             } else {
-                                                vm.currentNav = NavItem.LIBRARY; vm.currentLibSub = LibrarySubScreen.NONE
-                                                vm.isAuthorVisible = false; vm.isSettingsVisible = false
+                                                vm.currentNav = NavItem.LIBRARY
+                                                vm.currentLibSub = LibrarySubScreen.NONE
+                                                vm.isSettingsVisible = false
+                                                vm.isSearchExpanded = false
+                                                vm.clearCurrentSearchStack()
+                                                vm.isAuthorVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -653,6 +674,36 @@ fun RutubeApp(
                             onCreateNew = { name -> vm.createPlaylistAndAdd(name, video) }
                         )
                     }
+
+                    // Download option dialog
+                    vm.showDownloadDialog?.let { video ->
+                        AlertDialog(
+                            onDismissRequest = { vm.showDownloadDialog = null },
+                            title = { Text("Выберите формат загрузки") },
+                            text = { Text("Вы хотите скачать видео целиком или только звуковую дорожку?") },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        vm.startDownload(video, isAudio = false)
+                                        vm.showDownloadDialog = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                                ) {
+                                    Text("Видео")
+                                }
+                            },
+                            dismissButton = {
+                                Button(
+                                    onClick = {
+                                        vm.startDownload(video, isAudio = true)
+                                        vm.showDownloadDialog = null
+                                    }
+                                ) {
+                                    Text("Аудио (MP3)")
+                                }
+                            }
+                        )
+                    }
                     } // Closes Background Content Nested Box
                 } // Closes Background Content Column
 
@@ -802,7 +853,7 @@ fun RutubeApp(
                                             onDislike = { vm.toggleDislike(it) },
                                             onShare = { vm.shareVideo(it) },
                                             onAddToPlaylist = { vm.showPlaylistDialog = it },
-                                            onDownload = { vm.startDownload(it) },
+                                            onDownload = { vm.showDownloadDialog = it },
                                             onVideoClick = { v, list -> vm.playVideo(v, list, false) },
                                             onMoreClick = { item, action -> vm.handleVideoMoreAction(item, action) },
                                             alphaProgress = realProgress,
@@ -878,6 +929,7 @@ private fun AppTopBar(
     ) {
         val rect = cursorRect ?: return@LaunchedEffect
         val coords = layoutCoords ?: return@LaunchedEffect
+        if (!coords.isAttached) return@LaunchedEffect
         val topLeft = coords.localToWindow(rect.topLeft)
         val screenWidthPx = Resources.getSystem().displayMetrics.widthPixels.toFloat()
 
@@ -982,7 +1034,7 @@ private fun AppTopBar(
                             focusManager.clearFocus()
                         }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад") }
                     } else if (topVisible == OverlayState.SEARCH) {
-                        IconButton(onClick = { vm.isSearchVisible = false; vm.searchQuery = "" }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
+                        IconButton(onClick = { vm.clearCurrentSearchStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
                     }
                     Surface(
                         modifier = Modifier.weight(1f).padding(end = 4.dp),
@@ -1170,7 +1222,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                     when (action) {
                         "remove" -> vm.removeFromHistory(item.videoId)
                         "share" -> vm.shareVideo(video)
-                        "download" -> vm.startDownload(video)
+                        "download" -> vm.showDownloadDialog = video
                         "later" -> vm.toggleWatchLater(video)
                         "playlist" -> vm.showPlaylistDialog = video
                     }
@@ -1212,7 +1264,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                             when (action) {
                                 "remove" -> vm.removeFromHistory(item.videoId)
                                 "share" -> vm.shareVideo(video)
-                                "download" -> vm.startDownload(video)
+                                "download" -> vm.showDownloadDialog = video
                             }
                         },
                         isEditMode = true
@@ -1220,8 +1272,8 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 }
             }
         }
-        LibrarySubScreen.LIKED -> VideoListScreen(vm.userRegistry.likedVideos, { v -> vm.playVideo(v, vm.userRegistry.likedVideos, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleLike(video) }, { vm.startDownload(it) })
-        LibrarySubScreen.WATCH_LATER -> VideoListScreen(vm.userRegistry.watchLater, { v -> vm.playVideo(v, vm.userRegistry.watchLater, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleWatchLater(video) }, { vm.startDownload(it) })
+        LibrarySubScreen.LIKED -> VideoListScreen(vm.userRegistry.likedVideos, { v -> vm.playVideo(v, vm.userRegistry.likedVideos, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleLike(video) }, { vm.showDownloadDialog = it })
+        LibrarySubScreen.WATCH_LATER -> VideoListScreen(vm.userRegistry.watchLater, { v -> vm.playVideo(v, vm.userRegistry.watchLater, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleWatchLater(video) }, { vm.showDownloadDialog = it })
         LibrarySubScreen.PLAYLISTS -> {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(vm.userRegistry.playlists) { playlist ->
@@ -1243,7 +1295,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 { vm.loadAuthorVideos(it, false) },
                 { vm.shareVideo(it) },
                 { video -> vm.selectedPlaylist?.let { vm.removeFromPlaylist(it.id, video.videoUrl) } },
-                { vm.startDownload(it) }
+                { vm.showDownloadDialog = it }
             )
         }
         LibrarySubScreen.DOWNLOADS -> {
@@ -1298,7 +1350,8 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                     val item = downloads.find { it.videoId == videoId }
                     if (item != null) {
                         val video = SearchResult(videoUrl = "https://rutube.ru/video/$videoId/", title = item.title, thumbnailUrl = item.thumbnailUrl)
-                        vm.startDownload(video)
+                        val isAudio = item.filePath?.endsWith(".mp3") == true || item.filePath?.endsWith(".m4a") == true
+                        vm.startDownload(video, isAudio)
                     }
                 },
                 onPlay = { item ->

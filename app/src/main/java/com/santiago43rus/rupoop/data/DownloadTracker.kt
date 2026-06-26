@@ -82,7 +82,8 @@ class DownloadTracker(context: Context) {
     private fun loadLocal(): List<DownloadItem> {
         return if (file.exists()) {
             try {
-                json.decodeFromString(file.readText())
+                val text = file.readText().trim()
+                if (text.isEmpty()) emptyList() else json.decodeFromString(text)
             } catch (e: Exception) {
                 Log.e("DownloadTracker", "Load error", e)
                 emptyList()

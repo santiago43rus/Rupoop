@@ -338,17 +338,54 @@ fun CustomVideoPlayer(
                 )
             }
     ) {
-        AndroidView(
-            factory = { context ->
-                PlayerView(context).apply {
-                    player = exoPlayer
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    keepScreenOn = true
+        val isAudio = currentVideo?.videoUrl?.endsWith(".mp3") == true || currentVideo?.videoUrl?.endsWith(".m4a") == true
+        if (isAudio) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (currentVideo?.thumbnailUrl != null) {
+                    AsyncImage(
+                        model = currentVideo.thumbnailUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(160.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Gray),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(160.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+            }
+        } else {
+            AndroidView(
+                factory = { context ->
+                    PlayerView(context).apply {
+                        player = exoPlayer
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        keepScreenOn = true
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         // Loading indicator
         if (isBuffering) {
@@ -743,11 +780,6 @@ fun SettingsDialog(exoPlayer: ExoPlayer, currentQuality: String, onQualitySelect
                 Text("Настройки видео", style = MaterialTheme.typography.titleLarge)
                 ListItem(headlineContent = { Text("Качество") }, trailingContent = { Text(currentQuality) }, modifier = Modifier.clickable { showQuality = true })
                 ListItem(headlineContent = { Text("Скорость") }, trailingContent = { Text("${exoPlayer.playbackParameters.speed}x") }, modifier = Modifier.clickable { showSpeed = true })
-                ListItem(
-                    headlineContent = { Text("Фоновый режим") },
-                    trailingContent = { Switch(checked = isBackgroundEnabled, onCheckedChange = { onBackgroundToggle() }) },
-                    modifier = Modifier.clickable { onBackgroundToggle() }
-                )
             }
         }
     }
@@ -794,6 +826,7 @@ fun <T> OptionSelectionDialog(title: String, options: List<T>, currentValue: T, 
 @OptIn(UnstableApi::class)
 @Composable
 fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, onClose: () -> Unit, onClick: () -> Unit) {
+    val isAudio = video?.videoUrl?.endsWith(".mp3") == true || video?.videoUrl?.endsWith(".m4a") == true
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -804,7 +837,21 @@ fun MiniPlayer(video: SearchResult?, isPlaying: Boolean, exoPlayer: ExoPlayer, o
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.size(100.dp, 56.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black)) {
-            AndroidView(factory = { context -> PlayerView(context).apply { player = exoPlayer; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM; keepScreenOn = true } }, modifier = Modifier.fillMaxSize())
+            if (isAudio) {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else {
+                AndroidView(factory = { context -> PlayerView(context).apply { player = exoPlayer; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM; keepScreenOn = true } }, modifier = Modifier.fillMaxSize())
+            }
         }
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(video?.title ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)

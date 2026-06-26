@@ -50,6 +50,9 @@ class MainActivity : ComponentActivity() {
             // Handle pending navigation to downloads
             LaunchedEffect(pendingOpenDownloads) {
                 if (pendingOpenDownloads) {
+                    if (vm.playerState == PlayerState.FULL) {
+                        vm.playerState = PlayerState.MINI
+                    }
                     vm.currentNav = NavItem.LIBRARY
                     vm.currentLibSub = LibrarySubScreen.DOWNLOADS
                     pendingOpenDownloads = false
