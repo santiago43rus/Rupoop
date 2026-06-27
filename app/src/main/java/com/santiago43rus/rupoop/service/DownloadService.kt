@@ -139,8 +139,11 @@ class DownloadService : Service() {
             thumbnailUrl = intent.getStringExtra("THUMBNAIL_URL"),
             filePath = if (isAudio) {
                 val musicDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC)
-                File(musicDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}.m4a").absolutePath
-            } else null,
+                File(musicDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${currentVideoId}.m4a").absolutePath
+            } else {
+                val moviesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES)
+                File(moviesDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${currentVideoId}.mp4").absolutePath
+            },
             status = DownloadStatus.DOWNLOADING
         ))
 
@@ -178,9 +181,9 @@ class DownloadService : Service() {
                 if (!musicDir.exists()) musicDir.mkdirs()
 
                 val finalFile = if (isAudio) {
-                    File(musicDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}.m4a")
+                    File(musicDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${currentVideoId}.m4a")
                 } else {
-                    File(moviesDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}.mp4")
+                    File(moviesDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${currentVideoId}.mp4")
                 }
 
                 val downloadFile = if (isAudio) {

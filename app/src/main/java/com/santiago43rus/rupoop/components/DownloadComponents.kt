@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -170,7 +171,14 @@ private fun DownloadCard(
     )
 
     Card(
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize()
+            .then(
+                if (item.status == DownloadStatus.COMPLETED) {
+                    Modifier.clickable { onPlay() }
+                } else Modifier
+            ),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -225,18 +233,36 @@ private fun DownloadCard(
                         fontSize = 14.sp
                     )
                     Spacer(Modifier.height(2.dp))
-                    Text(
-                        when (item.status) {
-                            DownloadStatus.DOWNLOADING -> "Загрузка... ${item.progress}%"
-                            DownloadStatus.COMPLETED -> "Завершено"
-                            DownloadStatus.ERROR -> "Ошибка: ${item.error ?: "Неизвестная"}"
-                            DownloadStatus.PAUSED -> "Приостановлено (${item.progress}%)"
-                            DownloadStatus.CANCELLED -> "Отменено"
-                            DownloadStatus.PENDING -> "Ожидание..."
-                        },
-                        fontSize = 12.sp,
-                        color = statusColor
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val ext = item.filePath?.substringAfterLast('.')?.uppercase() ?: ""
+                        if (ext.isNotEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.padding(end = 6.dp)
+                            ) {
+                                Text(
+                                    text = ext,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            when (item.status) {
+                                DownloadStatus.DOWNLOADING -> "Загрузка... ${item.progress}%"
+                                DownloadStatus.COMPLETED -> "Завершено"
+                                DownloadStatus.ERROR -> "Ошибка: ${item.error ?: "Неизвестная"}"
+                                DownloadStatus.PAUSED -> "Приостановлено (${item.progress}%)"
+                                DownloadStatus.CANCELLED -> "Отменено"
+                                DownloadStatus.PENDING -> "Ожидание..."
+                            },
+                            fontSize = 12.sp,
+                            color = statusColor
+                        )
+                    }
                 }
 
                 // Actions
@@ -267,9 +293,6 @@ private fun DownloadCard(
                             }
                         }
                         DownloadStatus.COMPLETED -> {
-                            IconButton(onClick = onPlay, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.PlayArrow, "Воспроизвести", tint = Color(0xFF4CAF50), modifier = Modifier.size(20.dp))
-                            }
                             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                                 Icon(Icons.Default.Delete, "Удалить", tint = Color.Gray, modifier = Modifier.size(20.dp))
                             }

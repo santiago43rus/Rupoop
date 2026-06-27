@@ -630,13 +630,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             _snackbarMessage.emit("Скачивание начато: ${video.title}")
             extractId(video.videoUrl)?.let { id ->
+                val uniqueId = "${id}___${System.currentTimeMillis()}"
                 try {
                     val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
                     opt.videoBalancer?.m3u8?.let { m3u8Url ->
                         val serviceIntent = Intent(context, DownloadService::class.java).apply {
                             putExtra("VIDEO_URL", m3u8Url)
                             putExtra("TITLE", video.title)
-                            putExtra("VIDEO_ID", id)
+                            putExtra("VIDEO_ID", uniqueId)
                             putExtra("THUMBNAIL_URL", video.thumbnailUrl)
                             putExtra("QUALITY", settingsManager.downloadQuality)
                             putExtra("IS_AUDIO", isAudio)

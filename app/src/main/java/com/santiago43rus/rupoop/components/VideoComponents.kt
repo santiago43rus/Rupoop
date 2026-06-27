@@ -77,16 +77,50 @@ fun VideoDetails(
             }
         }
         Spacer(Modifier.height(12.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-            val currentId = video?.videoUrl?.let { com.santiago43rus.rupoop.util.extractId(it) }
-            val isLiked = currentId != null && registry.likedVideos.any { com.santiago43rus.rupoop.util.extractId(it.videoUrl) == currentId }
-            val isDisliked = currentId != null && registry.dislikedVideos.contains(currentId)
-            DetailAction(if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, "Лайк", color = if (isLiked) Color.Red else LocalContentColor.current, onClick = { video?.let { onLike(it) } })
-            DetailAction(if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Дизлайк", color = if (isDisliked) Color.Red else LocalContentColor.current, onClick = { video?.let { onDislike(it) } })
-            DetailAction(Icons.Outlined.Download, "Скачать", onClick = { video?.let { onDownload(it) } })
-            DetailAction(Icons.Default.Share, "Поделиться", onClick = { video?.let { onShare(it) } })
-            DetailAction(Icons.AutoMirrored.Filled.PlaylistAdd, "В плейлист", onClick = { video?.let { onAddToPlaylist(it) } })
-            DetailAction(Icons.Default.Headphones, "Фон", color = if (isBackgroundEnabled) Color(0xFFE53935) else LocalContentColor.current, onClick = onBackgroundPlayToggle)
+        val isLocalFile = video?.videoUrl?.startsWith("/") == true || video?.videoUrl?.startsWith("file://") == true
+        if (isLocalFile) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Button(
+                    onClick = onBackgroundPlayToggle,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isBackgroundEnabled) Color(0xFFE53935) else MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = if (isBackgroundEnabled) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .height(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Headphones,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (isBackgroundEnabled) "Фоновое воспроизведение: ВКЛ" else "Воспроизвести в фоне",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                val currentId = video?.videoUrl?.let { com.santiago43rus.rupoop.util.extractId(it) }
+                val isLiked = currentId != null && registry.likedVideos.any { com.santiago43rus.rupoop.util.extractId(it.videoUrl) == currentId }
+                val isDisliked = currentId != null && registry.dislikedVideos.contains(currentId)
+                DetailAction(if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp, "Лайк", color = if (isLiked) Color.Red else LocalContentColor.current, onClick = { video?.let { onLike(it) } })
+                DetailAction(if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown, "Дизлайк", color = if (isDisliked) Color.Red else LocalContentColor.current, onClick = { video?.let { onDislike(it) } })
+                DetailAction(Icons.Outlined.Download, "Скачать", onClick = { video?.let { onDownload(it) } })
+                DetailAction(Icons.Default.Share, "Поделиться", onClick = { video?.let { onShare(it) } })
+                DetailAction(Icons.AutoMirrored.Filled.PlaylistAdd, "В плейлист", onClick = { video?.let { onAddToPlaylist(it) } })
+                DetailAction(Icons.Default.Headphones, "Фон", color = if (isBackgroundEnabled) Color(0xFFE53935) else LocalContentColor.current, onClick = onBackgroundPlayToggle)
+            }
         }
     }
 }

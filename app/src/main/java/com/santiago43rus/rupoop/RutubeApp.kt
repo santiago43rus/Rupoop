@@ -686,8 +686,7 @@ fun RutubeApp(
                                     onClick = {
                                         vm.startDownload(video, isAudio = false)
                                         vm.showDownloadDialog = null
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                                    }
                                 ) {
                                     Text("Видео")
                                 }
@@ -699,7 +698,7 @@ fun RutubeApp(
                                         vm.showDownloadDialog = null
                                     }
                                 ) {
-                                    Text("Аудио (MP3)")
+                                    Text("Аудио (M4A)")
                                 }
                             }
                         )
@@ -1206,6 +1205,10 @@ private fun SearchOverlay(vm: AppViewModel) {
 // Library content (with sub-screens)
 @Composable
 private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
+    var pendingDeleteAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var deleteDialogTitle by remember { mutableStateOf("") }
+    var deleteDialogMessage by remember { mutableStateOf("") }
+
     when (vm.currentLibSub) {
         LibrarySubScreen.NONE -> {
             LibraryScreen(
@@ -1220,7 +1223,11 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 onMoreClick = { item, action ->
                     val video = SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl))
                     when (action) {
-                        "remove" -> vm.removeFromHistory(item.videoId)
+                        "remove" -> {
+                            deleteDialogTitle = "Удалить из истории"
+                            deleteDialogMessage = "Вы уверены, что хотите удалить это видео из истории просмотров?"
+                            pendingDeleteAction = { vm.removeFromHistory(item.videoId) }
+                        }
                         "share" -> vm.shareVideo(video)
                         "download" -> vm.showDownloadDialog = video
                         "later" -> vm.toggleWatchLater(video)
@@ -1262,7 +1269,11 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
                         onMoreClick = { action ->
                             when (action) {
-                                "remove" -> vm.removeFromHistory(item.videoId)
+                                "remove" -> {
+                                    deleteDialogTitle = "Удалить из истории"
+                                    deleteDialogMessage = "Вы уверены, что хотите удалить это видео из истории просмотров?"
+                                    pendingDeleteAction = { vm.removeFromHistory(item.videoId) }
+                                }
                                 "share" -> vm.shareVideo(video)
                                 "download" -> vm.showDownloadDialog = video
                             }
@@ -1272,8 +1283,16 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 }
             }
         }
-        LibrarySubScreen.LIKED -> VideoListScreen(vm.userRegistry.likedVideos, { v -> vm.playVideo(v, vm.userRegistry.likedVideos, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleLike(video) }, { vm.showDownloadDialog = it })
-        LibrarySubScreen.WATCH_LATER -> VideoListScreen(vm.userRegistry.watchLater, { v -> vm.playVideo(v, vm.userRegistry.watchLater, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video -> vm.toggleWatchLater(video) }, { vm.showDownloadDialog = it })
+        LibrarySubScreen.LIKED -> VideoListScreen(vm.userRegistry.likedVideos, { v -> vm.playVideo(v, vm.userRegistry.likedVideos, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video ->
+            deleteDialogTitle = "Удалить из понравившихся"
+            deleteDialogMessage = "Вы уверены, что хотите удалить это видео из списка понравившихся?"
+            pendingDeleteAction = { vm.toggleLike(video) }
+        }, { vm.showDownloadDialog = it })
+        LibrarySubScreen.WATCH_LATER -> VideoListScreen(vm.userRegistry.watchLater, { v -> vm.playVideo(v, vm.userRegistry.watchLater, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video ->
+            deleteDialogTitle = "Удалить из \"Смотреть позже\""
+            deleteDialogMessage = "Вы уверены, что хотите удалить это видео из списка \"Смотреть позже\"?"
+            pendingDeleteAction = { vm.toggleWatchLater(video) }
+        }, { vm.showDownloadDialog = it })
         LibrarySubScreen.PLAYLISTS -> {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(vm.userRegistry.playlists) { playlist ->
@@ -1281,7 +1300,11 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         Icons.AutoMirrored.Filled.PlaylistPlay,
                         playlist.name,
                         playlist.videos.size.toString(),
-                        onAction = { vm.deletePlaylist(playlist.id) }) {
+                        onAction = {
+                            deleteDialogTitle = "Удалить плейлист"
+                            deleteDialogMessage = "Вы уверены, что хотите удалить плейлист \"${playlist.name}\"?"
+                            pendingDeleteAction = { vm.deletePlaylist(playlist.id) }
+                        }) {
                         vm.selectedPlaylist = playlist
                         vm.currentLibSub = LibrarySubScreen.PLAYLIST_DETAIL
                     }
@@ -1294,7 +1317,11 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 { v -> vm.playVideo(v, vm.selectedPlaylist?.videos, true) },
                 { vm.loadAuthorVideos(it, false) },
                 { vm.shareVideo(it) },
-                { video -> vm.selectedPlaylist?.let { vm.removeFromPlaylist(it.id, video.videoUrl) } },
+                { video ->
+                    deleteDialogTitle = "Удалить из плейлиста"
+                    deleteDialogMessage = "Вы уверены, что хотите удалить это видео из плейлиста?"
+                    pendingDeleteAction = { vm.selectedPlaylist?.let { vm.removeFromPlaylist(it.id, video.videoUrl) } }
+                },
                 { vm.showDownloadDialog = it }
             )
         }
@@ -1302,6 +1329,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
             val downloads by vm.downloadTracker.downloads.collectAsState()
             // Periodically refresh download state from disk
             LaunchedEffect(Unit) {
+                vm.downloadTracker.indexSavedFiles()
                 while (true) {
                     delay(1000)
                     vm.downloadTracker.refresh()
@@ -1345,7 +1373,20 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         vm.getApplication<Application>().startService(intent)
                     }
                 },
-                onDelete = { videoId -> vm.downloadTracker.removeDownload(videoId) },
+                onDelete = { videoId ->
+                    deleteDialogTitle = "Удалить загрузку"
+                    deleteDialogMessage = "Вы уверены, что хотите удалить этот файл с устройства?"
+                    pendingDeleteAction = {
+                        val item = downloads.find { it.videoId == videoId }
+                        item?.filePath?.let { path ->
+                            val file = File(path)
+                            if (file.exists()) {
+                                file.delete()
+                            }
+                        }
+                        vm.downloadTracker.removeDownload(videoId)
+                    }
+                },
                 onRetry = { videoId ->
                     val item = downloads.find { it.videoId == videoId }
                     if (item != null) {
@@ -1365,5 +1406,19 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 }
             )
         }
+    }
+
+    if (pendingDeleteAction != null) {
+        DeleteConfirmationDialog(
+            title = deleteDialogTitle,
+            message = deleteDialogMessage,
+            onConfirm = {
+                pendingDeleteAction?.invoke()
+                pendingDeleteAction = null
+            },
+            onDismiss = {
+                pendingDeleteAction = null
+            }
+        )
     }
 }

@@ -70,6 +70,71 @@ class DownloadTracker(context: Context) {
         update(list)
     }
 
+    fun indexSavedFiles() {
+        val moviesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES)
+        val musicDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC)
+        
+        val files = mutableListOf<File>()
+        if (moviesDir.exists()) {
+            moviesDir.listFiles()?.let { files.addAll(it) }
+        }
+        if (musicDir.exists()) {
+            musicDir.listFiles()?.let { files.addAll(it) }
+        }
+        
+        val parsedItems = files.mapNotNull { file ->
+            parseRupoopFile(file)
+        }
+        
+        if (parsedItems.isEmpty()) return
+        
+        val currentList = _downloads.value.toMutableList()
+        var changed = false
+        
+        for (parsedItem in parsedItems) {
+            val existing = currentList.find { it.videoId == parsedItem.videoId }
+            if (existing == null) {
+                currentList.add(parsedItem)
+                changed = true
+            } else if (existing.filePath != parsedItem.filePath || existing.status != DownloadStatus.COMPLETED) {
+                val idx = currentList.indexOf(existing)
+                currentList[idx] = existing.copy(
+                    status = DownloadStatus.COMPLETED,
+                    progress = 100,
+                    filePath = parsedItem.filePath
+                )
+                changed = true
+            }
+        }
+        
+        if (changed) {
+            currentList.sortByDescending { it.timestamp }
+            update(currentList)
+        }
+    }
+
+    private fun parseRupoopFile(file: File): DownloadItem? {
+        val name = file.name
+        val regex = """^(.*)_rupoop_([a-zA-Z0-9_-]+___[0-9]+)\.(mp4|m4a|mp3)$""".toRegex(RegexOption.IGNORE_CASE)
+        val match = regex.matchEntire(name) ?: return null
+        val sanitizedTitle = match.groupValues[1]
+        val videoId = match.groupValues[2]
+        
+        val displayTitle = sanitizedTitle.replace('_', ' ').trim()
+        val parts = videoId.split("___")
+        val timestamp = parts.getOrNull(1)?.toLongOrNull() ?: file.lastModified()
+        
+        return DownloadItem(
+            videoId = videoId,
+            title = displayTitle.ifEmpty { "Видео" },
+            thumbnailUrl = null,
+            filePath = file.absolutePath,
+            status = DownloadStatus.COMPLETED,
+            progress = 100,
+            timestamp = timestamp
+        )
+    }
+
     fun refresh() {
         _downloads.value = loadLocal()
     }
