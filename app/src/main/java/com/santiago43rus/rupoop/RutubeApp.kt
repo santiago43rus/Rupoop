@@ -296,22 +296,16 @@ fun RutubeApp(
                                         .clip(androidx.compose.foundation.shape.CircleShape)
                                         .clickable {
                                             if (vm.currentNav == NavItem.HOME) {
-                                                if (vm.isSettingsVisible || vm.isSearchExpanded || vm.isSearchVisible || vm.isAuthorVisible || vm.currentLibSub != LibrarySubScreen.NONE) {
+                                                if (vm.isSettingsVisible || vm.isSearchExpanded || vm.isSearchVisible || vm.isAuthorVisible) {
                                                     vm.isSettingsVisible = false
                                                     vm.isSearchExpanded = false
                                                     vm.clearCurrentSearchStack()
                                                     vm.isAuthorVisible = false
-                                                    vm.currentLibSub = LibrarySubScreen.NONE
                                                 } else {
                                                     scope.launch { homeListState.animateScrollToItem(0) }
                                                 }
                                             } else {
                                                 vm.currentNav = NavItem.HOME
-                                                vm.currentLibSub = LibrarySubScreen.NONE
-                                                vm.isSettingsVisible = false
-                                                vm.isSearchExpanded = false
-                                                vm.clearCurrentSearchStack()
-                                                vm.isAuthorVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -348,11 +342,6 @@ fun RutubeApp(
                                                 }
                                             } else {
                                                 vm.currentNav = NavItem.SUBSCRIPTIONS
-                                                vm.currentLibSub = LibrarySubScreen.NONE
-                                                vm.isSettingsVisible = false
-                                                vm.isSearchExpanded = false
-                                                vm.clearCurrentSearchStack()
-                                                vm.isAuthorVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -390,11 +379,6 @@ fun RutubeApp(
                                                 }
                                             } else {
                                                 vm.currentNav = NavItem.LIBRARY
-                                                vm.currentLibSub = LibrarySubScreen.NONE
-                                                vm.isSettingsVisible = false
-                                                vm.isSearchExpanded = false
-                                                vm.clearCurrentSearchStack()
-                                                vm.isAuthorVisible = false
                                             }
                                         }
                                         .padding(4.dp),
@@ -1237,7 +1221,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 onVideoClick = { item ->
                     vm.playVideo(
                         SearchResult(videoUrl = item.videoUrl, title = item.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl)),
-                        vm.userRegistry.watchHistory.map { SearchResult(videoUrl = it.videoUrl, title = it.title ?: "", thumbnailUrl = item.thumbnailUrl, author = Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl)) }
+                        null
                     )
                 },
                 onAuthorClick = { vm.loadAuthorVideos(it, false) },
@@ -1286,7 +1270,7 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                     )
                     VideoCardItem(
                         video = video, history = item,
-                        onClick = { vm.playVideo(video, historyVideos, false) },
+                        onClick = { vm.playVideo(video, null, false) },
                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
                         onMoreClick = { action ->
                             when (action) {

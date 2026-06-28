@@ -55,10 +55,31 @@ fun LibraryScreen(
             ) {
                 items(registry.watchHistory.take(10)) { item ->
                     var showMenu by remember { mutableStateOf(false) }
+
+                    val localThumbnailBitmap = remember(item.videoUrl) {
+                        mutableStateOf<android.graphics.Bitmap?>(null)
+                    }
+                    LaunchedEffect(item.videoUrl) {
+                        val isLocal = item.videoUrl.isNotEmpty() && !item.videoUrl.startsWith("http")
+                        if (isLocal && item.thumbnailUrl == null && item.videoUrl.endsWith(".mp4")) {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                val retriever = android.media.MediaMetadataRetriever()
+                                try {
+                                    retriever.setDataSource(item.videoUrl)
+                                    val bmp = retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                                    localThumbnailBitmap.value = bmp
+                                } catch (_: Exception) {
+                                } finally {
+                                    try { retriever.release() } catch (_: Exception) {}
+                                }
+                            }
+                        }
+                    }
+
                     Column(Modifier.width(160.dp).padding(end = 8.dp)) {
                         Box(Modifier.fillMaxWidth().height(90.dp).clickable { onVideoClick(item) }) {
                             AsyncImage(
-                                model = item.thumbnailUrl, contentDescription = null,
+                                model = item.thumbnailUrl ?: localThumbnailBitmap.value ?: item.videoUrl, contentDescription = null,
                                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp)),
                                 contentScale = ContentScale.Crop
                             )
@@ -89,7 +110,9 @@ fun LibraryScreen(
                                 modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.Gray).clickable {
                                     onAuthorClick(Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl))
                                 },
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                fallback = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
+                                error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details)
                             )
                             Spacer(Modifier.width(8.dp))
                             Column(Modifier.weight(1f).clickable { onVideoClick(item) }) {
@@ -108,11 +131,14 @@ fun LibraryScreen(
                                     Icon(Icons.Default.MoreVert, null, tint = Color.Gray)
                                 }
                                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                    val isLocal = item.videoUrl.isNotEmpty() && !item.videoUrl.startsWith("http")
                                     DropdownMenuItem(text = { Text("Удалить из истории") }, onClick = { showMenu = false; onMoreClick(item, "remove") }, leadingIcon = { Icon(Icons.Default.Delete, null) })
-                                    DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { showMenu = false; onMoreClick(item, "later") }, leadingIcon = { Icon(Icons.Default.Schedule, null) })
-                                    DropdownMenuItem(text = { Text("В плейлист") }, onClick = { showMenu = false; onMoreClick(item, "playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) })
-                                    DropdownMenuItem(text = { Text("Скачать") }, onClick = { showMenu = false; onMoreClick(item, "download") }, leadingIcon = { Icon(Icons.Default.Download, null) })
-                                    DropdownMenuItem(text = { Text("Поделиться") }, onClick = { showMenu = false; onMoreClick(item, "share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
+                                    if (!isLocal) {
+                                        DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { showMenu = false; onMoreClick(item, "later") }, leadingIcon = { Icon(Icons.Default.Schedule, null) })
+                                        DropdownMenuItem(text = { Text("В плейлист") }, onClick = { showMenu = false; onMoreClick(item, "playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) })
+                                        DropdownMenuItem(text = { Text("Скачать") }, onClick = { showMenu = false; onMoreClick(item, "download") }, leadingIcon = { Icon(Icons.Default.Download, null) })
+                                        DropdownMenuItem(text = { Text("Поделиться") }, onClick = { showMenu = false; onMoreClick(item, "share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
+                                    }
                                 }
                             }
                         }

@@ -233,23 +233,65 @@ fun SettingsScreen(
             // ── GitHub Синхронизация ──
             Text("GitHub Синхронизация", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
             ListItem(
-                headlineContent = { Text("Периодичность (в часах)") },
-                trailingContent = {
-                    TextField(
-                        value = syncFreq,
-                        onValueChange = { newValue ->
-                            syncFreq = newValue
-                            newValue.toIntOrNull()?.let { hours ->
-                                settingsManager.syncFrequencyHours = hours
-                                registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = hours)))
-                                vm.onRegistryUpdate(registryManager.registry)
+                headlineContent = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text("Периодичность (в часах)", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val hoursInt = syncFreq.toIntOrNull() ?: 24
+
+                            IconButton(
+                                onClick = {
+                                    if (hoursInt > 1) {
+                                        val nextHours = hoursInt - 1
+                                        settingsManager.syncFrequencyHours = nextHours
+                                        syncFreq = nextHours.toString()
+                                        registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)))
+                                        vm.onRegistryUpdate(registryManager.registry)
+                                    }
+                                },
+                                enabled = hoursInt > 1
+                            ) {
+                                Icon(Icons.Default.KeyboardArrowDown, "Меньше")
                             }
-                        },
-                        modifier = Modifier.width(60.dp),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
-                    )
+
+                            Text(
+                                text = "$hoursInt ч",
+                                modifier = Modifier.padding(horizontal = 4.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    if (hoursInt < 48) {
+                                        val nextHours = hoursInt + 1
+                                        settingsManager.syncFrequencyHours = nextHours
+                                        syncFreq = nextHours.toString()
+                                        registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)))
+                                        vm.onRegistryUpdate(registryManager.registry)
+                                    }
+                                },
+                                enabled = hoursInt < 48
+                            ) {
+                                Icon(Icons.Default.KeyboardArrowUp, "Больше")
+                            }
+
+                            Spacer(Modifier.width(4.dp))
+
+                            TextButton(
+                                onClick = {
+                                    val nextHours = 24
+                                    settingsManager.syncFrequencyHours = nextHours
+                                    syncFreq = "24"
+                                    registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)))
+                                    vm.onRegistryUpdate(registryManager.registry)
+                                }
+                            ) {
+                                Text("Сбросить", color = Color(0xFFE53935))
+                            }
+                        }
+                    }
                 }
             )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))

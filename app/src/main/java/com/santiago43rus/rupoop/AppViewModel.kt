@@ -57,14 +57,47 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var currentNav: NavItem
         get() = _currentNavState.value
         set(value) {
-            if (_currentNavState.value != value) {
+            val oldNav = _currentNavState.value
+            if (oldNav != value) {
+                // Save current author state before switching
+                authorStates[oldNav] = AuthorState(
+                    isVisible = isAuthorVisible,
+                    author = selectedAuthor,
+                    videos = authorVideos,
+                    page = authorPage,
+                    hasMore = hasMoreAuthorVideos
+                )
+
                 _currentNavState.value = value
                 restoreSearchStateForTab(value)
+
+                // Restore author state for the new tab
+                val authorState = authorStates[value] ?: AuthorState(false, null, emptyList(), 1, true)
+                isAuthorVisible = authorState.isVisible
+                selectedAuthor = authorState.author
+                authorVideos = authorState.videos
+                authorPage = authorState.page
+                hasMoreAuthorVideos = authorState.hasMore
             }
         }
     var currentLibSub by mutableStateOf(LibrarySubScreen.NONE)
     var selectedPlaylist by mutableStateOf<Playlist?>(null)
     var selectedAuthor by mutableStateOf<Author?>(null)
+
+    // ── Author State Per Tab ──
+    data class AuthorState(
+        val isVisible: Boolean,
+        val author: Author?,
+        val videos: List<SearchResult>,
+        val page: Int,
+        val hasMore: Boolean
+    )
+
+    private val authorStates = mutableMapOf<NavItem, AuthorState>(
+        NavItem.HOME to AuthorState(false, null, emptyList(), 1, true),
+        NavItem.SUBSCRIPTIONS to AuthorState(false, null, emptyList(), 1, true),
+        NavItem.LIBRARY to AuthorState(false, null, emptyList(), 1, true)
+    )
 
     // ── Videos data ──
     var homeVideos by mutableStateOf<List<SearchResult>>(emptyList())
@@ -202,7 +235,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Pagination: Author ──
     var isAuthorLoadingMore by mutableStateOf(false)
     var isRefreshingAuthor by mutableStateOf(false)
-    private var authorPage by mutableIntStateOf(1)
+    var authorPage by mutableIntStateOf(1)
     var hasMoreAuthorVideos by mutableStateOf(true)
 
     // ── Pagination: Subscriptions ──
@@ -292,6 +325,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Play video ──
     fun playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
+        val isLocal = video.videoUrl.isNotEmpty() && !video.videoUrl.startsWith("http")
+        if (isLocal) {
+            val file = java.io.File(video.videoUrl)
+            if (!file.exists()) {
+                viewModelScope.launch {
+                    _snackbarMessage.emit("Видео не найдено")
+                }
+                playerState = PlayerState.CLOSED
+                return
+            }
+            playLocalFile(video.videoUrl, video.title, list, isPlaylist)
+            return
+        }
+
         videoLoadingJob?.cancel()
 
         if (isPlaylist && list != null) {
@@ -385,7 +432,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         exoPlayer.play()
                         playerState = PlayerState.FULL
                     } else {
-                        _snackbarMessage.emit("Видео недоступно (возможно, заблокировано или удалено)")
+                        _snackbarMessage.emit("Видео не найдено")
                         playerState = PlayerState.CLOSED
                     }
 
@@ -410,7 +457,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Play error", e)
-                    _snackbarMessage.emit("Не удалось запустить видео: проверьте подключение или VPN")
+                    _snackbarMessage.emit("Видео не найдено")
                     playerState = PlayerState.CLOSED
                 }
             }

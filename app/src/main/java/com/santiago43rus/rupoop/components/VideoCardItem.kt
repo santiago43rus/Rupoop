@@ -38,6 +38,26 @@ fun VideoCardItem(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
+    val localThumbnailBitmap = remember(video.videoUrl) {
+        mutableStateOf<android.graphics.Bitmap?>(null)
+    }
+    LaunchedEffect(video.videoUrl) {
+        val isLocal = video.videoUrl.isNotEmpty() && !video.videoUrl.startsWith("http")
+        if (isLocal && video.thumbnailUrl == null && video.videoUrl.endsWith(".mp4")) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(video.videoUrl)
+                    val bmp = retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    localThumbnailBitmap.value = bmp
+                } catch (_: Exception) {
+                } finally {
+                    try { retriever.release() } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -47,7 +67,7 @@ fun VideoCardItem(
         // Preview (Thumbnail)
         Box(modifier = Modifier.fillMaxWidth()) {
             AsyncImage(
-                model = video.thumbnailUrl, contentDescription = null,
+                model = video.thumbnailUrl ?: localThumbnailBitmap.value ?: video.videoUrl, contentDescription = null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16 / 9f)
@@ -102,7 +122,9 @@ fun VideoCardItem(
                     .clip(CircleShape)
                     .background(Color.Gray)
                     .clickable { video.author?.let { onAuthorClick(it) } },
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Crop,
+                fallback = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
+                error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details)
             )
 
             Column(
