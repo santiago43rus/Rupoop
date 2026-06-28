@@ -83,6 +83,7 @@ fun CustomVideoPlayer(
     onBackgroundToggle: () -> Unit = {}
 ) {
     var showControls by remember { mutableStateOf(true) }
+    val isLocalFile = currentVideo?.videoUrl != null && !currentVideo.videoUrl.startsWith("http")
     var currentTime by remember { mutableLongStateOf(exoPlayer.currentPosition) }
     var duration by remember { mutableLongStateOf(exoPlayer.duration.coerceAtLeast(0L)) }
     var showSettings by remember { mutableStateOf(false) }
@@ -204,7 +205,7 @@ fun CustomVideoPlayer(
 
                         // Определяем тип жеста при первом достаточном смещении
                         if (!isMoreVideosGesture && !isScreenTransitionGesture && absY > 20f && absY > absX) {
-                            if (isFullscreen && totalDragY < 0 && !showMoreVideos) {
+                            if (isFullscreen && totalDragY < 0 && !showMoreVideos && !isLocalFile) {
                                 isMoreVideosGesture = true
                             } else if (isFullscreen && totalDragY > 0) {
                                 isScreenTransitionGesture = true
@@ -653,7 +654,7 @@ fun CustomVideoPlayer(
             label = "moreVideosY"
         )
 
-        if (showMoreVideos || animatedOffsetY < screenHeightPixels) {
+        if ((showMoreVideos || animatedOffsetY < screenHeightPixels) && !isLocalFile) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -692,7 +693,18 @@ fun CustomVideoPlayer(
                     Row(Modifier.padding(vertical = 8.dp).padding(start = if (isFullscreen) 48.dp else 16.dp, end = if (isFullscreen) 32.dp else 16.dp)) {
                         FilterChip(selected = true, onClick = {}, label = { Text("Все видео") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedContainerColor = Color.White.copy(0.2f)))
                         Spacer(Modifier.width(8.dp))
-                        FilterChip(selected = false, onClick = {}, label = { Text("Автор: ${currentVideo?.author?.name ?: "Автор"}") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White))
+                        FilterChip(
+                            selected = false,
+                            onClick = {},
+                            label = {
+                                Text(
+                                    text = "Автор: ${currentVideo?.author?.name ?: "Автор"}",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(labelColor = Color.White)
+                        )
                     }
 
                     LazyRow(
@@ -752,7 +764,7 @@ fun CustomVideoPlayer(
                                             if (viewsText.isNotEmpty()) append(" • $viewsText")
                                             if (timeAgoText.isNotEmpty()) append(" • $timeAgoText")
                                         }
-                                        Text(metaText, color = Color.White.copy(0.6f), fontSize = 12.sp)
+                                        Text(metaText, color = Color.White.copy(0.6f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }

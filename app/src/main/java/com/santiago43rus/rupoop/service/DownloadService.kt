@@ -3,12 +3,14 @@ package com.santiago43rus.rupoop.service
 import android.app.*
 import android.content.Intent
 import android.media.MediaScannerConnection
+import android.os.Environment
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.santiago43rus.rupoop.data.DownloadItem
 import com.santiago43rus.rupoop.data.DownloadStatus
 import com.santiago43rus.rupoop.data.DownloadTracker
+import com.santiago43rus.rupoop.network.RetrofitClient
 import com.santiago43rus.rupoop.util.isNetworkAvailable
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
@@ -33,24 +35,11 @@ class DownloadService : Service() {
     private val CHANNEL_SILENT_ID = "download_silent_channel_v2"
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
-    private var downloadJob: Job? = null
     
     private val client = OkHttpClient()
     private lateinit var downloadTracker: DownloadTracker
     
-    private var currentTitle: String = ""
-    private var currentUrl: String = ""
-    private var currentVideoId: String = ""
-    private var targetQuality: String = "1080"
-    private var isAudio = false
-    private var isPaused = false
-    private var downloadedSegments = 0
-    private var totalSegments = 0
-    private var outputFile: File? = null
-
-    private fun getNotificationId(): Int {
-        return if (currentVideoId.isNotEmpty()) currentVideoId.hashCode().let { if (it == 0) 1 else abs(it) } else 1
-    }
+    private val activeTasks = java.util.concurrent.ConcurrentHashMap<String, DownloadTask>()
 
     companion object {
         const val ACTION_DOWNLOAD_COMPLETE = "com.santiago43rus.rupoop.DOWNLOAD_COMPLETE"
@@ -65,7 +54,6 @@ class DownloadService : Service() {
         createNotificationChannel()
         downloadTracker = DownloadTracker(applicationContext)
 
-        // Log all available encoders to understand what formats are natively supported on this device
         try {
             val list = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS)
             for (info in list.codecInfos) {
@@ -82,269 +70,241 @@ class DownloadService : Service() {
         val action = intent?.action
         Log.d("DownloadService", "onStartCommand action: $action")
 
-        // Read videoId from action intents
-        val actionVideoId = intent?.getStringExtra("VIDEO_ID")
+        val actionVideoId = intent?.getStringExtra("VIDEO_ID") ?: ""
         
         when (action) {
             "CANCEL" -> {
-                // Must call startForeground before processing if service not yet foreground
-                if (currentVideoId.isEmpty() && actionVideoId != null) {
-                    currentVideoId = actionVideoId
-                }
-                startForegroundSafely(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0))
-                if (actionVideoId == null || actionVideoId == currentVideoId) {
-                    cancelDownload()
-                } else {
-                    stopSelf()
+                if (actionVideoId.isNotEmpty()) {
+                    val task = activeTasks[actionVideoId]
+                    if (task != null) {
+                        task.job?.cancel()
+                        task.outputFile?.let { if (it.exists()) it.delete() }
+                        activeTasks.remove(actionVideoId)
+                    } else {
+                        val tracked = downloadTracker.downloads.value.find { it.videoId == actionVideoId }
+                        tracked?.filePath?.let { path ->
+                            val f = File(path)
+                            if (f.exists()) f.delete()
+                        }
+                    }
+                    downloadTracker.updateStatus(actionVideoId, DownloadStatus.CANCELLED)
+                    sendBroadcast(Intent(ACTION_DOWNLOAD_CANCELLED).putExtra("video_id", actionVideoId))
+                    val manager = getSystemService(NotificationManager::class.java)
+                    manager?.cancel(actionVideoId.hashCode().let { if (it == 0) 1 else abs(it) })
+                    checkAndStopService()
                 }
                 return START_NOT_STICKY
             }
             "PAUSE" -> {
-                startForegroundSafely(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0))
-                if (actionVideoId == null || actionVideoId == currentVideoId) {
-                    pauseDownload()
+                if (actionVideoId.isNotEmpty()) {
+                    val task = activeTasks[actionVideoId]
+                    if (task != null) {
+                        task.isPaused = true
+                        task.job?.cancel()
+                        activeTasks.remove(actionVideoId)
+                        updateNotification(task.videoId, task.title, if (task.totalSegments > 0) (task.downloadedSegments * 100) / task.totalSegments else 0, task.isAudio, true, "Приостановлено")
+                    }
+                    downloadTracker.updateStatus(actionVideoId, DownloadStatus.PAUSED)
+                    sendBroadcast(Intent(ACTION_DOWNLOAD_PAUSED).putExtra("video_id", actionVideoId))
+                    checkAndStopService()
                 }
                 return START_NOT_STICKY
             }
             "RESUME" -> {
-                startForegroundSafely(getNotificationId(), createNotification(currentTitle.ifEmpty { "Загрузка" }, 0))
-                if (actionVideoId == null || actionVideoId == currentVideoId) {
-                    resumeDownload()
+                if (actionVideoId.isNotEmpty() && !activeTasks.containsKey(actionVideoId)) {
+                    val tracked = downloadTracker.downloads.value.find { it.videoId == actionVideoId }
+                    if (tracked != null) {
+                        serviceScope.launch {
+                            try {
+                                val realId = actionVideoId.substringBefore("___")
+                                val opt = RetrofitClient.api.getVideoOptions(realId)
+                                val m3u8Url = opt.videoBalancer?.m3u8
+                                if (m3u8Url != null) {
+                                    val isAudioTrack = tracked.filePath?.endsWith(".m4a") == true || tracked.filePath?.endsWith(".mp3") == true
+                                    val task = DownloadTask(actionVideoId, m3u8Url, tracked.title, "1080", isAudioTrack, tracked.thumbnailUrl)
+                                    activeTasks[actionVideoId] = task
+                                    downloadTracker.updateStatus(actionVideoId, DownloadStatus.DOWNLOADING)
+                                    sendBroadcast(Intent(ACTION_DOWNLOAD_RESUMED).putExtra("video_id", actionVideoId))
+                                    task.start()
+                                } else {
+                                    downloadTracker.updateStatus(actionVideoId, DownloadStatus.ERROR, "Не удалось получить ссылку на поток")
+                                }
+                            } catch (e: Exception) {
+                                Log.e("DownloadService", "Error resuming task", e)
+                                downloadTracker.updateStatus(actionVideoId, DownloadStatus.ERROR, e.message)
+                            }
+                        }
+                    }
                 }
                 return START_NOT_STICKY
             }
         }
 
-        currentUrl = intent?.getStringExtra("VIDEO_URL") ?: return START_NOT_STICKY
-        currentTitle = intent.getStringExtra("TITLE") ?: "Video"
-        currentVideoId = intent.getStringExtra("VIDEO_ID") ?: ""
-        targetQuality = intent.getStringExtra("QUALITY") ?: "1080"
-        isAudio = intent.getBooleanExtra("IS_AUDIO", false)
-        downloadedSegments = 0
-        totalSegments = 0
-        isPaused = false
+        val url = intent?.getStringExtra("VIDEO_URL") ?: return START_NOT_STICKY
+        val title = intent.getStringExtra("TITLE") ?: "Video"
+        val videoId = intent.getStringExtra("VIDEO_ID") ?: ""
+        val quality = intent.getStringExtra("QUALITY") ?: "1080"
+        val isAudioTrack = intent.getBooleanExtra("IS_AUDIO", false)
+        val thumbnailUrl = intent.getStringExtra("THUMBNAIL_URL")
 
-        // Check network before starting
-        if (!isNetworkAvailable(this)) {
-            downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Нет подключения к интернету")
-            sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", "Нет интернета"))
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        if (videoId.isNotEmpty() && !activeTasks.containsKey(videoId)) {
+            val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+            val moviesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+            if (!musicDir.exists()) musicDir.mkdirs()
+            if (!moviesDir.exists()) moviesDir.mkdirs()
 
-        // Track this download
-        downloadTracker.addDownload(DownloadItem(
-            videoId = currentVideoId,
-            title = currentTitle,
-            thumbnailUrl = intent.getStringExtra("THUMBNAIL_URL"),
-            filePath = if (isAudio) {
-                val musicDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC)
-                File(musicDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${currentVideoId}.m4a").absolutePath
+            val path = if (isAudioTrack) {
+                File(musicDir, "${title.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${videoId}.m4a").absolutePath
             } else {
-                val moviesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES)
-                File(moviesDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${currentVideoId}.mp4").absolutePath
-            },
-            status = DownloadStatus.DOWNLOADING
-        ))
+                File(moviesDir, "${title.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${videoId}.mp4").absolutePath
+            }
 
-        startForegroundSafely(getNotificationId(), createNotification(currentTitle, 0))
-        startDownload()
+            downloadTracker.addDownload(DownloadItem(
+                videoId = videoId,
+                title = title,
+                thumbnailUrl = thumbnailUrl,
+                filePath = path,
+                status = DownloadStatus.DOWNLOADING
+            ))
+
+            val task = DownloadTask(videoId, url, title, quality, isAudioTrack, thumbnailUrl)
+            activeTasks[videoId] = task
+            
+            val notifId = videoId.hashCode().let { if (it == 0) 1 else abs(it) }
+            val showNotif = com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications
+            if (showNotif) {
+                startForegroundSafely(notifId, createNotification(title, 0, videoId, isAudioTrack, false))
+            }
+            
+            task.start()
+        }
 
         return START_NOT_STICKY
     }
 
-    private fun startDownload() {
-        isPaused = false
-        downloadJob = serviceScope.launch {
-            try {
-                // Re-check network
-                if (!isNetworkAvailable(this@DownloadService)) {
-                    downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Нет подключения к интернету")
-                    sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", "Нет интернета"))
-                    stopForegroundSafely(STOP_FOREGROUND_DETACH)
-                    stopSelf()
-                    return@launch
-                }
+    private fun checkAndStopService() {
+        if (activeTasks.isEmpty()) {
+            stopForegroundSafely(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+    }
 
-                val trackedItem = downloadTracker.downloads.value.find { it.videoId == currentVideoId }
-                if (trackedItem != null && (trackedItem.filePath?.endsWith(".m4a") == true || trackedItem.filePath?.endsWith(".mp3") == true)) {
-                    isAudio = true
-                }
+    private inner class DownloadTask(
+        val videoId: String,
+        val url: String,
+        val title: String,
+        val quality: String,
+        var isAudio: Boolean,
+        val thumbnailUrl: String?
+    ) {
+        var job: Job? = null
+        var isPaused = false
+        var downloadedSegments = 0
+        var totalSegments = 0
+        var outputFile: File? = null
 
-                val mediaPlaylistUrl = resolveMediaPlaylist(currentUrl, if (isAudio) "LOWEST" else targetQuality)
-                val segments = fetchSegments(mediaPlaylistUrl)
-                totalSegments = segments.size
-
-                val moviesDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES)
-                val musicDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC)
-                if (!moviesDir.exists()) moviesDir.mkdirs()
-                if (!musicDir.exists()) musicDir.mkdirs()
-
-                val finalFile = if (isAudio) {
-                    File(musicDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${currentVideoId}.m4a")
-                } else {
-                    File(moviesDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${currentVideoId}.mp4")
-                }
-
-                val downloadFile = if (isAudio) {
-                    File(applicationContext.cacheDir, "${currentTitle.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_temp.mp4")
-                } else {
-                    finalFile
-                }
-                outputFile = downloadFile
-
-                val fos = FileOutputStream(downloadFile, downloadedSegments > 0)
-
-                for (i in downloadedSegments until totalSegments) {
-                    if (!isActive || isPaused) break
-
-                    // Check network periodically
-                    if (i % 10 == 0 && !isNetworkAvailable(this@DownloadService)) {
-                        fos.close()
-                        downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Соединение потеряно")
-                        sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", "Соединение потеряно"))
-                        if (com.santiago43rus.rupoop.data.SettingsManager(this@DownloadService).showDownloadNotifications) {
-                            updateNotification(currentTitle, 0, false, "Ошибка: Нет интернета")
-                        }
-                        stopForegroundSafely(STOP_FOREGROUND_DETACH)
-                        stopSelf()
+        fun start() {
+            isPaused = false
+            job = serviceScope.launch {
+                try {
+                    if (!isNetworkAvailable(this@DownloadService)) {
+                        downloadTracker.updateStatus(videoId, DownloadStatus.ERROR, "Нет подключения к интернету")
+                        sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", title).putExtra("error", "Нет интернета"))
+                        updateNotification(videoId, title, 0, isAudio, false, "Ошибка: Нет интернета")
+                        activeTasks.remove(videoId)
+                        checkAndStopService()
                         return@launch
                     }
 
-                    val segmentUrl = segments[i]
-                    downloadSegment(segmentUrl, fos)
+                    val mediaPlaylistUrl = resolveMediaPlaylist(url, if (isAudio) "LOWEST" else quality)
+                    val segments = fetchSegments(mediaPlaylistUrl)
+                    totalSegments = segments.size
 
-                    downloadedSegments++
-                    val progress = (downloadedSegments * 100) / totalSegments
-                    updateNotification(currentTitle, progress, false)
-                    downloadTracker.updateProgress(currentVideoId, progress)
-                }
+                    val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+                    val moviesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+                    if (!musicDir.exists()) musicDir.mkdirs()
+                    if (!moviesDir.exists()) moviesDir.mkdirs()
 
-                fos.close()
-                
-                if (downloadedSegments == totalSegments) {
-                    if (isAudio) {
-                        try {
-                            extractAudioTrack(downloadFile, finalFile)
-                        } finally {
-                            if (downloadFile.exists()) {
-                                downloadFile.delete()
-                            }
-                        }
-                        outputFile = finalFile
+                    val finalFile = if (isAudio) {
+                        File(musicDir, "${title.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${videoId}.m4a")
+                    } else {
+                        File(moviesDir, "${title.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_rupoop_${videoId}.mp4")
                     }
-                    MediaScannerConnection.scanFile(this@DownloadService, arrayOf(outputFile!!.absolutePath), arrayOf(if (isAudio) "audio/mp4" else "video/mp4")) { path, uri ->
-                        Log.d("DownloadService", "Scanned $path: uri=$uri")
+
+                    val tempFile = if (isAudio) {
+                        File(applicationContext.cacheDir, "${title.replace("[^a-zA-Z0-9А-Яа-я]".toRegex(), "_")}_temp_${videoId}.mp4")
+                    } else {
+                        finalFile
                     }
-                    downloadTracker.updateStatus(currentVideoId, DownloadStatus.COMPLETED, filePath = outputFile!!.absolutePath)
-                    sendBroadcast(Intent(ACTION_DOWNLOAD_COMPLETE).putExtra("title", currentTitle))
-                    onDownloadComplete()
-                }
-            } catch (e: Exception) {
-                if (e is CancellationException) return@launch
-                Log.e("RupoopDownload", "Download error", e)
-                downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, e.message)
-                sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", currentTitle).putExtra("error", e.message))
-                if (com.santiago43rus.rupoop.data.SettingsManager(this@DownloadService).showDownloadNotifications) {
-                    updateNotification(currentTitle, 0, false, "Ошибка: ${e.message}")
-                }
-                stopForegroundSafely(STOP_FOREGROUND_DETACH)
-                stopSelf()
-            }
-        }
-    }
-    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-    private suspend fun extractAudioTrack(inputFile: File, outputFile: File) {
-        suspendCancellableCoroutine { continuation ->
-            try {
-                val mediaItem = MediaItem.fromUri(inputFile.toURI().toString())
+                    outputFile = tempFile
 
-                // Настраиваем элемент: говорим, что нам нужно вырезать видео
-                val editedMediaItem = EditedMediaItem.Builder(mediaItem)
-                    .setRemoveVideo(true)
-                    .build()
+                    val tracked = downloadTracker.downloads.value.find { it.videoId == videoId }
+                    val startSegment = if (tracked != null && tracked.status == DownloadStatus.PAUSED && tempFile.exists()) {
+                        val est = (tracked.progress * totalSegments) / 100
+                        est.coerceIn(0, totalSegments)
+                    } else {
+                        0
+                    }
+                    downloadedSegments = startSegment
 
-                // Настраиваем Трансформер
-                val transformer = Transformer.Builder(applicationContext)
-                    .setAudioMimeType(MimeTypes.AUDIO_AAC) // Жестко задаем AAC (.m4a)
-                    .addListener(object : Transformer.Listener {
-                        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                            Log.d("DownloadService", "Audio extraction completed successfully via Media3")
-                            continuation.resume(Unit)
+                    val fos = FileOutputStream(tempFile, downloadedSegments > 0)
+
+                    for (i in downloadedSegments until totalSegments) {
+                        if (!isActive || isPaused) break
+
+                        if (i % 10 == 0 && !isNetworkAvailable(this@DownloadService)) {
+                            fos.close()
+                            downloadTracker.updateStatus(videoId, DownloadStatus.ERROR, "Соединение потеряно")
+                            sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", title).putExtra("error", "Соединение потеряно"))
+                            updateNotification(videoId, title, 0, isAudio, false, "Ошибка: Соединение потеряно")
+                            activeTasks.remove(videoId)
+                            checkAndStopService()
+                            return@launch
                         }
 
-                        override fun onError(
-                            composition: Composition,
-                            exportResult: ExportResult,
-                            exportException: ExportException
-                        ) {
-                            Log.e("DownloadService", "Media3 Export error", exportException)
-                            // В случае ошибки пробуем просто скопировать файл, чтобы не оставлять пользователя ни с чем
+                        val segmentUrl = segments[i]
+                        downloadSegment(segmentUrl, fos)
+
+                        downloadedSegments++
+                        val progress = if (totalSegments > 0) (downloadedSegments * 100) / totalSegments else 0
+                        updateNotification(videoId, title, progress, isAudio, false)
+                        downloadTracker.updateProgress(videoId, progress)
+                    }
+
+                    fos.close()
+
+                    if (downloadedSegments == totalSegments) {
+                        if (isAudio) {
                             try {
-                                inputFile.copyTo(outputFile, overwrite = true)
-                                continuation.resume(Unit)
-                            } catch (e: Exception) {
-                                continuation.resumeWithException(exportException)
+                                extractAudioTrack(tempFile, finalFile)
+                            } finally {
+                                if (tempFile.exists()) {
+                                    tempFile.delete()
+                                }
                             }
+                            outputFile = finalFile
                         }
-                    })
-                    .build()
-
-                // Запускаем процесс конвертации
-                transformer.start(editedMediaItem, outputFile.absolutePath)
-
-                // Если корутину отменят (например, пользователь нажал Отмена), останавливаем трансформер
-                continuation.invokeOnCancellation {
-                    transformer.cancel()
-                    if (outputFile.exists()) {
-                        outputFile.delete()
+                        MediaScannerConnection.scanFile(this@DownloadService, arrayOf(outputFile!!.absolutePath), arrayOf(if (isAudio) "audio/mp4" else "video/mp4")) { path, uri ->
+                            Log.d("DownloadService", "Scanned $path: uri=$uri")
+                        }
+                        downloadTracker.updateStatus(videoId, DownloadStatus.COMPLETED, filePath = outputFile!!.absolutePath)
+                        sendBroadcast(Intent(ACTION_DOWNLOAD_COMPLETE).putExtra("title", title))
+                        
+                        showCompleteNotification(title, isAudio, videoId)
                     }
+                    activeTasks.remove(videoId)
+                    checkAndStopService()
+                } catch (e: Exception) {
+                    if (e is CancellationException) return@launch
+                    Log.e("RupoopDownload", "Download error in task $videoId", e)
+                    downloadTracker.updateStatus(videoId, DownloadStatus.ERROR, e.message)
+                    sendBroadcast(Intent(ACTION_DOWNLOAD_ERROR).putExtra("title", title).putExtra("error", e.message))
+                    updateNotification(videoId, title, 0, isAudio, false, "Ошибка: ${e.message}")
+                    activeTasks.remove(videoId)
+                    checkAndStopService()
                 }
-            } catch (e: Exception) {
-                Log.e("DownloadService", "Failed to setup Media3 Transformer", e)
-                // Фолбэк на прямое копирование, если Трансформер вообще не смог завестись
-                inputFile.copyTo(outputFile, overwrite = true)
-                continuation.resume(Unit)
             }
         }
-    }
-
-    private fun onDownloadComplete() {
-        // Remove the progress notification
-        stopForegroundSafely(STOP_FOREGROUND_REMOVE)
-
-        if (com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications) {
-            // Post a separate completion notification with a different ID
-            val manager = getSystemService(NotificationManager::class.java)
-            val completeNotifId = getNotificationId() + 10000
-
-            val builder = NotificationCompat.Builder(this, CHANNEL_COMPLETE_ID)
-                .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                .setContentTitle("Загрузка завершена")
-                .setContentText(currentTitle)
-                .setAutoCancel(true)
-                .setOngoing(false)
-
-            // Create intent to open app's Downloads screen
-            try {
-                val playIntent = Intent(this, Class.forName("com.santiago43rus.rupoop.MainActivity")).apply {
-                    action = "OPEN_DOWNLOADS"
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                }
-                val viewPendingIntent = PendingIntent.getActivity(
-                    this,
-                    completeNotifId,
-                    playIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                builder.setContentIntent(viewPendingIntent)
-            } catch (e: Exception) {
-                Log.e("DownloadService", "Error creating play intent for completion notification", e)
-            }
-
-            manager?.notify(completeNotifId, builder.build())
-        }
-        stopSelf()
     }
 
     private suspend fun resolveMediaPlaylist(url: String, quality: String): String {
@@ -371,7 +331,7 @@ class DownloadService : Service() {
                     }
 
                     if (streamUrl != null) {
-                        if (quality != "LOWEST" && quality != "LOW_RESOLUTION" && quality != "LOWEST_RESOLUTION" && h.toString() == quality) return streamUrl
+                        if (quality != "LOWEST" && h.toString() == quality) return streamUrl
                         if (h > maxRes) {
                             maxRes = h
                             bestUrl = streamUrl
@@ -383,7 +343,7 @@ class DownloadService : Service() {
                     }
                 }
             }
-            if (quality == "LOWEST" || isAudio) {
+            if (quality == "LOWEST") {
                 return worstUrl ?: bestUrl ?: url
             }
             return bestUrl ?: url
@@ -411,41 +371,54 @@ class DownloadService : Service() {
         }
     }
 
-    private fun pauseDownload() {
-        isPaused = true
-        downloadJob?.cancel()
-        downloadTracker.updateStatus(currentVideoId, DownloadStatus.PAUSED)
-        sendBroadcast(Intent(ACTION_DOWNLOAD_PAUSED).putExtra("title", currentTitle))
-        updateNotification(currentTitle, (downloadedSegments * 100) / totalSegments.coerceAtLeast(1), false, "Приостановлено")
-    }
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private suspend fun extractAudioTrack(inputFile: File, outputFile: File) {
+        withContext(Dispatchers.Main) {
+            suspendCancellableCoroutine { continuation ->
+                try {
+                    val mediaItem = MediaItem.fromUri(inputFile.toURI().toString())
 
-    private fun resumeDownload() {
-        if (isPaused) {
-            if (!isNetworkAvailable(this)) {
-                downloadTracker.updateStatus(currentVideoId, DownloadStatus.ERROR, "Нет подключения к интернету")
-                return
+                    val editedMediaItem = EditedMediaItem.Builder(mediaItem)
+                        .setRemoveVideo(true)
+                        .build()
+
+                    val transformer = Transformer.Builder(applicationContext)
+                        .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                        .addListener(object : Transformer.Listener {
+                            override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                                Log.d("DownloadService", "Audio extraction completed successfully via Media3")
+                                continuation.resume(Unit)
+                            }
+
+                            override fun onError(
+                                composition: Composition,
+                                exportResult: ExportResult,
+                                exportException: ExportException
+                            ) {
+                                Log.e("DownloadService", "Media3 Export error", exportException)
+                                try {
+                                    inputFile.copyTo(outputFile, overwrite = true)
+                                    continuation.resume(Unit)
+                                } catch (e: Exception) {
+                                    continuation.resumeWithException(exportException)
+                                }
+                            }
+                        })
+                        .build()
+
+                    transformer.start(editedMediaItem, outputFile.absolutePath)
+
+                    continuation.invokeOnCancellation {
+                        transformer.cancel()
+                        if (outputFile.exists()) {
+                            outputFile.delete()
+                        }
+                    }
+                } catch (e: Exception) {
+                    continuation.resumeWithException(e)
+                }
             }
-            sendBroadcast(Intent(ACTION_DOWNLOAD_RESUMED).putExtra("title", currentTitle))
-            startDownload()
         }
-    }
-
-    private fun cancelDownload() {
-        Log.d("DownloadService", "Cancelling download...")
-        downloadJob?.cancel()
-
-        outputFile?.let {
-            if (it.exists()) it.delete()
-        }
-
-        downloadTracker.updateStatus(currentVideoId, DownloadStatus.CANCELLED)
-        sendBroadcast(Intent(ACTION_DOWNLOAD_CANCELLED).putExtra("title", currentTitle))
-
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.cancel(getNotificationId())
-
-        stopForegroundSafely(STOP_FOREGROUND_REMOVE)
-        stopSelf()
     }
 
     private fun createNotificationChannel() {
@@ -466,12 +439,19 @@ class DownloadService : Service() {
         manager?.createNotificationChannel(silentChannel)
     }
 
-    private fun createNotification(title: String, progress: Int, isComplete: Boolean = false, statusText: String? = null): Notification {
-        val vidHash = currentVideoId.hashCode()
+    private fun createNotification(
+        title: String,
+        progress: Int,
+        videoId: String,
+        isAudioTrack: Boolean,
+        isPaused: Boolean,
+        statusText: String? = null
+    ): Notification {
+        val vidHash = videoId.hashCode().let { if (it == 0) 1 else abs(it) }
 
         val cancelIntent = Intent(this, DownloadService::class.java).apply {
             action = "CANCEL"
-            putExtra("VIDEO_ID", currentVideoId)
+            putExtra("VIDEO_ID", videoId)
         }
         val cancelPendingIntent = PendingIntent.getService(this, vidHash + 1, cancelIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
@@ -490,7 +470,7 @@ class DownloadService : Service() {
 
         val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(statusText ?: (if (isAudio) "Загрузка аудио: $title" else "Загрузка: $title"))
+            .setContentTitle(statusText ?: (if (isAudioTrack) "Загрузка аудио: $title" else "Загрузка: $title"))
             .setOngoing(statusText == null)
             .setProgress(100, progress, false)
             .setPriority(if (showNotif) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
@@ -501,14 +481,14 @@ class DownloadService : Service() {
             val pauseAction = if (isPaused) {
                 val resumeIntent = Intent(this, DownloadService::class.java).apply {
                     action = "RESUME"
-                    putExtra("VIDEO_ID", currentVideoId)
+                    putExtra("VIDEO_ID", videoId)
                 }
                 val resumePendingIntent = PendingIntent.getService(this, vidHash + 2, resumeIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
                 NotificationCompat.Action(android.R.drawable.ic_media_play, "Возобновить", resumePendingIntent)
             } else {
                 val pauseIntent = Intent(this, DownloadService::class.java).apply {
                     action = "PAUSE"
-                    putExtra("VIDEO_ID", currentVideoId)
+                    putExtra("VIDEO_ID", videoId)
                 }
                 val pausePendingIntent = PendingIntent.getService(this, vidHash + 3, pauseIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
                 NotificationCompat.Action(android.R.drawable.ic_media_pause, "Пауза", pausePendingIntent)
@@ -517,15 +497,43 @@ class DownloadService : Service() {
             builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Отмена", cancelPendingIntent)
         }
 
-
         return builder.build()
     }
 
-    private fun updateNotification(title: String, progress: Int, isComplete: Boolean, statusText: String? = null) {
+    private fun updateNotification(
+        videoId: String,
+        title: String,
+        progress: Int,
+        isAudioTrack: Boolean,
+        isPaused: Boolean,
+        statusText: String? = null
+    ) {
         val showNotif = com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications
         if (!showNotif) return
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(getNotificationId(), createNotification(title, progress, isComplete, statusText))
+        val notifId = videoId.hashCode().let { if (it == 0) 1 else abs(it) }
+        manager?.notify(notifId, createNotification(title, progress, videoId, isAudioTrack, isPaused, statusText))
+    }
+
+    private fun showCompleteNotification(title: String, isAudioTrack: Boolean, videoId: String) {
+        val manager = getSystemService(NotificationManager::class.java)
+        val notifId = videoId.hashCode().let { if (it == 0) 1 else abs(it) }
+        
+        val intent = Intent(this, Class.forName("com.santiago43rus.rupoop.MainActivity")).apply {
+            action = "OPEN_DOWNLOADS"
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        val pendingIntent = PendingIntent.getActivity(this, notifId + 5, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val completeNotif = NotificationCompat.Builder(this, CHANNEL_COMPLETE_ID)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("Загрузка завершена")
+            .setContentText(if (isAudioTrack) "Аудио: $title" else "Видео: $title")
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .build()
+            
+        manager?.notify(notifId, completeNotif)
     }
 
     private fun startForegroundSafely(id: Int, notification: Notification) {

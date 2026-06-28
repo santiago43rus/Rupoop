@@ -25,6 +25,8 @@ import android.speech.SpeechRecognizer
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.IntentSenderRequest
+import android.provider.MediaStore
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -686,9 +688,13 @@ fun RutubeApp(
                                     onClick = {
                                         vm.startDownload(video, isAudio = false)
                                         vm.showDownloadDialog = null
-                                    }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    )
                                 ) {
-                                    Text("Видео")
+                                    Text("Видео (MP4)")
                                 }
                             },
                             dismissButton = {
@@ -696,7 +702,11 @@ fun RutubeApp(
                                     onClick = {
                                         vm.startDownload(video, isAudio = true)
                                         vm.showDownloadDialog = null
-                                    }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    )
                                 ) {
                                     Text("Аудио (M4A)")
                                 }
@@ -1209,6 +1219,17 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
     var deleteDialogTitle by remember { mutableStateOf("") }
     var deleteDialogMessage by remember { mutableStateOf("") }
 
+    var pendingDeleteVideoId by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            pendingDeleteVideoId?.let { videoId ->
+                vm.downloadTracker.removeDownload(videoId)
+            }
+        }
+        pendingDeleteVideoId = null
+    }
+
     when (vm.currentLibSub) {
         LibrarySubScreen.NONE -> {
             LibraryScreen(
@@ -1380,11 +1401,26 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         val item = downloads.find { it.videoId == videoId }
                         item?.filePath?.let { path ->
                             val file = File(path)
-                            if (file.exists()) {
-                                file.delete()
+                            var deleted = false
+                            try {
+                                if (file.exists() && file.delete()) {
+                                    deleted = true
+                                }
+                            } catch (_: Exception) {}
+
+                            if (deleted) {
+                                vm.downloadTracker.removeDownload(videoId)
+                            } else {
+                                val uri = vm.downloadTracker.getUriFromFilePath(context, path)
+                                if (uri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                    val pi = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
+                                    pendingDeleteVideoId = videoId
+                                    deleteLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pi.intentSender).build())
+                                } else {
+                                    vm.downloadTracker.removeDownload(videoId)
+                                }
                             }
                         }
-                        vm.downloadTracker.removeDownload(videoId)
                     }
                 },
                 onRetry = { videoId ->
@@ -1403,6 +1439,9 @@ private fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                             vm.playLocalFile(path, item.title, list, true)
                         }
                     }
+                },
+                onPermissionGranted = {
+                    vm.downloadTracker.indexSavedFiles()
                 }
             )
         }

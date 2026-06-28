@@ -217,6 +217,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         sharedPlayer = player
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) { this@AppViewModel.isPlaying = playing }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                Log.e("Rupoop", "ExoPlayer error", error)
+                viewModelScope.launch {
+                    _snackbarMessage.emit("Ошибка воспроизведения: видео недоступно или отсутствует подключение")
+                }
+                playerState = PlayerState.CLOSED
+            }
             override fun onPlaybackStateChanged(state: Int) {
                 this@AppViewModel.isBuffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_READY && currentVideo != null) {
@@ -345,22 +352,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             videoLoadingJob = viewModelScope.launch {
                 try {
-                    val optionsDeferred = async(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
-                    val relatedDeferred = async(Dispatchers.IO) {
-                        val queries = relatedVideoRecommender.getSearchQueries(video)
-                        val allResults = mutableListOf<SearchResult>()
-                        for (q in queries) {
-                            try {
-                                val res = RetrofitClient.api.searchVideos(q).results
-                                allResults.addAll(res)
-                                if (allResults.size > 20) break
-                            } catch (_: Exception) {}
-                        }
-                        allResults.distinctBy { it.videoUrl }
-                    }
-
-                    val opt = optionsDeferred.await()
-                    opt.videoBalancer?.m3u8?.let { url ->
+                    val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
+                    val url = opt.videoBalancer?.m3u8
+                    if (url != null) {
                         exoPlayer.stop()
                         exoPlayer.clearMediaItems()
                         
@@ -390,9 +384,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         
                         exoPlayer.play()
                         playerState = PlayerState.FULL
+                    } else {
+                        _snackbarMessage.emit("Видео недоступно (возможно, заблокировано или удалено)")
+                        playerState = PlayerState.CLOSED
                     }
 
-                    val relatedResults = relatedDeferred.await()
+                    val relatedResults = withContext(Dispatchers.IO) {
+                        val queries = relatedVideoRecommender.getSearchQueries(video)
+                        val allResults = mutableListOf<SearchResult>()
+                        for (q in queries) {
+                            try {
+                                val res = RetrofitClient.api.searchVideos(q).results
+                                allResults.addAll(res)
+                                if (allResults.size > 20) break
+                            } catch (_: Exception) {}
+                        }
+                        allResults.distinctBy { it.videoUrl }
+                    }
                     val filteredRelated = relatedVideoRecommender.recommendRelated(video, relatedResults)
                     val finalRelated = filterHiddenAndDisliked(filteredRelated)
                     relatedVideos = finalRelated
@@ -402,6 +410,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Play error", e)
+                    _snackbarMessage.emit("Не удалось запустить видео: проверьте подключение или VPN")
+                    playerState = PlayerState.CLOSED
                 }
             }
         }
@@ -445,6 +455,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             currentVideoIndex = 0
         }
         relatedVideos = emptyList()
+
+        val uniqueId = extractId(filePath) ?: filePath
+        val historyItem = userRegistry.watchHistory.find { it.videoId == uniqueId }
+
+        registryManager.addWatchHistory(WatchHistoryItem(
+            videoId = uniqueId,
+            timestamp = System.currentTimeMillis(),
+            progress = historyItem?.progress ?: 0,
+            totalDuration = historyItem?.totalDuration ?: 0,
+            title = title,
+            thumbnailUrl = null,
+            authorName = "Локальный файл",
+            authorAvatarUrl = null,
+            authorId = null,
+            videoUrl = filePath
+        ))
+        userRegistry = registryManager.registry
+        pushToGitHub()
+
         exoPlayer.stop()
         exoPlayer.clearMediaItems()
         
@@ -463,6 +492,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .build()
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
+
+        val historyProg = historyItem?.progress ?: 0
+        val historyTotal = historyItem?.totalDuration ?: 0
+        if (historyTotal > 0 && (historyProg.toFloat() / historyTotal) >= 0.95f) {
+            exoPlayer.seekTo(0)
+        } else if (historyProg > 0) {
+            exoPlayer.seekTo(historyProg)
+        }
+
         exoPlayer.play()
         playerState = PlayerState.FULL
 

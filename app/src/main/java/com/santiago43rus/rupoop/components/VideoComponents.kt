@@ -55,29 +55,37 @@ fun VideoDetails(
             modifier = Modifier.clickable { expanded = !expanded }
         )
         Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(48.dp)) {
-            AsyncImage(
-                model = video?.author?.avatarUrl ?: "", contentDescription = null,
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.Gray)
-                    .clickable { video?.author?.let { onAuthorClick(it) } }
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f).clickable { video?.author?.let { onAuthorClick(it) } }) {
-                Text(video?.author?.name ?: "Автор", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text("Rutube", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-            val isSubbed = registry.subscriptions.any { it.name.equals(video?.author?.name, ignoreCase = true) }
-            Button(
-                onClick = { video?.author?.let { onToggleSub(it) } },
-                colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                modifier = Modifier.height(32.dp)
-            ) {
-                Text(if (isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
+        val isLocalFile = video?.videoUrl?.startsWith("/") == true || video?.videoUrl?.startsWith("file://") == true || (video?.videoUrl != null && !video.videoUrl.startsWith("http"))
+        if (!isLocalFile) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(48.dp)) {
+                AsyncImage(
+                    model = video?.author?.avatarUrl ?: "", contentDescription = null,
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.Gray)
+                        .clickable { video?.author?.let { onAuthorClick(it) } }
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f).clickable { video?.author?.let { onAuthorClick(it) } }) {
+                    Text(
+                        video?.author?.name ?: "Автор",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text("Rutube", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+                val isSubbed = registry.subscriptions.any { it.name.equals(video?.author?.name, ignoreCase = true) }
+                Button(
+                    onClick = { video?.author?.let { onToggleSub(it) } },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text(if (isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
-        val isLocalFile = video?.videoUrl?.startsWith("/") == true || video?.videoUrl?.startsWith("file://") == true
         if (isLocalFile) {
             Box(
                 modifier = Modifier
@@ -93,7 +101,7 @@ fun VideoDetails(
                     ),
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier
-                        .fillMaxWidth(0.8f)
+                        .fillMaxWidth(0.95f)
                         .height(48.dp)
                 ) {
                     Icon(
@@ -105,7 +113,9 @@ fun VideoDetails(
                     Text(
                         text = if (isBackgroundEnabled) "Фоновое воспроизведение: ВКЛ" else "Воспроизвести в фоне",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

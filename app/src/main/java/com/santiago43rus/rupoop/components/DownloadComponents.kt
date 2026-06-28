@@ -40,7 +40,8 @@ fun DownloadsScreen(
     onCancel: (String) -> Unit,
     onDelete: (String) -> Unit,
     onRetry: (String) -> Unit,
-    onPlay: (DownloadItem) -> Unit = {}
+    onPlay: (DownloadItem) -> Unit = {},
+    onPermissionGranted: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var hasNotificationPermission by remember {
@@ -54,11 +55,90 @@ fun DownloadsScreen(
         hasNotificationPermission = granted
     }
 
+    var hasStoragePermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
+            } else {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            }
+        )
+    }
+    val storagePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        hasStoragePermission = results.values.all { it }
+        if (hasStoragePermission) {
+            onPermissionGranted()
+        }
+    }
+
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Storage permission card
+        if (!hasStoragePermission) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().animateContentSize(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Folder,
+                            null,
+                            tint = Color(0xFF1E88E5),
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Доступ к памяти отключен",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF212121)
+                            )
+                            Text(
+                                "Разрешите доступ к памяти, чтобы находить ранее скачанные файлы",
+                                fontSize = 12.sp,
+                                color = Color(0xFF616161)
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    storagePermissionLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.READ_MEDIA_VIDEO,
+                                            Manifest.permission.READ_MEDIA_AUDIO
+                                        )
+                                    )
+                                } else {
+                                    storagePermissionLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.READ_EXTERNAL_STORAGE,
+                                            Manifest.permission.WRITE_EXTERNAL_STORAGE
+                                        )
+                                    )
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5)),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Включить", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
         // Notification permission card
         if (!hasNotificationPermission && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             item {
@@ -170,6 +250,26 @@ private fun DownloadCard(
         label = "statusColor"
     )
 
+    val thumbnailBitmap = remember(item.filePath) {
+        mutableStateOf<android.graphics.Bitmap?>(null)
+    }
+    LaunchedEffect(item.filePath) {
+        if (item.thumbnailUrl == null && item.filePath != null && item.filePath.endsWith(".mp4")) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(item.filePath)
+                    val bmp = retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    thumbnailBitmap.value = bmp
+                } catch (e: Exception) {
+                    android.util.Log.e("DownloadCard", "Error extracting thumbnail for ${item.filePath}", e)
+                } finally {
+                    try { retriever.release() } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -192,7 +292,7 @@ private fun DownloadCard(
                         .background(Color.DarkGray)
                 ) {
                     AsyncImage(
-                        model = item.thumbnailUrl,
+                        model = item.thumbnailUrl ?: thumbnailBitmap.value ?: item.filePath,
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

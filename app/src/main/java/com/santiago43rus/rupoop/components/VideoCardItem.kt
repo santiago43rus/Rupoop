@@ -127,7 +127,9 @@ fun VideoCardItem(
                     "${video.author?.name ?: "Автор"} • Rutube$sep1$viewsText$sep2$timeAgoText",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } }
+                    modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 

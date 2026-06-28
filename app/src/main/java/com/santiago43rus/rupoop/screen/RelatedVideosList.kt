@@ -37,6 +37,8 @@ fun RelatedVideosList(
     isBackgroundEnabled: Boolean = false,
     onBackgroundPlayToggle: () -> Unit = {}
 ) {
+    val isLocalFile = currentVideo?.videoUrl != null && !currentVideo.videoUrl.startsWith("http")
+
     LazyColumn(
         modifier = modifier.graphicsLayer {
             alpha = (1f - alphaProgress * 2f).coerceIn(0f, 1f)
@@ -56,18 +58,22 @@ fun RelatedVideosList(
                 isBackgroundEnabled = isBackgroundEnabled,
                 onBackgroundPlayToggle = onBackgroundPlayToggle
             )
-            HorizontalDivider()
-            Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
+            if (!isLocalFile) {
+                HorizontalDivider()
+                Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
+            }
         }
-        items(relatedVideos) { video ->
-            val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-            VideoCardItem(
-                video = video,
-                history = history,
-                onClick = { onVideoClick(video, relatedVideos) },
-                onAuthorClick = onAuthorClick,
-                onMoreClick = { action -> onMoreClick(video, action) }
-            )
+        if (!isLocalFile) {
+            items(relatedVideos) { video ->
+                val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                VideoCardItem(
+                    video = video,
+                    history = history,
+                    onClick = { onVideoClick(video, relatedVideos) },
+                    onAuthorClick = onAuthorClick,
+                    onMoreClick = { action -> onMoreClick(video, action) }
+                )
+            }
         }
     }
 }
