@@ -28,6 +28,7 @@
 # ── Retrofit & OkHttp ────────────────────────────────────────────────────────
 -dontwarn retrofit2.**
 -keep class retrofit2.** { *; }
+-keep interface com.santiago43rus.rupoop.network.** { *; }
 -keepclasseswithmembers class * {
     @retrofit2.http.* <methods>;
 }
