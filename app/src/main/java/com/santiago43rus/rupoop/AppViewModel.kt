@@ -67,9 +67,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     page = authorPage,
                     hasMore = hasMoreAuthorVideos
                 )
+                // Save current library sub-screen state before switching
+                if (oldNav == NavItem.LIBRARY) {
+                    librarySubScreenStates[oldNav] = currentLibSub
+                }
 
                 _currentNavState.value = value
                 restoreSearchStateForTab(value)
+
+                // Restore library sub-screen state for the new tab
+                if (value == NavItem.LIBRARY) {
+                    currentLibSub = librarySubScreenStates[value] ?: LibrarySubScreen.NONE
+                } else {
+                    // If navigating to a non-Library tab, reset currentLibSub
+                    currentLibSub = LibrarySubScreen.NONE
+                }
 
                 // Restore author state for the new tab
                 val authorState = authorStates[value] ?: AuthorState(false, null, emptyList(), 1, true)
@@ -97,6 +109,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         NavItem.HOME to AuthorState(false, null, emptyList(), 1, true),
         NavItem.SUBSCRIPTIONS to AuthorState(false, null, emptyList(), 1, true),
         NavItem.LIBRARY to AuthorState(false, null, emptyList(), 1, true)
+    )
+
+    // ── Library Sub-Screen State Per Tab ──
+    private val librarySubScreenStates = mutableMapOf<NavItem, LibrarySubScreen>(
+        NavItem.HOME to LibrarySubScreen.NONE,
+        NavItem.SUBSCRIPTIONS to LibrarySubScreen.NONE,
+        NavItem.LIBRARY to LibrarySubScreen.NONE
     )
 
     // ── Videos data ──

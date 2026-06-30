@@ -992,7 +992,7 @@ private fun AppTopBar(
                             }
             if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (topVisible != null || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE || vm.currentNav != NavItem.HOME) {
+                    if (topVisible != null || vm.isSettingsVisible || vm.currentLibSub != LibrarySubScreen.NONE) {
                         IconButton(onClick = {
                             vm.handleBack()
                         }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) }
@@ -1003,13 +1003,14 @@ private fun AppTopBar(
                         when {
                             vm.isSettingsVisible -> "Настройки"
                             topVisible == OverlayState.AUTHOR -> vm.selectedAuthor?.name ?: "Канал"
-                            vm.currentLibSub == LibrarySubScreen.LIKED -> "Понравившиеся"
-                            vm.currentLibSub == LibrarySubScreen.WATCH_LATER -> "Смотреть позже"
-                            vm.currentLibSub == LibrarySubScreen.PLAYLISTS -> "Плейлисты"
-                            vm.currentLibSub == LibrarySubScreen.PLAYLIST_DETAIL -> vm.selectedPlaylist?.name ?: "Плейлист"
-                            vm.currentLibSub == LibrarySubScreen.HISTORY -> "История просмотра"
-                            vm.currentLibSub == LibrarySubScreen.DOWNLOADS -> "Загрузки"
+                            vm.currentNav == NavItem.LIBRARY && vm.currentLibSub == LibrarySubScreen.LIKED -> "Понравившиеся"
+                            vm.currentNav == NavItem.LIBRARY && vm.currentLibSub == LibrarySubScreen.WATCH_LATER -> "Смотреть позже"
+                            vm.currentNav == NavItem.LIBRARY && vm.currentLibSub == LibrarySubScreen.PLAYLISTS -> "Плейлисты"
+                            vm.currentNav == NavItem.LIBRARY && vm.currentLibSub == LibrarySubScreen.PLAYLIST_DETAIL -> vm.selectedPlaylist?.name ?: "Плейлист"
+                            vm.currentNav == NavItem.LIBRARY && vm.currentLibSub == LibrarySubScreen.HISTORY -> "История просмотра"
+                            vm.currentNav == NavItem.LIBRARY && vm.currentLibSub == LibrarySubScreen.DOWNLOADS -> "Загрузки"
                             else -> when (vm.currentNav) {
+                                NavItem.HOME -> "Rupoop"
                                 NavItem.SUBSCRIPTIONS -> "Rupoop"
                                 NavItem.LIBRARY -> "Rupoop"
                                 else -> "Rupoop"
