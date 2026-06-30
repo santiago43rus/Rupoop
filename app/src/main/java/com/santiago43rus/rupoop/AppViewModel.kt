@@ -16,7 +16,9 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.santiago43rus.rupoop.auth.GistSyncManager
 import com.santiago43rus.rupoop.auth.GitHubAuthManager
+import com.santiago43rus.rupoop.auth.AuthController
 import com.santiago43rus.rupoop.data.*
+import com.santiago43rus.rupoop.player.PlaybackController
 import android.annotation.SuppressLint
 import com.santiago43rus.rupoop.network.RetrofitClient
 import com.santiago43rus.rupoop.service.DownloadService
@@ -34,6 +36,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     init {
         instance = this
     }
+
     val settingsManager = SettingsManager(context)
     val registryManager = UserRegistryManager(context)
     val mainFeedRecommender = MainFeedRecommendationStrategy(registryManager)
@@ -42,190 +45,299 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val syncManager = GistSyncManager(RetrofitClient.gistApi, registryManager, settingsManager)
     val downloadTracker = DownloadTracker(context)
 
+    // ── Registry snapshot (observable) ──
+    var userRegistry by mutableStateOf(registryManager.registry)
+
     // ── Snackbar events ──
     private val _snackbarMessage = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val snackbarMessage = _snackbarMessage.asSharedFlow()
 
-    // ── Auth state ──
-    var isAuthenticating by mutableStateOf(false)
-    var isAuthenticated by mutableStateOf(settingsManager.accessToken != null)
-    var githubUser by mutableStateOf<GitHubUser?>(null)
-    var isAccountMenuExpanded by mutableStateOf(false)
+    // ── Delegates / Controllers ──
+    
+    val playbackController: PlaybackController = PlaybackController(
+        context = context,
+        scope = viewModelScope,
+        registryManager = registryManager,
+        settingsManager = settingsManager,
+        relatedVideoRecommender = relatedVideoRecommender,
+        pushToGitHub = { pushToGitHub() },
+        filterHiddenAndDisliked = { filterHiddenAndDisliked(it) },
+        removeVideoFromUiLists = { removeVideoFromUiLists(it) },
+        snackbarMessage = _snackbarMessage,
+        onRegistryUpdate = { userRegistry = it }
+    )
 
-    // ── Navigation ──
-    private val _currentNavState = mutableStateOf(NavItem.HOME)
+    val navigationController: NavigationController = NavigationController(
+        getPlayerState = { playbackController.playerState },
+        setPlayerState = { playbackController.playerState = it },
+        getIsFullscreenVideo = { playbackController.isFullscreenVideo },
+        setIsFullscreenVideo = { playbackController.isFullscreenVideo = it },
+        stopPlayer = { playbackController.exoPlayer.stop() },
+        pushToGitHub = { pushToGitHub() },
+        updateSearchStates = { q, res, ord, exp, vis ->
+            searchController.searchQuery = q
+            searchResults = res
+            searchController.searchSortOrder = ord
+            searchController.isSearchExpanded = exp
+            navigationController.isSearchVisible = vis
+        }
+    )
+
+    val contentFeedController: ContentFeedController = ContentFeedController(
+        scope = viewModelScope,
+        settingsManager = settingsManager,
+        registryManager = registryManager,
+        mainFeedRecommender = mainFeedRecommender,
+        filterHiddenAndDisliked = { filterHiddenAndDisliked(it) },
+        onAuthorVisibleChanged = { navigationController.isAuthorVisible = it },
+        getPlayerState = { playbackController.playerState },
+        setPlayerState = { playbackController.playerState = it },
+        getAuthorSortOrder = { authorSortOrder }
+    )
+
+    val searchController: SearchController = SearchController(
+        scope = viewModelScope,
+        registryManager = registryManager,
+        pushToGitHub = { pushToGitHub() },
+        filterHiddenAndDisliked = { filterHiddenAndDisliked(it) },
+        getPlayerState = { playbackController.playerState },
+        setPlayerState = { playbackController.playerState = it },
+        getCurrentNav = { navigationController.currentNav },
+        getSearchStacks = { navigationController.searchStacks },
+        updateSearchStates = { q, res, ord, exp, vis ->
+            searchController.searchQuery = q
+            searchResults = res
+            searchController.searchSortOrder = ord
+            searchController.isSearchExpanded = exp
+            navigationController.isSearchVisible = vis
+        },
+        getOverlayOrder = { navigationController.overlayOrder },
+        setOverlayOrder = { navigationController.overlayOrder = it },
+        getIsSearchVisible = { navigationController.isSearchVisible },
+        setIsSearchVisible = { navigationController.isSearchVisible = it }
+    )
+
+    val authController: AuthController = AuthController(
+        scope = viewModelScope,
+        settingsManager = settingsManager,
+        authManager = authManager,
+        syncManager = syncManager,
+        snackbarMessage = _snackbarMessage,
+        onRegistryUpdate = { 
+            userRegistry = it 
+            registryManager.updateRegistry(it)
+        },
+        loadHome = { loadHome(it) },
+        getRegistry = { registryManager.registry }
+    )
+
+    // ── Navigation Property Delegation ──
     var currentNav: NavItem
-        get() = _currentNavState.value
-        set(value) {
-            val oldNav = _currentNavState.value
-            if (oldNav != value) {
-                // Save current author state before switching
-                authorStates[oldNav] = AuthorState(
-                    isVisible = isAuthorVisible,
-                    author = selectedAuthor,
-                    videos = authorVideos,
-                    page = authorPage,
-                    hasMore = hasMoreAuthorVideos
-                )
-                // Save current library sub-screen state before switching
-                if (oldNav == NavItem.LIBRARY) {
-                    librarySubScreenStates[oldNav] = currentLibSub
-                }
+        get() = navigationController.currentNav
+        set(value) { navigationController.currentNav = value }
 
-                _currentNavState.value = value
-                restoreSearchStateForTab(value)
+    var currentLibSub: LibrarySubScreen
+        get() = navigationController.currentLibSub
+        set(value) { navigationController.currentLibSub = value }
 
-                // Restore library sub-screen state for the new tab
-                if (value == NavItem.LIBRARY) {
-                    currentLibSub = librarySubScreenStates[value] ?: LibrarySubScreen.NONE
-                } else {
-                    // If navigating to a non-Library tab, reset currentLibSub
-                    currentLibSub = LibrarySubScreen.NONE
-                }
+    var selectedPlaylist: Playlist?
+        get() = navigationController.selectedPlaylist
+        set(value) { navigationController.selectedPlaylist = value }
 
-                // Restore author state for the new tab
-                val authorState = authorStates[value] ?: AuthorState(false, null, emptyList(), 1, true)
-                isAuthorVisible = authorState.isVisible
-                selectedAuthor = authorState.author
-                authorVideos = authorState.videos
-                authorPage = authorState.page
-                hasMoreAuthorVideos = authorState.hasMore
-            }
+    var selectedAuthor: Author?
+        get() = navigationController.selectedAuthor
+        set(value) { navigationController.selectedAuthor = value }
+
+    var isAuthorVisible: Boolean
+        get() = navigationController.isAuthorVisible
+        set(value) { navigationController.isAuthorVisible = value }
+
+    var isSettingsVisible: Boolean
+        get() = navigationController.isSettingsVisible
+        set(value) { navigationController.isSettingsVisible = value }
+
+    var isHiddenVideosVisible: Boolean
+        get() = navigationController.isHiddenVideosVisible
+        set(value) { navigationController.isHiddenVideosVisible = value }
+
+    var isNotificationSettingsVisible: Boolean
+        get() = navigationController.isNotificationSettingsVisible
+        set(value) { navigationController.isNotificationSettingsVisible = value }
+
+    var isSearchVisible: Boolean
+        get() = navigationController.isSearchVisible
+        set(value) { navigationController.isSearchVisible = value }
+
+    var overlayOrder: List<OverlayState>
+        get() = navigationController.overlayOrder
+        set(value) { navigationController.overlayOrder = value }
+
+    fun restoreSearchStateForTab(tab: NavItem) = navigationController.restoreSearchStateForTab(tab)
+    fun clearCurrentSearchStack() = navigationController.clearCurrentSearchStack()
+    fun handleBack(): Boolean = navigationController.handleBack()
+
+    // ── Playback Property Delegation ──
+    val exoPlayer: ExoPlayer
+        get() = playbackController.exoPlayer
+
+    var currentVideoList: List<SearchResult>
+        get() = playbackController.currentVideoList
+        set(value) { playbackController.currentVideoList = value }
+
+    var currentVideoIndex: Int
+        get() = playbackController.currentVideoIndex
+        set(value) { playbackController.currentVideoIndex = value }
+
+    var isPlaylistMode: Boolean
+        get() = playbackController.isPlaylistMode
+        set(value) { playbackController.isPlaylistMode = value }
+
+    var playerState: PlayerState
+        get() = playbackController.playerState
+        set(value) { playbackController.playerState = value }
+
+    var currentVideo: SearchResult?
+        get() = playbackController.currentVideo
+        set(value) { playbackController.currentVideo = value }
+
+    var isFullscreenVideo: Boolean
+        get() = playbackController.isFullscreenVideo
+        set(value) { playbackController.isFullscreenVideo = value }
+
+    var isPlaying: Boolean
+        get() = playbackController.isPlaying
+        set(value) { playbackController.isPlaying = value }
+
+    var isBuffering: Boolean
+        get() = playbackController.isBuffering
+        set(value) { playbackController.isBuffering = value }
+
+    var isBackgroundPlaybackEnabled: Boolean
+        get() = playbackController.isBackgroundPlaybackEnabled
+        set(value) { playbackController.isBackgroundPlaybackEnabled = value }
+
+    var relatedVideos: List<SearchResult>
+        get() = playbackController.relatedVideos
+        set(value) { playbackController.relatedVideos = value }
+
+    fun playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
+        playbackController.playVideo(video, list, isPlaylist)
+    }
+    fun playNext() = playbackController.playNext()
+    fun playPrevious() = playbackController.playPrevious()
+    fun playLocalFile(filePath: String, title: String, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
+        playbackController.playLocalFile(filePath, title, list, isPlaylist)
+    }
+    fun closePlayer() = playbackController.closePlayer()
+    fun startProgressSaving() = playbackController.startProgressSaving()
+    fun stopProgressSaving() = playbackController.stopProgressSaving()
+    fun toggleBackgroundPlayback() = playbackController.toggleBackgroundPlayback()
+
+    // ── Auth Property Delegation ──
+    var isAuthenticating: Boolean
+        get() = authController.isAuthenticating
+        set(value) { authController.isAuthenticating = value }
+
+    var isAuthenticated: Boolean
+        get() = authController.isAuthenticated
+        set(value) { authController.isAuthenticated = value }
+
+    var githubUser: GitHubUser?
+        get() = authController.githubUser
+        set(value) { authController.githubUser = value }
+
+    var isAccountMenuExpanded: Boolean
+        get() = authController.isAccountMenuExpanded
+        set(value) { authController.isAccountMenuExpanded = value }
+
+    fun initializeApp() = authController.initializeApp()
+    fun processAuthResponse(response: net.openid.appauth.AuthorizationResponse) = authController.processAuthResponse(response)
+    fun onAuthSuccess(token: String) = authController.onAuthSuccess(token)
+    fun logout() = authController.logout()
+
+    // ── Search Property Delegation ──
+    var searchQuery: String
+        get() = searchController.searchQuery
+        set(value) { searchController.searchQuery = value }
+
+    var searchSuggestions: List<String>
+        get() = searchController.searchSuggestions
+        set(value) { searchController.searchSuggestions = value }
+
+    var isSearchExpanded: Boolean
+        get() = searchController.isSearchExpanded
+        set(value) { searchController.isSearchExpanded = value }
+
+    var searchSortOrder: String?
+        get() = searchController.searchSortOrder
+        set(value) { searchController.searchSortOrder = value }
+
+    fun updateSearchQuery(query: String) = searchController.updateSearchQuery(query)
+    fun performSearch(query: String, ordering: String? = searchSortOrder) = searchController.performSearch(query, ordering)
+
+    // ── Feed Property Delegation ──
+    var homeVideos: List<SearchResult>
+        get() = contentFeedController.homeVideos
+        set(value) { contentFeedController.homeVideos = value }
+
+    var subscriptionVideos: List<SearchResult>
+        get() = contentFeedController.subscriptionVideos
+        set(value) { contentFeedController.subscriptionVideos = value }
+
+    var authorVideos: List<SearchResult>
+        get() = contentFeedController.authorVideos
+        set(value) { contentFeedController.authorVideos = value }
+
+    var isHomeLoadingMore: Boolean
+        get() = contentFeedController.isHomeLoadingMore
+        set(value) { contentFeedController.isHomeLoadingMore = value }
+
+    var isRefreshingHome: Boolean
+        get() = contentFeedController.isRefreshingHome
+        set(value) { contentFeedController.isRefreshingHome = value }
+
+    var isAuthorLoadingMore: Boolean
+        get() = contentFeedController.isAuthorLoadingMore
+        set(value) { contentFeedController.isAuthorLoadingMore = value }
+
+    var isRefreshingAuthor: Boolean
+        get() = contentFeedController.isRefreshingAuthor
+        set(value) { contentFeedController.isRefreshingAuthor = value }
+
+    var authorPage: Int
+        get() = contentFeedController.authorPage
+        set(value) { contentFeedController.authorPage = value }
+
+    var hasMoreAuthorVideos: Boolean
+        get() = contentFeedController.hasMoreAuthorVideos
+        set(value) { contentFeedController.hasMoreAuthorVideos = value }
+
+    var isSubsLoadingMore: Boolean
+        get() = contentFeedController.isSubsLoadingMore
+        set(value) { contentFeedController.isSubsLoadingMore = value }
+
+    var isRefreshingSubs: Boolean
+        get() = contentFeedController.isRefreshingSubs
+        set(value) { contentFeedController.isRefreshingSubs = value }
+
+    var hasMoreSubsVideos: Boolean
+        get() = contentFeedController.hasMoreSubsVideos
+        set(value) { contentFeedController.hasMoreSubsVideos = value }
+
+    fun loadHome(isLoadMore: Boolean) = contentFeedController.loadHome(isLoadMore)
+    fun loadSubscriptions(isLoadMore: Boolean) = contentFeedController.loadSubscriptions(isLoadMore)
+    fun loadAuthorVideos(author: Author, isLoadMore: Boolean) {
+        contentFeedController.loadAuthorVideos(author, isLoadMore) { selected ->
+            selectedAuthor = selected
         }
-    var currentLibSub by mutableStateOf(LibrarySubScreen.NONE)
-    var selectedPlaylist by mutableStateOf<Playlist?>(null)
-    var selectedAuthor by mutableStateOf<Author?>(null)
-
-    // ── Author State Per Tab ──
-    data class AuthorState(
-        val isVisible: Boolean,
-        val author: Author?,
-        val videos: List<SearchResult>,
-        val page: Int,
-        val hasMore: Boolean
-    )
-
-    private val authorStates = mutableMapOf<NavItem, AuthorState>(
-        NavItem.HOME to AuthorState(false, null, emptyList(), 1, true),
-        NavItem.SUBSCRIPTIONS to AuthorState(false, null, emptyList(), 1, true),
-        NavItem.LIBRARY to AuthorState(false, null, emptyList(), 1, true)
-    )
-
-    // ── Library Sub-Screen State Per Tab ──
-    private val librarySubScreenStates = mutableMapOf<NavItem, LibrarySubScreen>(
-        NavItem.HOME to LibrarySubScreen.NONE,
-        NavItem.SUBSCRIPTIONS to LibrarySubScreen.NONE,
-        NavItem.LIBRARY to LibrarySubScreen.NONE
-    )
-
-    // ── Videos data ──
-    var homeVideos by mutableStateOf<List<SearchResult>>(emptyList())
-    var searchResults by mutableStateOf<List<SearchResult>>(emptyList())
-    var subscriptionVideos by mutableStateOf<List<SearchResult>>(emptyList())
-    var authorVideos by mutableStateOf<List<SearchResult>>(emptyList())
-    var relatedVideos by mutableStateOf<List<SearchResult>>(emptyList())
-
-    // ── Playback queue ──
-    var currentVideoList by mutableStateOf<List<SearchResult>>(emptyList())
-    var currentVideoIndex by mutableIntStateOf(-1)
-    var isPlaylistMode by mutableStateOf(false)
-
-    // ── Player state ──
-    var playerState by mutableStateOf(PlayerState.CLOSED)
-    var currentVideo by mutableStateOf<SearchResult?>(null)
-    var isFullscreenVideo by mutableStateOf(false)
-    var isPlaying by mutableStateOf(false)
-    var isBuffering by mutableStateOf(false)
-
-    // ── Search State Per Tab ──
-    data class SearchState(
-        val query: String,
-        val results: List<SearchResult>,
-        val ordering: String? = null
-    )
-
-    private val searchStacks = mutableMapOf<NavItem, MutableList<SearchState>>(
-        NavItem.HOME to mutableListOf(),
-        NavItem.SUBSCRIPTIONS to mutableListOf(),
-        NavItem.LIBRARY to mutableListOf()
-    )
-
-    fun restoreSearchStateForTab(tab: NavItem) {
-        val stack = searchStacks[tab] ?: mutableListOf()
-        if (stack.isNotEmpty()) {
-            val top = stack.last()
-            searchQuery = top.query
-            searchResults = top.results
-            searchSortOrder = top.ordering
-            isSearchVisible = true
-            isSearchExpanded = false
-            if (!overlayOrder.contains(OverlayState.SEARCH)) {
-                overlayOrder = overlayOrder + OverlayState.SEARCH
-            }
-        } else {
-            searchQuery = ""
-            searchResults = emptyList()
-            isSearchVisible = false
-            isSearchExpanded = false
-            overlayOrder = overlayOrder.filter { it != OverlayState.SEARCH }
-        }
     }
 
-    fun clearCurrentSearchStack() {
-        searchStacks[currentNav]?.clear()
-        searchQuery = ""
-        searchResults = emptyList()
-        isSearchVisible = false
-        isSearchExpanded = false
-        overlayOrder = overlayOrder.filter { it != OverlayState.SEARCH }
-    }
-
-    // ── Search ──
-    var searchQuery by mutableStateOf("")
-    var searchSuggestions by mutableStateOf<List<String>>(emptyList())
-    var isSearchExpanded by mutableStateOf(false)
-    var searchSortOrder by mutableStateOf<String?>(null) // null = default, "-created_ts" = newest
-    var authorSortOrder by mutableStateOf("-publication_ts") // default newest
-
-    // ── Overlays ──
-    var isSearchVisible by mutableStateOf(false)
-    var isAuthorVisible by mutableStateOf(false)
-    var isSettingsVisible by mutableStateOf(false)
-    var isHiddenVideosVisible by mutableStateOf(false)
-    var isNotificationSettingsVisible by mutableStateOf(false)
-    var overlayOrder by mutableStateOf(listOf(OverlayState.SEARCH, OverlayState.AUTHOR))
-    
-    var isBackgroundPlaybackEnabled by mutableStateOf(false)
-
-    fun toggleBackgroundPlayback() {
-        isBackgroundPlaybackEnabled = !isBackgroundPlaybackEnabled
-        syncPlaybackService()
-    }
-    
+    // ── Settings & Notification Notifications ──
     var showDownloadNotifications by mutableStateOf(settingsManager.showDownloadNotifications)
     var showBackgroundNotifications by mutableStateOf(settingsManager.showBackgroundNotifications)
 
     fun syncPlaybackService() {
-        val shouldRun = showBackgroundNotifications && isBackgroundPlaybackEnabled && playerState != PlayerState.CLOSED
-        if (shouldRun) {
-            try {
-                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-            } catch (e: Exception) {
-                Log.e("Rupoop", "Failed to start PlaybackService", e)
-            }
-        } else {
-            try {
-                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                context.stopService(intent)
-            } catch (e: Exception) {
-                Log.e("Rupoop", "Failed to stop PlaybackService", e)
-            }
-        }
+        playbackController.syncPlaybackService()
     }
 
     fun updateDownloadNotifications(enabled: Boolean) {
@@ -239,88 +351,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         syncPlaybackService()
     }
 
-    // ── Dialogs ──
+    // ── Dialog states ──
     var showPlaylistDialog by mutableStateOf<SearchResult?>(null)
     var showDownloadDialog by mutableStateOf<SearchResult?>(null)
     var showOnboarding by mutableStateOf(settingsManager.isFirstLaunch)
 
-    // ── Registry snapshot (observable) ──
-    var userRegistry by mutableStateOf(registryManager.registry)
-
-    // ── Pagination: Home ──
-    var isHomeLoadingMore by mutableStateOf(false)
-    var isRefreshingHome by mutableStateOf(false)
-
-    // ── Pagination: Author ──
-    var isAuthorLoadingMore by mutableStateOf(false)
-    var isRefreshingAuthor by mutableStateOf(false)
-    var authorPage by mutableIntStateOf(1)
-    var hasMoreAuthorVideos by mutableStateOf(true)
-
-    // ── Pagination: Subscriptions ──
-    private var subsPage by mutableIntStateOf(1)
-    var hasMoreSubsVideos by mutableStateOf(true)
-    var isSubsLoadingMore by mutableStateOf(false)
-    var isRefreshingSubs by mutableStateOf(false)
-
-    // ── ExoPlayer ──
-    val exoPlayer: ExoPlayer = ExoPlayer.Builder(context).build().also { player ->
-        player.playWhenReady = true
-        sharedPlayer = player
-        player.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(playing: Boolean) { this@AppViewModel.isPlaying = playing }
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                Log.e("Rupoop", "ExoPlayer error", error)
-                viewModelScope.launch {
-                    _snackbarMessage.emit("Ошибка воспроизведения: видео недоступно или отсутствует подключение")
-                }
-                playerState = PlayerState.CLOSED
-            }
-            override fun onPlaybackStateChanged(state: Int) {
-                this@AppViewModel.isBuffering = state == Player.STATE_BUFFERING
-                if (state == Player.STATE_READY && currentVideo != null) {
-                    extractId(currentVideo!!.videoUrl)?.let { id ->
-                        registryManager.updateWatchProgress(id, player.contentPosition, player.duration)
-                        userRegistry = registryManager.registry
-                    }
-                }
-                if (state == Player.STATE_ENDED && currentVideo != null) {
-                    extractId(currentVideo!!.videoUrl)?.let { id ->
-                        registryManager.updateWatchProgress(id, player.duration, player.duration)
-                        userRegistry = registryManager.registry
-                        pushToGitHub()
-                    }
-                }
-            }
-        })
-    }
-
-    private var videoLoadingJob: Job? = null
-    private var progressSavingJob: Job? = null
-    private var pushJob: Job? = null
-
-    // ── Periodic progress saving ──
-    fun startProgressSaving() {
-        progressSavingJob?.cancel()
-        progressSavingJob = viewModelScope.launch {
-            while (true) {
-                delay(15000)
-                if (isPlaying && currentVideo != null) {
-                    extractId(currentVideo!!.videoUrl)?.let { id ->
-                        registryManager.updateWatchProgress(id, exoPlayer.currentPosition, exoPlayer.duration)
-                        userRegistry = registryManager.registry
-                        pushToGitHub()
-                    }
-                }
-            }
-        }
-    }
-
-    fun stopProgressSaving() {
-        progressSavingJob?.cancel()
-    }
+    // ── Static/Extra Search States referenced by Nav/Search stacks ──
+    var searchResults by mutableStateOf<List<SearchResult>>(emptyList())
+    var authorSortOrder by mutableStateOf("-publication_ts") // default newest
 
     // ── Push to GitHub (debounced) ──
+    private var pushJob: Job? = null
     fun pushToGitHub() {
         val token = settingsManager.accessToken ?: return
         if (!isNetworkAvailable(context)) return
@@ -342,387 +383,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── Play video ──
-    fun playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
-        val isLocal = video.videoUrl.isNotEmpty() && !video.videoUrl.startsWith("http")
-        if (isLocal) {
-            val file = java.io.File(video.videoUrl)
-            if (!file.exists()) {
-                viewModelScope.launch {
-                    _snackbarMessage.emit("Видео не найдено")
-                }
-                playerState = PlayerState.CLOSED
-                return
-            }
-            playLocalFile(video.videoUrl, video.title, list, isPlaylist)
-            return
-        }
-
-        videoLoadingJob?.cancel()
-
-        if (isPlaylist && list != null) {
-            isPlaylistMode = true
-            currentVideoList = list
-            currentVideoIndex = list.indexOfFirst { it.videoUrl == video.videoUrl }.takeIf { it >= 0 } ?: 0
-        } else {
-            // Default mode (history navigation)
-            if (!isPlaylistMode) {
-                // We are already in default mode
-                if (list == relatedVideos || list == currentVideoList) {
-                    // Clicked a related video or a video in the current dynamic history
-                    val existingIndex = currentVideoList.indexOfFirst { it.videoUrl == video.videoUrl }
-                    if (existingIndex != -1 && list == currentVideoList) {
-                        currentVideoIndex = existingIndex
-                    } else {
-                        // Truncate history after current index and add new video
-                        val newHistory = if (currentVideoIndex >= 0) {
-                            currentVideoList.take(currentVideoIndex + 1).toMutableList()
-                        } else mutableListOf()
-                        newHistory.add(video)
-                        currentVideoList = newHistory
-                        currentVideoIndex = newHistory.size - 1
-                    }
-                } else {
-                    // Clicked a video from Home, Search, History, etc.
-                    isPlaylistMode = false
-                    currentVideoList = listOf(video)
-                    currentVideoIndex = 0
-                }
-            } else {
-                // Switching from playlist mode to default mode (e.g. clicked related video)
-                isPlaylistMode = false
-                currentVideoList = listOf(video)
-                currentVideoIndex = 0
-            }
-        }
-
-        currentVideo = video
-
-        extractId(video.videoUrl)?.let { id ->
-            val historyItem = userRegistry.watchHistory.find { it.videoId == id }
-
-            registryManager.addWatchHistory(WatchHistoryItem(
-                videoId = id,
-                timestamp = System.currentTimeMillis(),
-                progress = historyItem?.progress ?: 0,
-                totalDuration = video.duration?.toLong()?.times(1000) ?: historyItem?.totalDuration ?: 0,
-                title = video.title,
-                thumbnailUrl = video.thumbnailUrl,
-                authorName = video.author?.name,
-                authorAvatarUrl = video.author?.avatarUrl,
-                authorId = video.author?.id,
-                videoUrl = video.videoUrl
-            ))
-            userRegistry = registryManager.registry
-            pushToGitHub()
-
-            videoLoadingJob = viewModelScope.launch {
-                try {
-                    val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
-                    val url = opt.videoBalancer?.m3u8
-                    if (url != null) {
-                        exoPlayer.stop()
-                        exoPlayer.clearMediaItems()
-                        
-                        val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
-                            .setTitle(video.title)
-                            .setArtist(video.author?.name)
-                            .setArtworkUri(video.thumbnailUrl?.let { android.net.Uri.parse(it) })
-                            .build()
-                        val mediaItem = MediaItem.Builder()
-                            .setUri(url)
-                            .setMediaId(id)
-                            .setMediaMetadata(mediaMetadata)
-                            .build()
-                        exoPlayer.setMediaItem(mediaItem)
-                        exoPlayer.prepare()
-                        
-                        syncPlaybackService()
-                        
-                        val historyProg = historyItem?.progress ?: 0
-                        val historyTotal = historyItem?.totalDuration ?: 0
-                        if (historyTotal > 0 && (historyProg.toFloat() / historyTotal) >= 0.95f) {
-                            // If watched > 95%, start from beginning
-                            exoPlayer.seekTo(0)
-                        } else if (historyProg > 0) {
-                            exoPlayer.seekTo(historyProg)
-                        }
-                        
-                        exoPlayer.play()
-                        playerState = PlayerState.FULL
-                    } else {
-                        _snackbarMessage.emit("Видео не найдено")
-                        playerState = PlayerState.CLOSED
-                    }
-
-                    val relatedResults = withContext(Dispatchers.IO) {
-                        val queries = relatedVideoRecommender.getSearchQueries(video)
-                        val allResults = mutableListOf<SearchResult>()
-                        for (q in queries) {
-                            try {
-                                val res = RetrofitClient.api.searchVideos(q).results
-                                allResults.addAll(res)
-                                if (allResults.size > 20) break
-                            } catch (_: Exception) {}
-                        }
-                        allResults.distinctBy { it.videoUrl }
-                    }
-                    val filteredRelated = relatedVideoRecommender.recommendRelated(video, relatedResults)
-                    val finalRelated = filterHiddenAndDisliked(filteredRelated)
-                    relatedVideos = finalRelated
-
-                    if (!isPlaylistMode) {
-                        currentVideoList = currentVideoList.take(currentVideoIndex + 1) + finalRelated
-                    }
-                } catch (e: Exception) {
-                    Log.e("Rupoop", "Play error", e)
-                    _snackbarMessage.emit("Видео не найдено")
-                    playerState = PlayerState.CLOSED
-                }
-            }
-        }
-    }
-
-    fun playNext() {
-        if (isPlaylistMode) {
-            if (currentVideoIndex < currentVideoList.size - 1) {
-                playVideo(currentVideoList[currentVideoIndex + 1], currentVideoList, true)
-            }
-        } else {
-            if (currentVideoIndex < currentVideoList.size - 1) {
-                playVideo(currentVideoList[currentVideoIndex + 1], currentVideoList, false)
-            } else if (relatedVideos.isNotEmpty()) {
-                playVideo(relatedVideos.first(), relatedVideos, false)
-            }
-        }
-    }
-
-    fun playPrevious() {
-        if (currentVideoIndex > 0) {
-            playVideo(currentVideoList[currentVideoIndex - 1], currentVideoList, isPlaylistMode)
-        }
-    }
-
-    // ── Play local file ──
-    fun playLocalFile(filePath: String, title: String, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
-        videoLoadingJob?.cancel()
-        val file = java.io.File(filePath)
-        if (!file.exists()) return
-        
-        val video = SearchResult(videoUrl = filePath, title = title)
-        currentVideo = video
-        if (isPlaylist && list != null) {
-            isPlaylistMode = true
-            currentVideoList = list
-            currentVideoIndex = list.indexOfFirst { it.videoUrl == filePath }.takeIf { it >= 0 } ?: 0
-        } else {
-            isPlaylistMode = false
-            currentVideoList = listOf(video)
-            currentVideoIndex = 0
-        }
-        relatedVideos = emptyList()
-
-        val uniqueId = extractId(filePath) ?: filePath
-        val historyItem = userRegistry.watchHistory.find { it.videoId == uniqueId }
-
-        registryManager.addWatchHistory(WatchHistoryItem(
-            videoId = uniqueId,
-            timestamp = System.currentTimeMillis(),
-            progress = historyItem?.progress ?: 0,
-            totalDuration = historyItem?.totalDuration ?: 0,
-            title = title,
-            thumbnailUrl = null,
-            authorName = "Локальный файл",
-            authorAvatarUrl = null,
-            authorId = null,
-            videoUrl = filePath
-        ))
-        userRegistry = registryManager.registry
-        pushToGitHub()
-
-        exoPlayer.stop()
-        exoPlayer.clearMediaItems()
-        
-        val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
-            .setTitle(title)
-            .build()
-        val mediaItem = MediaItem.Builder()
-            .setUri(android.net.Uri.fromFile(file))
-            .setMediaId(filePath)
-            .setMediaMetadata(mediaMetadata)
-            .apply {
-                if (filePath.endsWith(".mp3") || filePath.endsWith(".m4a")) {
-                    setMimeType("audio/mp4")
-                }
-            }
-            .build()
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-
-        val historyProg = historyItem?.progress ?: 0
-        val historyTotal = historyItem?.totalDuration ?: 0
-        if (historyTotal > 0 && (historyProg.toFloat() / historyTotal) >= 0.95f) {
-            exoPlayer.seekTo(0)
-        } else if (historyProg > 0) {
-            exoPlayer.seekTo(historyProg)
-        }
-
-        exoPlayer.play()
-        playerState = PlayerState.FULL
-
-        syncPlaybackService()
-    }
-
     // ── Deep link ──
     fun handleDeepLink(url: String) {
         val video = SearchResult(videoUrl = url, title = "Загрузка...")
         playVideo(video, null)
-    }
-
-    // ── Load home ──
-    fun loadHome(isLoadMore: Boolean) {
-        viewModelScope.launch {
-            if (isLoadMore) isHomeLoadingMore = true
-            else { isRefreshingHome = true; homeVideos = emptyList() }
-
-            try {
-                val enabledGenres = settingsManager.enabledGenres.toList()
-                val selectedGenres = if (enabledGenres.size > 4) {
-                    enabledGenres.shuffled().take(4)
-                } else enabledGenres
-
-                val filmGenres = listOf("боевик", "комедия", "драма", "ужасы", "фантастика", "триллер", "детектив", "мелодрама")
-                val queries = selectedGenres.map { genre ->
-                    if (filmGenres.any { it.equals(genre, ignoreCase = true) }) {
-                        "$genre фильм"
-                    } else {
-                        genre
-                    }
-                }.toMutableList()
-
-                if (queries.isEmpty()) queries.add("популярное")
-
-                val deferreds = queries.map { query ->
-                    viewModelScope.async(Dispatchers.IO) {
-                        try {
-                            val targetPage = if (isLoadMore) (2..4).random() else 1
-                            RetrofitClient.api.searchVideos(query, page = targetPage).results
-                        } catch (e: Exception) {
-                            Log.e("Rupoop", "Error fetching home genre query: $query", e)
-                            emptyList<SearchResult>()
-                        }
-                    }
-                }
-
-                val allResults = deferreds.awaitAll().flatten().distinctBy { it.videoUrl }
-                val newVideos = mainFeedRecommender.recommend(allResults)
-
-                val updatedList = if (isLoadMore) (homeVideos + newVideos).distinctBy { it.videoUrl } else newVideos
-                homeVideos = updatedList.take(200)
-            } catch (e: Exception) {
-                Log.e("Rupoop", "Error loading home", e)
-            } finally {
-                isRefreshingHome = false
-                isHomeLoadingMore = false
-            }
-        }
-    }
-
-    // ── Load subscriptions ──
-    fun loadSubscriptions(isLoadMore: Boolean) {
-        viewModelScope.launch {
-            if (isLoadMore) {
-                isSubsLoadingMore = true
-                subsPage++
-            } else {
-                isRefreshingSubs = true
-                subsPage = 1
-                hasMoreSubsVideos = true
-                subscriptionVideos = emptyList()
-            }
-
-            if (userRegistry.subscriptions.isNotEmpty()) {
-                try {
-                    val allSubsVideos = mutableListOf<SearchResult>()
-                    userRegistry.subscriptions.forEach { author ->
-                        val resp = if (author.id != null) {
-                            withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), page = subsPage) }
-                        } else {
-                            withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, page = subsPage) }
-                        }
-                        allSubsVideos.addAll(resp.results.filter {
-                            it.author?.name?.equals(author.name, ignoreCase = true) == true
-                        })
-                    }
-
-                    if (allSubsVideos.isEmpty()) {
-                        hasMoreSubsVideos = false
-                    } else {
-                        val sortedNewVideos = allSubsVideos.sortedByDescending { it.createdTs ?: "" }
-                        val filteredNewVideos = filterHiddenAndDisliked(sortedNewVideos)
-                        subscriptionVideos = if (isLoadMore) {
-                            (subscriptionVideos + filteredNewVideos).distinctBy { it.videoUrl }
-                        } else {
-                            filteredNewVideos.distinctBy { it.videoUrl }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("Rupoop", "Subs load error", e)
-                    if (isLoadMore) subsPage--
-                }
-            } else {
-                subscriptionVideos = emptyList()
-                hasMoreSubsVideos = false
-            }
-            isRefreshingSubs = false
-            isSubsLoadingMore = false
-        }
-    }
-
-    // ── Load author videos ──
-    fun loadAuthorVideos(author: Author, isLoadMore: Boolean) {
-        if (!isLoadMore || hasMoreAuthorVideos) {
-            viewModelScope.launch {
-                if (isLoadMore) {
-                    isAuthorLoadingMore = true
-                    authorPage++
-                } else {
-                    isRefreshingAuthor = true
-                    authorPage = 1
-                    hasMoreAuthorVideos = true
-                    selectedAuthor = author
-                    authorVideos = emptyList()
-
-                    isAuthorVisible = true
-                    overlayOrder = overlayOrder.filter { it != OverlayState.AUTHOR } + OverlayState.AUTHOR
-                    if (playerState == PlayerState.FULL) playerState = PlayerState.MINI
-                }
-                try {
-                    val resp = if (author.id != null) {
-                        withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), ordering = authorSortOrder, page = authorPage) }
-                    } else {
-                        withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, page = authorPage) }
-                    }
-
-                    if (resp.results.isEmpty()) {
-                        hasMoreAuthorVideos = false
-                    } else {
-                        val filteredNewVideos = filterHiddenAndDisliked(resp.results)
-                        val combined = if (isLoadMore) (authorVideos + filteredNewVideos) else filteredNewVideos
-                        authorVideos = combined.sortedWith(
-                            compareByDescending<SearchResult> { it.publicationTs ?: "" }
-                                .thenByDescending { it.createdTs ?: "" }
-                        ).distinctBy { it.videoUrl }
-                    }
-                } catch (e: Exception) {
-                    Log.e("Rupoop", "Author videos error", e)
-                    if (isLoadMore) authorPage--
-                } finally {
-                    isRefreshingAuthor = false
-                    isAuthorLoadingMore = false
-                }
-            }
-        }
     }
 
     // ── Download ──
@@ -782,133 +446,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ── Initial load / auth ──
-    fun initializeApp() {
-        val savedToken = settingsManager.accessToken
-        if (savedToken != null) {
-            viewModelScope.launch {
-                isAuthenticating = true
-                try {
-                    val authHeader = "Bearer $savedToken"
-                    githubUser = withContext(Dispatchers.IO) { RetrofitClient.gitHubApi.getUser(authHeader) }
-
-                    val now = System.currentTimeMillis()
-                    val lastSync = settingsManager.lastSyncTime
-                    val freqMs = settingsManager.syncFrequencyHours * 3600000L
-                    if (now - lastSync > freqMs || userRegistry.watchHistory.isEmpty()) {
-                        userRegistry = withContext(Dispatchers.IO) { syncManager.sync(savedToken) }
-                        settingsManager.lastSyncTime = now
-                    } else {
-                        userRegistry = registryManager.registry
-                    }
-                    isAuthenticated = true
-                } catch (e: Exception) {
-                    Log.e("RupoopAuth", "Auth error", e)
-                } finally {
-                    isAuthenticating = false
-                }
-            }
-        }
-    }
-
-    // ── Auth result ──
-    fun processAuthResponse(response: net.openid.appauth.AuthorizationResponse) {
-        viewModelScope.launch {
-            isAuthenticating = true
-            try {
-                val token = authManager.exchangeCodeForToken(response)
-                settingsManager.accessToken = token
-                val authHeader = "Bearer $token"
-                githubUser = withContext(Dispatchers.IO) { RetrofitClient.gitHubApi.getUser(authHeader) }
-                userRegistry = withContext(Dispatchers.IO) { syncManager.sync(token) }
-                isAuthenticated = true
-            } catch (e: Exception) {
-                Log.e("RupoopAuth", "Auth processes error", e)
-                _snackbarMessage.emit("Ошибка авторизации: ${e.localizedMessage}")
-            } finally {
-                isAuthenticating = false
-                loadHome(false)
-            }
-        }
-    }
-
-    fun onAuthSuccess(token: String) {
-        viewModelScope.launch {
-            isAuthenticating = true
-            try {
-                settingsManager.accessToken = token
-                val authHeader = "Bearer $token"
-                githubUser = withContext(Dispatchers.IO) { RetrofitClient.gitHubApi.getUser(authHeader) }
-                userRegistry = withContext(Dispatchers.IO) { syncManager.sync(token) }
-                isAuthenticated = true
-            } catch (e: Exception) {
-                Log.e("RupoopAuth", "Sync error", e)
-            } finally {
-                isAuthenticating = false
-                loadHome(false)
-            }
-        }
-    }
-
-    fun logout() {
-        settingsManager.clearAuth()
-        isAuthenticated = false
-        githubUser = null
-    }
-
-    // ── Search ──
-    fun updateSearchQuery(query: String) {
-        searchQuery = query
-        if (query.isBlank()) {
-            searchSuggestions = emptyList()
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val response = withContext(Dispatchers.IO) { RetrofitClient.suggestApi.getSuggestions(query) }
-                val jsonString = response.body()?.string()
-                if (jsonString != null) {
-                    val jsonArray = RetrofitClient.json.parseToJsonElement(jsonString) as kotlinx.serialization.json.JsonArray
-                    if (jsonArray.size > 1 && jsonArray[1] is kotlinx.serialization.json.JsonArray) {
-                        val suggestionsArray = jsonArray[1] as kotlinx.serialization.json.JsonArray
-                        searchSuggestions = suggestionsArray.map { it.toString().removeSurrounding("\"") }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("Rupoop", "Search suggest auto-complete error", e)
-            }
-        }
-    }
-
-    fun performSearch(query: String, ordering: String? = searchSortOrder) {
-        searchQuery = query
-        isSearchExpanded = false
-
-        isSearchVisible = true
-        overlayOrder = overlayOrder.filter { it != OverlayState.SEARCH } + OverlayState.SEARCH
-        if (playerState == PlayerState.FULL) playerState = PlayerState.MINI
-
-        registryManager.addSearchQuery(query)
-        userRegistry = registryManager.registry
-        pushToGitHub()
-        val requestNav = currentNav
-        viewModelScope.launch {
-            try {
-                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, ordering = ordering) }
-                val filteredResults = filterHiddenAndDisliked(resp.results)
-                val currentStack = searchStacks[requestNav] ?: mutableListOf()
-                currentStack.add(SearchState(query, filteredResults, ordering))
-                searchStacks[requestNav] = currentStack
-
-                if (currentNav == requestNav) {
-                    searchResults = filteredResults
-                }
-            } catch (e: Exception) {
-                Log.e("Rupoop", "Search error", e)
-            }
-        }
-    }
-
     // ── Share ──
     fun shareVideo(video: SearchResult) {
         val sendIntent = Intent().apply {
@@ -923,7 +460,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ── Fullscreen ──
     fun toggleFullscreen(fill: Boolean) {
         isFullscreenVideo = fill
-        // Orientation is handled in UI layer based on this state
     }
 
     // ── Subscription toggle ──
@@ -1039,62 +575,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         pushToGitHub()
     }
 
-    // ── Back navigation ──
-    fun handleBack(): Boolean {
-        if (isFullscreenVideo) { toggleFullscreen(false); return true }
-        if (playerState == PlayerState.FULL) { playerState = PlayerState.MINI; return true }
-        if (isNotificationSettingsVisible) { isNotificationSettingsVisible = false; return true }
-        if (isHiddenVideosVisible) { isHiddenVideosVisible = false; return true }
-        if (isSettingsVisible) { isSettingsVisible = false; return true }
-        if (isSearchExpanded) {
-            val currentStack = searchStacks[currentNav] ?: mutableListOf()
-            if (currentStack.isNotEmpty()) {
-                isSearchExpanded = false
-                return true
-            }
-        }
-
-        val topVisible = overlayOrder.lastOrNull {
-            (it == OverlayState.SEARCH && isSearchVisible) ||
-            (it == OverlayState.AUTHOR && isAuthorVisible)
-        }
-
-        if (topVisible == OverlayState.SEARCH) {
-            val currentStack = searchStacks[currentNav] ?: mutableListOf()
-            if (currentStack.isNotEmpty()) {
-                currentStack.removeAt(currentStack.size - 1)
-            }
-            if (currentStack.isNotEmpty()) {
-                val previous = currentStack.last()
-                searchQuery = previous.query
-                searchResults = previous.results
-                searchSortOrder = previous.ordering
-                isSearchExpanded = false
-                isSearchVisible = true
-            } else {
-                isSearchVisible = false
-                searchQuery = ""
-                searchResults = emptyList()
-                overlayOrder = overlayOrder.filter { it != OverlayState.SEARCH }
-            }
-            return true
-        }
-        
-        if (isSearchExpanded) {
-            isSearchExpanded = false
-            return true
-        }
-
-        if (topVisible == OverlayState.AUTHOR) { isAuthorVisible = false; return true }
-        if (currentLibSub != LibrarySubScreen.NONE) { currentLibSub = LibrarySubScreen.NONE; return true }
-        if (currentNav != NavItem.HOME) { currentNav = NavItem.HOME; searchQuery = ""; return true }
-
-        playerState = PlayerState.CLOSED
-        exoPlayer.stop()
-        pushToGitHub()
-        return true
-    }
-
     // ── Video action handler (used across screens) ──
     fun handleVideoMoreAction(video: SearchResult, action: String) {
         when (action) {
@@ -1160,13 +640,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         
         return prevId in hiddenIds || prevId in dislikedIds || hiddenTitles.any { prevVideo.title.contains(it, ignoreCase = true) }
     }
-    // ── Close player ──
-    fun closePlayer() {
-        playerState = PlayerState.CLOSED
-        exoPlayer.stop()
-        syncPlaybackService()
-        pushToGitHub()
-    }
 
     // ── Onboarding ──
     fun dismissOnboarding() {
@@ -1182,16 +655,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        exoPlayer.release()
+        playbackController.release()
         sharedPlayer = null
         if (instance == this) {
             instance = null
         }
-        progressSavingJob?.cancel()
     }
 
     companion object {
-        var sharedPlayer: ExoPlayer? = null
+        var sharedPlayer: ExoPlayer?
+            get() = instance?.playbackController?.exoPlayer
+            set(value) {}
         var instance: AppViewModel? = null
     }
 }
