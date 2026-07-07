@@ -28,16 +28,16 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlaybackController(
-    private val context: Context,
-    private val scope: CoroutineScope,
-    private val registryManager: UserRegistryManager,
-    private val settingsManager: SettingsManager,
+    internal val context: Context,
+    internal val scope: CoroutineScope,
+    internal val registryManager: UserRegistryManager,
+    internal val settingsManager: SettingsManager,
     private val relatedVideoRecommender: RelatedVideoRecommendationStrategy,
-    private val pushToGitHub: () -> Unit,
+    internal val pushToGitHub: () -> Unit,
     private val filterHiddenAndDisliked: (List<SearchResult>) -> List<SearchResult>,
     private val removeVideoFromUiLists: (SearchResult) -> Unit,
     private val snackbarMessage: MutableSharedFlow<String>,
-    private val onRegistryUpdate: (UserRegistry) -> Unit
+    internal val onRegistryUpdate: (UserRegistry) -> Unit
 ) {
 
     // ── Playback queue ──
@@ -47,6 +47,7 @@ class PlaybackController(
 
     // ── Player state ──
     var playerState by mutableStateOf(PlayerState.CLOSED)
+    var playerTransitionProgress by mutableStateOf(1f)
     var currentVideo by mutableStateOf<SearchResult?>(null)
     var isFullscreenVideo by mutableStateOf(false)
     var isPlaying by mutableStateOf(false)
@@ -86,58 +87,10 @@ class PlaybackController(
         })
     }
 
-    private var videoLoadingJob: Job? = null
-    private var progressSavingJob: Job? = null
+    internal var videoLoadingJob: Job? = null
+    internal var progressSavingJob: Job? = null
 
-    fun toggleBackgroundPlayback() {
-        isBackgroundPlaybackEnabled = !isBackgroundPlaybackEnabled
-        syncPlaybackService()
-    }
 
-    fun syncPlaybackService() {
-        val showBackgroundNotifications = settingsManager.showBackgroundNotifications
-        val shouldRun = showBackgroundNotifications && isBackgroundPlaybackEnabled && playerState != PlayerState.CLOSED
-        if (shouldRun) {
-            try {
-                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
-            } catch (e: Exception) {
-                Log.e("Rupoop", "Failed to start PlaybackService", e)
-            }
-        } else {
-            try {
-                val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                context.stopService(intent)
-            } catch (e: Exception) {
-                Log.e("Rupoop", "Failed to stop PlaybackService", e)
-            }
-        }
-    }
-
-    // ── Periodic progress saving ──
-    fun startProgressSaving() {
-        progressSavingJob?.cancel()
-        progressSavingJob = scope.launch {
-            while (true) {
-                delay(15000)
-                if (isPlaying && currentVideo != null) {
-                    extractId(currentVideo!!.videoUrl)?.let { id ->
-                        registryManager.updateWatchProgress(id, exoPlayer.currentPosition, exoPlayer.duration)
-                        onRegistryUpdate(registryManager.registry)
-                        pushToGitHub()
-                    }
-                }
-            }
-        }
-    }
-
-    fun stopProgressSaving() {
-        progressSavingJob?.cancel()
-    }
 
     // ── Play video ──
     fun playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
@@ -293,75 +246,7 @@ class PlaybackController(
         }
     }
 
-    // ── Play local file ──
-    fun playLocalFile(filePath: String, title: String, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
-        videoLoadingJob?.cancel()
-        val file = java.io.File(filePath)
-        if (!file.exists()) return
-        
-        val video = SearchResult(videoUrl = filePath, title = title)
-        currentVideo = video
-        if (isPlaylist && list != null) {
-            isPlaylistMode = true
-            currentVideoList = list
-            currentVideoIndex = list.indexOfFirst { it.videoUrl == filePath }.takeIf { it >= 0 } ?: 0
-        } else {
-            isPlaylistMode = false
-            currentVideoList = listOf(video)
-            currentVideoIndex = 0
-        }
-        relatedVideos = emptyList()
 
-        val uniqueId = extractId(filePath) ?: filePath
-        val historyItem = registryManager.registry.watchHistory.find { it.videoId == uniqueId }
-
-        registryManager.addWatchHistory(WatchHistoryItem(
-            videoId = uniqueId,
-            timestamp = System.currentTimeMillis(),
-            progress = historyItem?.progress ?: 0,
-            totalDuration = historyItem?.totalDuration ?: 0,
-            title = title,
-            thumbnailUrl = null,
-            authorName = "Локальный файл",
-            authorAvatarUrl = null,
-            authorId = null,
-            videoUrl = filePath
-        ))
-        onRegistryUpdate(registryManager.registry)
-        pushToGitHub()
-
-        exoPlayer.stop()
-        exoPlayer.clearMediaItems()
-        
-        val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
-            .setTitle(title)
-            .build()
-        val mediaItem = MediaItem.Builder()
-            .setUri(android.net.Uri.fromFile(file))
-            .setMediaId(filePath)
-            .setMediaMetadata(mediaMetadata)
-            .apply {
-                if (filePath.endsWith(".mp3") || filePath.endsWith(".m4a")) {
-                    setMimeType("audio/mp4")
-                }
-            }
-            .build()
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
-
-        val historyProg = historyItem?.progress ?: 0
-        val historyTotal = historyItem?.totalDuration ?: 0
-        if (historyTotal > 0 && (historyProg.toFloat() / historyTotal) >= 0.95f) {
-            exoPlayer.seekTo(0)
-        } else if (historyProg > 0) {
-            exoPlayer.seekTo(historyProg)
-        }
-
-        exoPlayer.play()
-        playerState = PlayerState.FULL
-
-        syncPlaybackService()
-    }
 
     fun closePlayer() {
         playerState = PlayerState.CLOSED

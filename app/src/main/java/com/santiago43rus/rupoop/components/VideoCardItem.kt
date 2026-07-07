@@ -135,10 +135,8 @@ fun VideoCardItem(
                 Text(
                     video.title,
                     style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 2,
                     fontWeight = FontWeight.Normal,
-                    lineHeight = 20.sp,
-                    overflow = TextOverflow.Ellipsis
+                    lineHeight = 20.sp
                 )
                 Spacer(Modifier.height(2.dp))
                 val viewsText = formatViewCount(video.hits)
@@ -150,7 +148,6 @@ fun VideoCardItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } },
-                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }

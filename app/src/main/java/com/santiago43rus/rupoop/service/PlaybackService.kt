@@ -7,12 +7,14 @@ import android.content.Intent
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.santiago43rus.rupoop.AppViewModel
+import com.santiago43rus.rupoop.*
 
 @androidx.media3.common.util.UnstableApi
 class PlaybackService : MediaSessionService() {
@@ -39,22 +41,39 @@ class PlaybackService : MediaSessionService() {
             manager?.createNotificationChannel(channel)
         }
 
-        val basePlayer = AppViewModel.sharedPlayer ?: return
-        basePlayer.addListener(playerListener)
+        // ALWAYS start foreground service immediately to comply with Android 8.0 - 15 systems
+        val initialNotif = buildFallbackNotification()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(2026, initialNotif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(2026, initialNotif)
+            }
+        } catch (e: Exception) {
+            Log.e("PlaybackService", "Error starting initial foreground", e)
+        }
 
+        val basePlayer = AppViewModel.sharedPlayer
+        if (basePlayer != null) {
+            basePlayer.addListener(playerListener)
+            setupMediaSession(basePlayer)
+        } else {
+            Log.w("PlaybackService", "sharedPlayer was null in onCreate")
+        }
+    }
+
+    private fun setupMediaSession(basePlayer: Player) {
         val forwardingPlayer = object : ForwardingPlayer(basePlayer) {
             override fun getAvailableCommands(): Player.Commands {
                 val commands = super.getAvailableCommands().buildUpon()
-                val vm = AppViewModel.instance
-                if (vm != null) {
-                    if (vm.currentVideoIndex < vm.currentVideoList.size - 1 || (!vm.isPlaylistMode && vm.relatedVideos.isNotEmpty())) {
-                        commands.add(Player.COMMAND_SEEK_TO_NEXT)
-                        commands.add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
-                    }
-                    if (vm.currentVideoIndex > 0) {
-                        commands.add(Player.COMMAND_SEEK_TO_PREVIOUS)
-                        commands.add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
-                    }
+                val vm = AppViewModel.instance ?: return commands.build()
+                if (vm.currentVideoIndex < vm.currentVideoList.size - 1 || (!vm.isPlaylistMode && vm.relatedVideos.isNotEmpty())) {
+                    commands.add(Player.COMMAND_SEEK_TO_NEXT)
+                    commands.add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                }
+                if (vm.currentVideoIndex > 0) {
+                    commands.add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                    commands.add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
                 }
                 commands.add(Player.COMMAND_SEEK_BACK)
                 commands.add(Player.COMMAND_SEEK_FORWARD)
@@ -62,42 +81,28 @@ class PlaybackService : MediaSessionService() {
             }
 
             override fun isCommandAvailable(command: Int): Boolean {
-                val vm = AppViewModel.instance
-                if (vm != null) {
-                    if (command == Player.COMMAND_SEEK_TO_NEXT || command == Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM) {
-                        return vm.currentVideoIndex < vm.currentVideoList.size - 1 || (!vm.isPlaylistMode && vm.relatedVideos.isNotEmpty())
-                    }
-                    if (command == Player.COMMAND_SEEK_TO_PREVIOUS || command == Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM) {
-                        return vm.currentVideoIndex > 0
-                    }
+                val vm = AppViewModel.instance ?: return super.isCommandAvailable(command)
+                return when (command) {
+                    Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM ->
+                        vm.currentVideoIndex < vm.currentVideoList.size - 1 || (!vm.isPlaylistMode && vm.relatedVideos.isNotEmpty())
+                    Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM ->
+                        vm.currentVideoIndex > 0
+                    Player.COMMAND_SEEK_BACK, Player.COMMAND_SEEK_FORWARD -> true
+                    else -> super.isCommandAvailable(command)
                 }
-                if (command == Player.COMMAND_SEEK_BACK || command == Player.COMMAND_SEEK_FORWARD) {
-                    return true
-                }
-                return super.isCommandAvailable(command)
             }
 
-            override fun seekToNext() {
-                seekToNextMediaItem()
-            }
-
+            override fun seekToNext() = seekToNextMediaItem()
             override fun seekToNextMediaItem() {
                 AppViewModel.instance?.let { vm ->
-                    Handler(Looper.getMainLooper()).post {
-                        vm.playNext()
-                    }
+                    Handler(Looper.getMainLooper()).post { vm.playNext() }
                 }
             }
 
-            override fun seekToPrevious() {
-                seekToPreviousMediaItem()
-            }
-
+            override fun seekToPrevious() = seekToPreviousMediaItem()
             override fun seekToPreviousMediaItem() {
                 AppViewModel.instance?.let { vm ->
-                    Handler(Looper.getMainLooper()).post {
-                        vm.playPrevious()
-                    }
+                    Handler(Looper.getMainLooper()).post { vm.playPrevious() }
                 }
             }
 
@@ -123,35 +128,21 @@ class PlaybackService : MediaSessionService() {
             .setMediaButtonPreferences(listOf(seekBackButton, seekForwardButton))
             .build()
 
-        // Start manual foreground service and notification!
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(2026, createNotification(), android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-        } else {
-            startForeground(2026, createNotification())
-        }
+        updateNotification()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
+        val vm = AppViewModel.instance
+        val player = AppViewModel.sharedPlayer
+        val baseSeek = (vm?.settingsManager?.doubleTapSeekDuration ?: 10) * 1000L
         when (action) {
-            "PLAY" -> AppViewModel.sharedPlayer?.play()
-            "PAUSE" -> AppViewModel.sharedPlayer?.pause()
-            "NEXT" -> AppViewModel.instance?.playNext()
-            "PREVIOUS" -> AppViewModel.instance?.playPrevious()
-            "REWIND" -> {
-                val baseSeek = (AppViewModel.instance?.settingsManager?.doubleTapSeekDuration ?: 10) * 1000L
-                val player = AppViewModel.sharedPlayer
-                if (player != null) {
-                    player.seekTo((player.currentPosition - baseSeek).coerceAtLeast(0L))
-                }
-            }
-            "FAST_FORWARD" -> {
-                val baseSeek = (AppViewModel.instance?.settingsManager?.doubleTapSeekDuration ?: 10) * 1000L
-                val player = AppViewModel.sharedPlayer
-                if (player != null) {
-                    player.seekTo((player.currentPosition + baseSeek).coerceAtMost(player.duration))
-                }
-            }
+            "PLAY" -> player?.play()
+            "PAUSE" -> player?.pause()
+            "NEXT" -> vm?.playNext()
+            "PREVIOUS" -> vm?.playPrevious()
+            "REWIND" -> player?.let { it.seekTo((it.currentPosition - baseSeek).coerceAtLeast(0L)) }
+            "FAST_FORWARD" -> player?.let { it.seekTo((it.currentPosition + baseSeek).coerceAtMost(it.duration)) }
         }
         return super.onStartCommand(intent, flags, startId)
     }
@@ -167,38 +158,9 @@ class PlaybackService : MediaSessionService() {
         val hasPrevious = vm != null && vm.currentVideoIndex > 0
         val hasNext = vm != null && (vm.currentVideoIndex < vm.currentVideoList.size - 1 || (!vm.isPlaylistMode && vm.relatedVideos.isNotEmpty()))
 
-        // Programmatically generate greyed-out icons for disabled actions
-        val prevIcon = if (hasPrevious) {
-            androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_previous)
-        } else {
-            val drawable = androidx.core.content.ContextCompat.getDrawable(this, android.R.drawable.ic_media_previous)?.mutate()
-            if (drawable != null) {
-                androidx.core.graphics.drawable.DrawableCompat.setTint(drawable, android.graphics.Color.GRAY)
-                val bitmap = android.graphics.Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, android.graphics.Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(bitmap)
-                drawable.setBounds(0, 0, canvas.width, canvas.height)
-                drawable.draw(canvas)
-                androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
-            } else {
-                androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_previous)
-            }
-        }
-
-        val nextIcon = if (hasNext) {
-            androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_next)
-        } else {
-            val drawable = androidx.core.content.ContextCompat.getDrawable(this, android.R.drawable.ic_media_next)?.mutate()
-            if (drawable != null) {
-                androidx.core.graphics.drawable.DrawableCompat.setTint(drawable, android.graphics.Color.GRAY)
-                val bitmap = android.graphics.Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, android.graphics.Bitmap.Config.ARGB_8888)
-                val canvas = android.graphics.Canvas(bitmap)
-                drawable.setBounds(0, 0, canvas.width, canvas.height)
-                drawable.draw(canvas)
-                androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
-            } else {
-                androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_next)
-            }
-        }
+        // Standard system drawables are fully safe and crash-free on all API levels
+        val prevIcon = androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_previous)
+        val nextIcon = androidx.core.graphics.drawable.IconCompat.createWithResource(this, android.R.drawable.ic_media_next)
 
         val prevPendingIntent = if (hasPrevious) {
             PendingIntent.getService(this, 10, Intent(this, PlaybackService::class.java).apply { action = "PREVIOUS" }, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -268,7 +230,36 @@ class PlaybackService : MediaSessionService() {
 
     private fun updateNotification() {
         val manager = getSystemService(NotificationManager::class.java)
-        manager?.notify(2026, createNotification())
+        val notification = createNotification()
+        manager?.notify(2026, notification)
+
+        val basePlayer = AppViewModel.sharedPlayer
+        val isPlaying = basePlayer?.isPlaying == true
+
+        // Dynamically transition between foreground and background service state based on active playback
+        // This avoids Android 14/15 background restrictions while maintaining the media control notification.
+        if (isPlaying) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(2026, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+                } else {
+                    startForeground(2026, notification)
+                }
+            } catch (e: Exception) {
+                Log.e("PlaybackService", "Error starting foreground in updateNotification", e)
+            }
+        } else {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_DETACH)
+                } else {
+                    @Suppress("DEPRECATION")
+                    stopForeground(false)
+                }
+            } catch (e: Exception) {
+                Log.e("PlaybackService", "Error stopping foreground in updateNotification", e)
+            }
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {

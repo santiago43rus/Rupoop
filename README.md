@@ -204,52 +204,84 @@ base64 -w 0 keystore.jks > keystore_base64.txt
 
 ## 🏗️ Архитектура
 
+Проект спроектирован по канонам чистой архитектуры и принципам SOLID. Все исходные Kotlin-файлы строго ограничены лимитом **не более 300 строк кода**, что повышает читаемость, упрощает тестирование и расширяемость.
+
 ```
 app/src/main/java/com/santiago43rus/rupoop/
-├── MainActivity.kt            # Entry point, темы
-├── AppViewModel.kt            # Основной ViewModel (плеер, навигация, синхронизация)
-├── RutubeApp.kt               # Root composable, Scaffold, навигация
-├── RupoopApplication.kt       # Application class (Coil, WorkManager)
+├── MainActivity.kt            # Точка входа в приложение, управление системными экранами
+├── RupoopApplication.kt       # Класс приложения, инициализация Coil и WorkManager
+├── RutubeApp.kt               # Корневой Composable (Scaffold, управление жестами и BottomBar)
+├── AppViewModel.kt            # Главный ViewModel (разделен с использованием паттерна делегирования свойств)
+├── AppViewModelActions.kt     # Расширение ViewModel для пользовательских действий (подписки, плейлисты)
+├── AppViewModelDelegates.kt   # Делегирование свойств и вспомогательные функции для ViewModel
 ├── auth/
-│   ├── GitHubAuthManager.kt   # OAuth через AppAuth
-│   └── GistSyncManager.kt     # Синхронизация данных через Gist
+│   ├── AuthController.kt      # Контроллер процесса OAuth-авторизации
+│   ├── GitHubAuthManager.kt   # Интеграция OAuth через AppAuth
+│   └── GistSyncManager.kt     # Менеджер синхронизации данных пользователя через GitHub Gist
 ├── components/
-│   ├── VideoComponents.kt     # VideoDetails, VideoListScreen
-│   ├── VideoCardItem.kt       # Карточка видео, меню "три точки", режим редактирования
-│   ├── LibraryComponents.kt   # LibraryScreen, LibraryRow
-│   ├── DownloadComponents.kt  # Раздел загрузок
-│   └── Dialogs.kt             # Диалоги (контент, плейлисты)
+│   ├── AppTopBar.kt           # Компонент верхней панели (поиск, профиль, синхронизация)
+│   ├── Dialogs.kt             # Диалоговые окна плейлистов, донатов и подтверждения действий
+│   ├── DownloadCard.kt        # Карточка отображения отдельной загрузки с прогрессом
+│   ├── DownloadComponents.kt  # Экраны и карточки раздела скачанных файлов
+│   ├── LibraryComponents.kt   # Списки разделов библиотеки
+│   ├── VideoCardItem.kt       # Карточка видео для списков (адаптивная, с меню действий)
+│   ├── VideoDetailsScreen.kt  # Блок описания видео, лайков, автора под плеером
+│   └── VideoListScreen.kt     # Экран вывода списков видео (история, watch later, плейлисты)
 ├── data/
-│   ├── Models.kt              # Модели данных (UserRegistry, AppSettings)
-│   ├── SettingsManager.kt     # Хранилище SharedPreferences
-│   ├── UserRegistryManager.kt # Управление реестром пользователя (лайки, скрытые, дизлайки)
-│   ├── MainFeedRecommendationStrategy.kt # Стратегия рекомендаций главной страницы
+│   ├── Models.kt              # Модели данных (UserRegistry, SearchResult, Author, Playlist)
+│   ├── SettingsManager.kt     # Хранилище настроек приложения (SharedPreferences)
+│   ├── UserRegistryManager.kt # Локальный менеджер реестра пользователя (лайки, скрытые, история)
+│   ├── ContentFeedController.kt # Управление контентом рекомендаций, подписок и истории
+│   ├── NavigationController.kt  # Управление навигацией в приложении
+│   ├── SearchController.kt      # Управление поиском, историей запросов и подсказками
+│   ├── SequelPredictor.kt       # Алгоритм подбора следующего видео для автовоспроизведения
+│   ├── TagWeightCalculator.kt   # Калькулятор весов тегов для персонализации рекомендаций
+│   ├── DownloadTracker.kt       # Менеджер отслеживания скачанных файлов
+│   ├── DownloadIndexer.kt       # Индексатор ранее скачанных медиафайлов на устройстве
+│   ├── MainFeedRecommendationStrategy.kt # Стратегия рекомендаций для главной страницы
 │   ├── RelatedVideoRecommendationStrategy.kt # Стратегия рекомендаций похожих видео
-│   ├── RecommendationUtils.kt # Утилиты ранжирования весов тегов
-│   └── DownloadTracker.kt     # Трекер загрузок
+│   └── RecommendationUtils.kt   # Общие утилиты рекомендательной системы
 ├── network/
-│   ├── ApiInterfaces.kt       # Интерфейсы Retrofit (Rutube, Gist, GitHub)
-│   └── RetrofitClient.kt      # Настройка HTTP-клиента OkHttp
+│   ├── ApiInterfaces.kt       # API-интерфейсы Retrofit для Rutube, GitHub, Gist
+│   ├── RetrofitClient.kt      # Настройка HTTP-клиента OkHttp и десериализации JSON
+│   └── NetworkMonitor.kt      # Мониторинг сетевой активности устройства
 ├── player/
-│   └── VideoPlayerComponents.kt # Кастомный плеер ExoPlayer, жесты, воспроизведение
+│   ├── PlaybackController.kt  # Главный контроллер плеера (ExoPlayer)
+│   ├── PlaybackControllerLocal.kt   # Контроллер воспроизведения локальных (скачанных) файлов
+│   ├── PlaybackControllerService.kt # Синхронизация воспроизведения с фоновой службой
+│   ├── ControlsOverlay.kt     # Элементы управления плеера поверх видео (Play, Next, Seek)
+│   ├── MoreVideosOverlay.kt   # Плейлист похожих видео поверх плеера (кнопка «Еще видео»)
+│   ├── PlayerHelperComponents.kt # Диалог качества, мини-плеер, формат времени
+│   ├── PlayerOverlayComponents.kt # Голосовой поиск, анимация перемотки, индикатор скорости
+│   └── VideoPlayerComponents.kt # ExoPlayer контейнер и детекторы жестов (swipe, double tap)
 ├── screen/
-│   ├── MainFeedScreen.kt      # Главная страница (лента рекомендаций)
-│   ├── SubscriptionsScreen.kt # Вкладка подписок
-│   ├── AuthorScreen.kt        # Страница конкретного автора
-│   ├── RelatedVideosList.kt   # Список похожих видео под плеером
-│   ├── SettingsScreen.kt      # Настройки
-│   ├── HiddenVideosScreen.kt  # Раздел скрытых и неинтересных видео
-│   └── NotificationSettingsScreen.kt # Экран управления уведомлениями
+│   ├── AuthorScreen.kt        # Страница автора/канала (видео, плейлисты, о канале)
+│   ├── HiddenVideosScreen.kt  # Экран управления скрытыми и неинтересными видео
+│   ├── LibraryContent.kt      # Экран Библиотеки (история, загрузки, плейлисты, watch later)
+│   ├── MainFeedScreen.kt      # Экран главной ленты видео с вкладками категорий
+│   ├── SubscriptionsScreen.kt # Экран подписок на каналы
+│   ├── SearchOverlay.kt       # Полноэкранный оверлей результатов поиска
+│   ├── SearchSuggestionsOverlay.kt # Оверлей поисковых подсказок (suggestions)
+│   ├── SettingsScreen.kt      # Экран общих настроек приложения
+│   ├── SettingsSections.kt    # Секции экрана настроек (история, кеш, поддержка)
+│   ├── NotificationSettingsScreen.kt # Экран управления уведомлениями (скачивание, фоновое воспроизведение)
+│   ├── RelatedVideosList.kt   # Список похожих видео под плеером в портретной ориентации
+│   ├── RutubeAppOverlays.kt   # Координатор диалогов и оверлеев на уровне всего приложения
+│   ├── RutubeBottomBar.kt     # Нижняя панель навигации
+│   └── RutubePlayerContainer.kt # Контейнер плеера со сложной анимацией перетягивания (swipe-to-collapse)
 ├── service/
-│   ├── DownloadService.kt     # Фоновая Foreground-служба скачивания видео
-│   ├── PlaybackService.kt     # Фоновая Foreground-служба воспроизведения (Media3)
-│   └── SyncWorker.kt          # Периодическая фоновая синхронизация реестра
+│   ├── DownloadService.kt     # Foreground-служба фонового скачивания файлов
+│   ├── DownloadTask.kt        # Логика загрузки HLS-сегментов и извлечения аудиодорожки
+│   ├── DownloadServiceNotifications.kt # Расширение службы для управления уведомлениями скачивания
+│   ├── PlaybackService.kt     # Фоновая Foreground-служба воспроизведения (Media3 MediaSession)
+│   └── SyncWorker.kt          # Периодическая фоновая синхронизация с GitHub Gist (WorkManager)
 ├── theme/
-│   ├── Color.kt               # Определение цветов темы
-│   ├── Theme.kt               # Настройка RupoopTheme
+│   ├── Color.kt               # Константы цветовой схемы (Dark/Light)
+│   ├── Theme.kt               # Настройка темы RupoopTheme
 │   └── Type.kt                # Типографика Jetpack Compose
 └── util/
-    └── Utils.kt               # Утилиты форматирования, проверка сети
+    ├── FormatterExtensions.kt # Расширения для форматирования просмотров, лайков и дат
+    └── Utils.kt               # Утилиты проверки сети, кеша и системных панелей
 ```
 
 ---

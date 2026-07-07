@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.santiago43rus.rupoop.AppViewModel
+import com.santiago43rus.rupoop.*
 import com.santiago43rus.rupoop.components.*
 import com.santiago43rus.rupoop.data.*
 import com.santiago43rus.rupoop.service.DownloadService
@@ -171,8 +172,7 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         action = "PAUSE"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    val showNotif = vm.settingsManager.showDownloadNotifications
-                    if (showNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         vm.getApplication<Application>().startForegroundService(intent)
                     } else {
                         vm.getApplication<Application>().startService(intent)
@@ -183,8 +183,7 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         action = "RESUME"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    val showNotif = vm.settingsManager.showDownloadNotifications
-                    if (showNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         vm.getApplication<Application>().startForegroundService(intent)
                     } else {
                         vm.getApplication<Application>().startService(intent)
@@ -195,8 +194,7 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         action = "CANCEL"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    val showNotif = vm.settingsManager.showDownloadNotifications
-                    if (showNotif && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         vm.getApplication<Application>().startForegroundService(intent)
                     } else {
                         vm.getApplication<Application>().startService(intent)
@@ -234,7 +232,8 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 onRetry = { videoId ->
                     val item = downloads.find { it.videoId == videoId }
                     if (item != null) {
-                        val video = SearchResult(videoUrl = "https://rutube.ru/video/$videoId/", title = item.title, thumbnailUrl = item.thumbnailUrl)
+                        val realId = videoId.substringBefore("___")
+                        val video = SearchResult(videoUrl = "https://rutube.ru/video/$realId/", title = item.title, thumbnailUrl = item.thumbnailUrl)
                         val isAudio = item.filePath?.endsWith(".mp3") == true || item.filePath?.endsWith(".m4a") == true
                         vm.startDownload(video, isAudio)
                     }

@@ -117,11 +117,11 @@ fun LibraryScreen(
                             Spacer(Modifier.width(8.dp))
                             Column(Modifier.weight(1f).clickable { onVideoClick(item) }) {
                                 Text(
-                                    item.title ?: "", maxLines = 1, style = MaterialTheme.typography.bodySmall,
+                                    item.title ?: "", maxLines = 2, style = MaterialTheme.typography.bodySmall,
                                     overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    item.authorName ?: "", maxLines = 1,
+                                    item.authorName ?: "",
                                     style = MaterialTheme.typography.labelSmall, color = Color.Gray,
                                     overflow = TextOverflow.Ellipsis
                                 )
