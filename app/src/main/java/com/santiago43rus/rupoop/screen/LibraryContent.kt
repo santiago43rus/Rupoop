@@ -172,58 +172,63 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         action = "PAUSE"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        vm.getApplication<Application>().startForegroundService(intent)
-                    } else {
-                        vm.getApplication<Application>().startService(intent)
-                    }
+                    vm.getApplication<Application>().startService(intent)
                 },
                 onResume = { videoId ->
                     val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
                         action = "RESUME"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        vm.getApplication<Application>().startForegroundService(intent)
-                    } else {
-                        vm.getApplication<Application>().startService(intent)
-                    }
+                    vm.getApplication<Application>().startService(intent)
                 },
                 onCancel = { videoId ->
                     val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
                         action = "CANCEL"
                         putExtra("VIDEO_ID", videoId)
                     }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        vm.getApplication<Application>().startForegroundService(intent)
-                    } else {
-                        vm.getApplication<Application>().startService(intent)
-                    }
+                    vm.getApplication<Application>().startService(intent)
                 },
                 onDelete = { videoId ->
                     deleteDialogTitle = "Удалить загрузку"
                     deleteDialogMessage = "Вы уверены, что хотите удалить этот файл с устройства?"
                     pendingDeleteAction = {
                         val item = downloads.find { it.videoId == videoId }
-                        item?.filePath?.let { path ->
-                            val file = File(path)
-                            var deleted = false
-                            try {
-                                if (file.exists() && file.delete()) {
-                                    deleted = true
-                                }
-                            } catch (_: Exception) {}
+                        val isActiveOrPaused = item?.status == DownloadStatus.DOWNLOADING || item?.status == DownloadStatus.PAUSED
 
-                            if (deleted) {
-                                vm.downloadTracker.removeDownload(videoId)
-                            } else {
-                                val uri = vm.downloadTracker.getUriFromFilePath(context, path)
-                                if (uri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                    val pi = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
-                                    pendingDeleteVideoId = videoId
-                                    deleteLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pi.intentSender).build())
-                                } else {
+                        if (isActiveOrPaused) {
+                            // The item is still downloading (or paused mid-download). Just wiping
+                            // the tracker row here (the old behavior) left the background task
+                            // running untouched and its notification stuck on screen forever,
+                            // since DownloadService was never told to stop. Route through the
+                            // same CANCEL path the notification's "Отмена" button uses: it cancels
+                            // the coroutine, deletes any partial file, and clears the notification.
+                            val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
+                                action = "CANCEL"
+                                putExtra("VIDEO_ID", videoId)
+                            }
+                            vm.getApplication<Application>().startService(intent)
+                            vm.downloadTracker.removeDownload(videoId)
+                        } else {
+                            item?.filePath?.let { path ->
+                                val file = File(path)
+                                var deleted = false
+                                try {
+                                    if (file.exists() && file.delete()) {
+                                        deleted = true
+                                    }
+                                } catch (_: Exception) {}
+
+                                if (deleted) {
                                     vm.downloadTracker.removeDownload(videoId)
+                                } else {
+                                    val uri = vm.downloadTracker.getUriFromFilePath(context, path)
+                                    if (uri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        val pi = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
+                                        pendingDeleteVideoId = videoId
+                                        deleteLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pi.intentSender).build())
+                                    } else {
+                                        vm.downloadTracker.removeDownload(videoId)
+                                    }
                                 }
                             }
                         }

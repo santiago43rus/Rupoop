@@ -31,20 +31,33 @@ class DownloadTask(
 ) {
     var job: Job? = null
     var isPaused = false
+    var isCancelled = false
     var downloadedSegments = 0
     var totalSegments = 0
     var outputFile: File? = null
 
+    // The generation this run of the task belongs to. Every explicit pause/resume/cancel bumps
+    // the shared generation counter for this upload id; progress notifications tagged with an
+    // older generation get dropped instead of overwriting more recent state (see
+    // DownloadServiceNotifications.updateNotification).
+    private var myGeneration = 0
+
+    // Only push a notification when the rounded percentage actually changes. Segment-level
+    // updates can fire many times a second on playlists with lots of small segments, and posting
+    // a notification for every single one is both wasteful and prone to being silently dropped by
+    // Android's per-notification-id rate limiting - which looked like "progress isn't moving".
+    private var lastNotifiedProgress = -1
+
     fun start() {
         isPaused = false
+        isCancelled = false
+        myGeneration = bumpGeneration(videoId)
         job = service.serviceScope.launch {
             try {
                 if (!isNetworkAvailable(service)) {
                     service.downloadTracker.updateStatus(videoId, DownloadStatus.ERROR, "Нет подключения к интернету")
                     service.sendBroadcast(Intent(DownloadService.ACTION_DOWNLOAD_ERROR).putExtra("title", title).putExtra("error", "Нет интернета"))
                     service.updateNotification(videoId, title, 0, isAudio, false, "Ошибка: Нет интернета")
-                    service.activeTasks.remove(videoId)
-                    service.checkAndStopService()
                     return@launch
                 }
 
@@ -95,18 +108,26 @@ class DownloadTask(
                         service.downloadTracker.updateStatus(videoId, DownloadStatus.ERROR, "Соединение потеряно")
                         service.sendBroadcast(Intent(DownloadService.ACTION_DOWNLOAD_ERROR).putExtra("title", title).putExtra("error", "Соединение потеряно"))
                         service.updateNotification(videoId, title, 0, isAudio, false, "Ошибка: Соединение потеряно")
-                        service.activeTasks.remove(videoId)
-                        service.checkAndStopService()
                         return@launch
                     }
 
                     val segmentUrl = segments[i]
                     downloadSegment(segmentUrl, fos)
 
+                    if (!isActive || isPaused || isCancelled) {
+                        break
+                    }
+
                     downloadedSegments++
                     val progress = if (totalSegments > 0) (downloadedSegments * 100) / totalSegments else 0
-                    service.updateNotification(videoId, title, progress, isAudio, false)
-                    service.downloadTracker.updateProgress(videoId, progress, downloadedSegments, totalSegments)
+                    if (isActive && !isPaused && !isCancelled) {
+                        if (progress != lastNotifiedProgress) {
+                            lastNotifiedProgress = progress
+                            service.updateNotification(videoId, title, progress, isAudio, false, generation = myGeneration)
+                        }
+                        // The in-app tracker still updates every segment for fine-grained UI progress.
+                        service.downloadTracker.updateProgress(videoId, progress, downloadedSegments, totalSegments)
+                    }
                 }
 
                 fos.close()
@@ -120,26 +141,58 @@ class DownloadTask(
                                 tempFile.delete()
                             }
                         }
-                        outputFile = finalFile
                     }
+
+                    // extractAudioTrack hands off to Media3's Transformer, which runs on its own
+                    // thread and can finish (calling continuation.resume normally) at essentially
+                    // the same moment the user hits Stop/Cancel. None of the calls below are
+                    // suspend calls, so cooperative cancellation alone won't stop them from
+                    // running even though the job was already cancelled - which is what let a
+                    // "download complete" notification get posted right after Cancel had already
+                    // cleared it, and left a finished .m4a behind despite being "cancelled".
+                    if (!isActive || isPaused || isCancelled) {
+                        finalFile.delete()
+                        return@launch
+                    }
+
+                    outputFile = finalFile
                     MediaScannerConnection.scanFile(service, arrayOf(outputFile!!.absolutePath), arrayOf(if (isAudio) "audio/mp4" else "video/mp4")) { path, uri ->
                         Log.d("DownloadService", "Scanned $path: uri=$uri")
                     }
                     service.downloadTracker.updateStatus(videoId, DownloadStatus.COMPLETED, filePath = outputFile!!.absolutePath)
                     service.sendBroadcast(Intent(DownloadService.ACTION_DOWNLOAD_COMPLETE).putExtra("title", title))
-                    
+
                     service.showCompleteNotification(title, isAudio, videoId)
                 }
-                service.activeTasks.remove(videoId)
-                service.checkAndStopService()
             } catch (e: Exception) {
-                if (e is CancellationException) return@launch
+                if (isCancelled) {
+                    service.downloadTracker.updateStatus(videoId, DownloadStatus.CANCELLED)
+                    service.sendBroadcast(Intent(DownloadService.ACTION_DOWNLOAD_CANCELLED).putExtra("video_id", videoId))
+                    Log.d("RupoopDownload", "Task cancelled: $videoId")
+                    return@launch
+                } else if (isPaused) {
+                    service.downloadTracker.updateStatus(videoId, DownloadStatus.PAUSED)
+                    val prog = if (totalSegments > 0) (downloadedSegments * 100) / totalSegments else 0
+                    service.updateNotification(videoId, title, prog, isAudio, true, "Приостановлено")
+                    service.sendBroadcast(Intent(DownloadService.ACTION_DOWNLOAD_PAUSED).putExtra("video_id", videoId))
+                    Log.d("RupoopDownload", "Task paused: $videoId progress=$prog")
+                    return@launch
+                } else if (e is CancellationException) {
+                    service.downloadTracker.updateStatus(videoId, DownloadStatus.CANCELLED)
+                    service.sendBroadcast(Intent(DownloadService.ACTION_DOWNLOAD_CANCELLED).putExtra("video_id", videoId))
+                    Log.d("RupoopDownload", "Task cancelled (CancellationException): $videoId")
+                    return@launch
+                }
                 Log.e("RupoopDownload", "Download error in task $videoId", e)
                 service.downloadTracker.updateStatus(videoId, DownloadStatus.ERROR, e.message)
                 service.sendBroadcast(Intent(DownloadService.ACTION_DOWNLOAD_ERROR).putExtra("title", title).putExtra("error", e.message))
                 service.updateNotification(videoId, title, 0, isAudio, false, "Ошибка: ${e.message}")
-                service.activeTasks.remove(videoId)
-                service.checkAndStopService()
+            } finally {
+                // Ensure task cleanup always happens once coroutine finishes
+                if (!isPaused || isCancelled) {
+                    service.activeTasks.remove(videoId)
+                    service.checkAndStopService()
+                }
             }
         }
     }
@@ -200,11 +253,34 @@ class DownloadTask(
     }
 
     private suspend fun downloadSegment(url: String, fos: FileOutputStream) {
-        withContext(Dispatchers.IO) {
-            val request = Request.Builder().url(url).build()
-            val response = service.client.newCall(request).execute()
-            val bytes = response.body?.bytes() ?: return@withContext
-            fos.write(bytes)
+        val request = Request.Builder().url(url).build()
+        val call = service.client.newCall(request)
+        
+        coroutineScope {
+            val job = coroutineContext[Job]
+            val handler = job?.invokeOnCompletion {
+                call.cancel()
+            }
+            try {
+                withContext(Dispatchers.IO) {
+                    val response = call.execute()
+                    if (!response.isSuccessful) throw Exception("Unexpected code $response")
+                    val body = response.body ?: throw Exception("Empty body")
+                    val buffer = ByteArray(8192)
+                    body.byteStream().use { input ->
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            if (!isActive || isPaused) {
+                                call.cancel()
+                                throw CancellationException("Download paused or cancelled")
+                            }
+                            fos.write(buffer, 0, bytesRead)
+                        }
+                    }
+                }
+            } finally {
+                handler?.dispose()
+            }
         }
     }
 
