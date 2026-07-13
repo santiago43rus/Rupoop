@@ -102,6 +102,10 @@ var AppViewModel.isFullscreenVideo: Boolean
     get() = playbackController.isFullscreenVideo
     set(value) { playbackController.isFullscreenVideo = value }
 
+var AppViewModel.isFullscreenTriggeredManually: Boolean
+    get() = playbackController.isFullscreenTriggeredManually
+    set(value) { playbackController.isFullscreenTriggeredManually = value }
+
 var AppViewModel.isPlaying: Boolean
     get() = playbackController.isPlaying
     set(value) { playbackController.isPlaying = value }

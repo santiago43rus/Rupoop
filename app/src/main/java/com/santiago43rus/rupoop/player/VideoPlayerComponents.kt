@@ -130,12 +130,13 @@ fun CustomVideoPlayer(
 
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val shouldFillMax = isFullscreen && isLandscape
+    val shouldFillMax = isLandscape
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (shouldFillMax) Modifier.fillMaxSize() else Modifier.aspectRatio(16 / 9f))
+            .then(if (isFullscreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier)
             .offset { IntOffset(swipeOffsetX.roundToInt(), swipeOffsetY.roundToInt()) }
             .graphicsLayer {
                 scaleX = swipeScale

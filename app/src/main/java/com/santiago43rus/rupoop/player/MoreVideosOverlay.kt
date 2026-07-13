@@ -20,7 +20,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -45,14 +46,24 @@ fun MoreVideosOverlay(
     onPlayRelated: (SearchResult) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val screenHeightPixels = LocalContext.current.resources.displayMetrics.heightPixels.toFloat()
+    val config = LocalConfiguration.current
+    val density = LocalDensity.current
+    
+    val containerHeightPx = with(density) {
+        if (isFullscreen) {
+            config.screenHeightDp.dp.toPx()
+        } else {
+            (config.screenWidthDp.dp * (9f / 16f)).toPx()
+        }
+    }
+    
     var panelDragY by remember { mutableStateOf(0f) }
     val isDraggingUp = moreVideosDragOffset < 0f
 
     val targetOffsetY = when {
-        isDraggingUp -> (screenHeightPixels + moreVideosDragOffset).coerceAtLeast(0f)
+        isDraggingUp -> (containerHeightPx + moreVideosDragOffset).coerceAtLeast(0f)
         showMoreVideos -> panelDragY
-        else -> screenHeightPixels
+        else -> containerHeightPx
     }
 
     val animatedOffsetY by animateFloatAsState(
@@ -61,7 +72,7 @@ fun MoreVideosOverlay(
         label = "moreVideosY"
     )
 
-    if ((showMoreVideos || animatedOffsetY < screenHeightPixels) && !isLocalFile) {
+    if ((showMoreVideos || animatedOffsetY < containerHeightPx) && !isLocalFile) {
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -82,11 +93,13 @@ fun MoreVideosOverlay(
                         panelDragY = (panelDragY + dragAmount.y).coerceAtLeast(0f)
                     }
                 }
-                .padding(top = 16.dp, bottom = 16.dp)
         ) {
-            Column {
+            Column(modifier = Modifier.fillMaxSize()) {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = if (isFullscreen) 48.dp else 16.dp, end = if (isFullscreen) 20.dp else 4.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                        .padding(horizontal = 16.dp),
                     Arrangement.SpaceBetween,
                     Alignment.CenterVertically
                 ) {
@@ -96,7 +109,11 @@ fun MoreVideosOverlay(
                     }
                 }
                 
-                Row(Modifier.padding(vertical = 8.dp).padding(start = if (isFullscreen) 48.dp else 16.dp, end = if (isFullscreen) 32.dp else 16.dp)) {
+                Row(
+                    Modifier
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(vertical = 8.dp, horizontal = 16.dp)
+                ) {
                     FilterChip(selected = true, onClick = {}, label = { Text("Все видео") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedContainerColor = Color.White.copy(0.2f)))
                     Spacer(Modifier.width(8.dp))
                     FilterChip(
@@ -113,10 +130,14 @@ fun MoreVideosOverlay(
                     )
                 }
 
+                val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
+                val startPadding = 16.dp + safeInsets.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+                val endPadding = 16.dp + safeInsets.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(start = if (isFullscreen) 48.dp else 16.dp, end = if (isFullscreen) 32.dp else 16.dp)
+                    contentPadding = PaddingValues(start = startPadding, end = endPadding)
                 ) {
                     items(relatedVideos) { video ->
                         Column(

@@ -50,6 +50,7 @@ class PlaybackController(
     var playerTransitionProgress by mutableStateOf(1f)
     var currentVideo by mutableStateOf<SearchResult?>(null)
     var isFullscreenVideo by mutableStateOf(false)
+    var isFullscreenTriggeredManually by mutableStateOf(false)
     var isPlaying by mutableStateOf(false)
     var isBuffering by mutableStateOf(false)
     var isBackgroundPlaybackEnabled by mutableStateOf(false)

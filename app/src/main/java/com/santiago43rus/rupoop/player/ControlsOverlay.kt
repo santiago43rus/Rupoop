@@ -79,14 +79,14 @@ fun ControlsOverlay(
             modifier = Modifier
                 .fillMaxSize()
                 .background(if (isSeeking) Color.Transparent else Color.Black.copy(alpha = 0.4f))
-                .then(if (isFullscreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier)
         ) {
             if (!isSeeking) {
                 // Top bar
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(start = if (isFullscreen) 14.dp else 8.dp, end = if (isFullscreen) 20.dp else 4.dp, top = 8.dp, bottom = 8.dp),
+                        .then(if (isFullscreen) Modifier.statusBarsPadding() else Modifier)
+                        .padding(start = if (isFullscreen) 14.dp else 8.dp, end = if (isFullscreen) 20.dp else 4.dp, top = if (isFullscreen) 8.dp else 2.dp, bottom = if (isFullscreen) 8.dp else 2.dp),
                     Arrangement.SpaceBetween,
                     Alignment.CenterVertically
                 ) {
@@ -100,9 +100,13 @@ fun ControlsOverlay(
                         Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White, modifier = Modifier.size(32.dp))
                     }
                     
-                    Column(Modifier.weight(1f).padding(horizontal = 8.dp), horizontalAlignment = Alignment.Start) {
-                        Text(currentVideo?.title ?: "", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(currentVideo?.author?.name ?: "", color = Color.White.copy(0.7f), fontSize = 12.sp, maxLines = 1)
+                    if (isFullscreen) {
+                        Column(Modifier.weight(1f).padding(horizontal = 8.dp), horizontalAlignment = Alignment.Start) {
+                            Text(currentVideo?.title ?: "", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(currentVideo?.author?.name ?: "", color = Color.White.copy(0.7f), fontSize = 12.sp, maxLines = 1)
+                        }
+                    } else {
+                        Spacer(Modifier.weight(1f))
                     }
 
                     IconButton(onClick = onShowSettings) {
@@ -160,7 +164,7 @@ fun ControlsOverlay(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = if (isFullscreen) 16.dp else 4.dp)
+                    .padding(bottom = if (isFullscreen) 16.dp else 0.dp)
                     .padding(start = if (isFullscreen) 22.dp else 16.dp, end = if (isFullscreen) 32.dp else 16.dp)
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -185,7 +189,7 @@ fun ControlsOverlay(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .offset(y = 12.dp),
+                        .offset(y = if (isFullscreen) 12.dp else 4.dp),
                     Arrangement.SpaceBetween,
                     Alignment.CenterVertically
                 ) {

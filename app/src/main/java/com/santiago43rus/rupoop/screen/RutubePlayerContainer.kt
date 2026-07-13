@@ -1,5 +1,6 @@
 package com.santiago43rus.rupoop.screen
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -41,47 +42,80 @@ fun RutubePlayerContainer(
     val topPadding = padding.calculateTopPadding()
     val bottomPadding = padding.calculateBottomPadding()
 
-    val topPaddingPx = with(density) { topPadding.toPx() }
-    val bottomPaddingPx = with(density) { bottomPadding.toPx() }
-    val maxDrag = with(density) { config.screenHeightDp.dp.toPx() - topPaddingPx - bottomPaddingPx - 64.dp.toPx() }
+    val screenWidth = config.screenWidthDp.dp
+    val screenHeight = config.screenHeightDp.dp
+    
+    val isTablet = screenWidth >= 600.dp
+    val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isWideScreen = isTablet || isLandscape
 
-    val dragOffsetY = remember { Animatable(if (vm.playerState == PlayerState.FULL) 0f else maxDrag) }
-    val fullscreenDragOffsetY = remember { Animatable(0f) }
-
-    LaunchedEffect(vm.playerState, vm.isFullscreenVideo, maxDrag) {
-        if (vm.isFullscreenVideo) {
-            dragOffsetY.snapTo(0f)
-            fullscreenDragOffsetY.snapTo(0f)
-        } else if (maxDrag > 0) {
-            dragOffsetY.animateTo(
-                targetValue = if (vm.playerState == PlayerState.FULL) 0f else maxDrag,
-                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow)
-            )
+    LaunchedEffect(config.orientation, vm.playerState) {
+        if (vm.isFullscreenVideo && vm.isFullscreenTriggeredManually) {
+            return@LaunchedEffect
+        }
+        if (vm.playerState == PlayerState.FULL && vm.currentVideo != null) {
+            val isCurrentlyLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
+            if (isCurrentlyLandscape) {
+                if (!vm.isFullscreenVideo) {
+                    vm.toggleFullscreen(true, false)
+                }
+            } else {
+                if (vm.isFullscreenVideo) {
+                    vm.toggleFullscreen(false, false)
+                }
+            }
         }
     }
 
-    val realProgress = if (maxDrag > 0) (dragOffsetY.value / maxDrag) else 0f
-    LaunchedEffect(dragOffsetY.value, maxDrag) {
-        val progress = if (maxDrag > 0) (dragOffsetY.value / maxDrag).coerceIn(0f, 1f) else 0f
+    val statusBarsTopPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val miniPlayerHeight = 64.dp
+    val maxDragDp = (screenHeight - statusBarsTopPadding - bottomPadding - miniPlayerHeight).coerceAtLeast(1.dp)
+    val maxDragPx = with(density) { maxDragDp.toPx() }
+
+    val dragOffsetY = remember { Animatable(if (vm.playerState == PlayerState.FULL) 0f else maxDragPx) }
+    val fullscreenDragOffsetY = remember { Animatable(0f) }
+
+    var lastPlayerState by remember { mutableStateOf(vm.playerState) }
+
+    LaunchedEffect(vm.playerState, vm.isFullscreenVideo, maxDragPx) {
+        if (vm.isFullscreenVideo) {
+            dragOffsetY.snapTo(0f)
+            fullscreenDragOffsetY.snapTo(0f)
+        } else if (maxDragPx > 0f) {
+            val target = if (vm.playerState == PlayerState.FULL) 0f else maxDragPx
+            if (vm.playerState != lastPlayerState) {
+                dragOffsetY.animateTo(
+                    targetValue = target,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow)
+                )
+                lastPlayerState = vm.playerState
+            } else {
+                dragOffsetY.snapTo(target)
+            }
+        }
+    }
+
+    val realProgress = if (maxDragPx > 0f) (dragOffsetY.value / maxDragPx) else 0f
+    LaunchedEffect(dragOffsetY.value, maxDragPx) {
+        val progress = if (maxDragPx > 0f) (dragOffsetY.value / maxDragPx).coerceIn(0f, 1f) else 0f
         vm.playerTransitionProgress = progress
     }
     val isMiniThresholdReached = realProgress >= 1f
 
-    val targetFullHeight = config.screenHeightDp.dp - topPadding
-    val miniPlayerHeight = 64.dp
+    val targetFullHeight = screenHeight - statusBarsTopPadding
 
     val playerHeight = if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
-        config.screenHeightDp.dp
+        screenHeight
     } else {
         targetFullHeight - (targetFullHeight - miniPlayerHeight) * realProgress.coerceIn(0f, 1f)
     }
 
     val playerOffsetY = if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) 0.dp else {
-        topPadding + (config.screenHeightDp.dp - bottomPadding - miniPlayerHeight - topPadding) * realProgress.coerceIn(0f, 1f) + if (realProgress > 1f) ((realProgress - 1f) * maxDrag).dp else 0.dp
+        statusBarsTopPadding + (screenHeight - bottomPadding - miniPlayerHeight - statusBarsTopPadding) * realProgress.coerceIn(0f, 1f) + if (realProgress > 1f) maxDragDp * (realProgress - 1f) else 0.dp
     }
 
     val playerWidthFraction = if (vm.isFullscreenVideo || isMiniThresholdReached) 1f else {
-        1f - (1f - (100f / config.screenWidthDp)) * realProgress.coerceIn(0f, 1f)
+        1f - (1f - (100f / screenWidth.value)) * realProgress.coerceIn(0f, 1f)
     }
 
     val maxDragDistanceVertical = 150f
@@ -115,17 +149,17 @@ fun RutubePlayerContainer(
                                     initialDragDirection = 0f
                                     if (fullscreenDragOffsetY.value > 0f) {
                                         if (fullscreenDragOffsetY.value > 50f) {
-                                            vm.toggleFullscreen(true)
+                                            vm.toggleFullscreen(true, true)
                                         }
                                         fullscreenDragOffsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
-                                    } else if (dragOffsetY.value > maxDrag + 80f) {
+                                    } else if (dragOffsetY.value > maxDragPx + 80f) {
                                         vm.closePlayer()
-                                        dragOffsetY.snapTo(maxDrag)
+                                        dragOffsetY.snapTo(maxDragPx)
                                     } else {
-                                        val threshold = if (dragStartedFrom == PlayerState.MINI) maxDrag * 0.85f else maxDrag * 0.15f
+                                        val threshold = if (dragStartedFrom == PlayerState.MINI) maxDragPx * 0.85f else maxDragPx * 0.15f
                                         if (dragOffsetY.value > threshold) {
                                             vm.playerState = PlayerState.MINI
-                                            dragOffsetY.animateTo(maxDrag, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow))
+                                            dragOffsetY.animateTo(maxDragPx, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow))
                                         } else {
                                             vm.playerState = PlayerState.FULL
                                             dragOffsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow))
@@ -137,7 +171,7 @@ fun RutubePlayerContainer(
                                 scope.launch {
                                     initialDragDirection = 0f
                                     fullscreenDragOffsetY.animateTo(0f)
-                                    dragOffsetY.animateTo(if (vm.playerState == PlayerState.FULL) 0f else maxDrag, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow))
+                                    dragOffsetY.animateTo(if (vm.playerState == PlayerState.FULL) 0f else maxDragPx, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow))
                                 }
                             }
                         ) { change, dragAmount ->
@@ -152,69 +186,142 @@ fun RutubePlayerContainer(
                             if (dragStartedFrom == PlayerState.MINI) {
                                 change.consume()
                                 if (initialDragDirection > 0f) {
-                                    scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceAtMost(maxDrag + 300f).coerceAtLeast(maxDrag)) }
+                                    scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceAtMost(maxDragPx + 300f).coerceAtLeast(maxDragPx)) }
                                 } else if (initialDragDirection < 0f) {
-                                    scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDrag)) }
+                                    scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDragPx)) }
                                 }
                             } else if (dragStartedFrom == PlayerState.FULL && (isAtTop || isTouchOnPlayer)) {
                                 if (initialDragDirection > 0f) {
                                     change.consume()
-                                    scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDrag)) }
+                                    scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDragPx)) }
                                 } else if (initialDragDirection < 0f) {
                                     change.consume()
                                     scope.launch { fullscreenDragOffsetY.snapTo((fullscreenDragOffsetY.value - activeDragAmount).coerceIn(0f, maxDragDistanceVertical)) }
                                 }
-                            } else if (dragOffsetY.value > 0 && dragOffsetY.value < maxDrag) {
+                            } else if (dragOffsetY.value > 0 && dragOffsetY.value < maxDragPx) {
                                 change.consume()
-                                scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDrag)) }
+                                scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDragPx)) }
                             }
                         }
                     }
                 }
         ) {
             if (!isMiniThresholdReached) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.graphicsLayer {
-                        scaleX = fsScale
-                        scaleY = fsScale
-                        translationY = fsOffsetY
-                    }) {
-                        CustomVideoPlayer(
-                            exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo,
-                            currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
-                            onMinimize = { vm.playerState = PlayerState.MINI },
-                            onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo) },
-                            onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
-                            isFirstVideo = vm.currentVideoIndex <= 0,
-                            isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
-                            isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
-                            isTransitioning = fsProgress > 0f || realProgress > 0f,
-                            onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
-                        )
-                    }
-                    if (!vm.isFullscreenVideo) {
-                        LaunchedEffect(vm.currentVideo) {
-                            relatedListState.scrollToItem(0)
+                if (isWideScreen && !vm.isFullscreenVideo) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(0.6f)
+                                .fillMaxHeight()
+                                .padding(end = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    scaleX = fsScale
+                                    scaleY = fsScale
+                                    translationY = fsOffsetY
+                                }
+                            ) {
+                                CustomVideoPlayer(
+                                    exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo,
+                                    currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
+                                    onMinimize = { vm.playerState = PlayerState.MINI },
+                                    onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo, true) },
+                                    onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
+                                    isFirstVideo = vm.currentVideoIndex <= 0,
+                                    isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
+                                    isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
+                                    isTransitioning = fsProgress > 0f || realProgress > 0f,
+                                    onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
+                                )
+                            }
                         }
-                        RelatedVideosList(
-                            modifier = Modifier.fillMaxSize(),
-                            listState = relatedListState,
-                            currentVideo = vm.currentVideo,
-                            relatedVideos = vm.relatedVideos,
-                            userRegistry = vm.userRegistry,
-                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                            onToggleSub = { vm.toggleSubscription(it) },
-                            onLike = { vm.toggleLike(it) },
-                            onDislike = { vm.toggleDislike(it) },
-                            onShare = { vm.shareVideo(it) },
-                            onAddToPlaylist = { vm.showPlaylistDialog = it },
-                            onDownload = { vm.showDownloadDialog = it },
-                            onVideoClick = { v, list -> vm.playVideo(v, list, false) },
-                            onMoreClick = { item, action -> vm.handleVideoMoreAction(item, action) },
-                            alphaProgress = realProgress,
-                            isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
-                            onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() }
-                        )
+
+                        Box(
+                            modifier = Modifier
+                                .weight(0.4f)
+                                .fillMaxHeight()
+                                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.End))
+                                .background(MaterialTheme.colorScheme.background)
+                        ) {
+                            LaunchedEffect(vm.currentVideo) {
+                                relatedListState.scrollToItem(0)
+                            }
+                            RelatedVideosList(
+                                modifier = Modifier.fillMaxSize(),
+                                listState = relatedListState,
+                                currentVideo = vm.currentVideo,
+                                relatedVideos = vm.relatedVideos,
+                                userRegistry = vm.userRegistry,
+                                onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                                onToggleSub = { vm.toggleSubscription(it) },
+                                onLike = { vm.toggleLike(it) },
+                                onDislike = { vm.toggleDislike(it) },
+                                onShare = { vm.shareVideo(it) },
+                                onAddToPlaylist = { vm.showPlaylistDialog = it },
+                                onDownload = { vm.showDownloadDialog = it },
+                                onVideoClick = { v, list -> vm.playVideo(v, list, false) },
+                                onMoreClick = { item, action -> vm.handleVideoMoreAction(item, action) },
+                                alphaProgress = realProgress,
+                                isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
+                                onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() }
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                    ) {
+                        Box(modifier = Modifier.graphicsLayer {
+                            scaleX = fsScale
+                            scaleY = fsScale
+                            translationY = fsOffsetY
+                        }) {
+                            CustomVideoPlayer(
+                                exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo,
+                                currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
+                                onMinimize = { vm.playerState = PlayerState.MINI },
+                                onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo, true) },
+                                onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
+                                isFirstVideo = vm.currentVideoIndex <= 0,
+                                isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
+                                isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
+                                isTransitioning = fsProgress > 0f || realProgress > 0f,
+                                onPlayRelated = { vm.playVideo(it, vm.relatedVideos) }
+                            )
+                        }
+                        if (!vm.isFullscreenVideo) {
+                            LaunchedEffect(vm.currentVideo) {
+                                relatedListState.scrollToItem(0)
+                            }
+                            RelatedVideosList(
+                                modifier = Modifier.fillMaxSize(),
+                                listState = relatedListState,
+                                currentVideo = vm.currentVideo,
+                                relatedVideos = vm.relatedVideos,
+                                userRegistry = vm.userRegistry,
+                                onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                                onToggleSub = { vm.toggleSubscription(it) },
+                                onLike = { vm.toggleLike(it) },
+                                onDislike = { vm.toggleDislike(it) },
+                                onShare = { vm.shareVideo(it) },
+                                onAddToPlaylist = { vm.showPlaylistDialog = it },
+                                onDownload = { vm.showDownloadDialog = it },
+                                onVideoClick = { v, list -> vm.playVideo(v, list, false) },
+                                onMoreClick = { item, action -> vm.handleVideoMoreAction(item, action) },
+                                alphaProgress = realProgress,
+                                isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
+                                onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() }
+                            )
+                        }
                     }
                 }
             } else {

@@ -37,32 +37,32 @@ fun SearchSuggestionsOverlay(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 11.dp),
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Icons.Default.Search,
                             null,
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(12.dp))
                         Text(
                             text = suggestion,
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable { onPerformSearch(suggestion) },
-                            fontSize = 22.sp
+                            fontSize = 14.sp
                         )
                         IconButton(
                             onClick = { onSearchQueryChange(suggestion) },
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
                                 Icons.Default.NorthWest,
                                 null,
                                 tint = Color.Gray,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -76,32 +76,32 @@ fun SearchSuggestionsOverlay(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 11.dp),
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Icons.Default.History,
                             null,
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(12.dp))
                         Text(
                             text = query,
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable { onPerformSearch(query) },
-                            fontSize = 20.sp
+                            fontSize = 14.sp
                         )
                         IconButton(
                             onClick = { onRemoveSearchQuery(query) },
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
                                 Icons.Default.Close,
                                 null,
                                 tint = Color.Gray,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }

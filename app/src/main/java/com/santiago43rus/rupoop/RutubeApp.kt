@@ -68,20 +68,24 @@ fun RutubeApp(
     }
     
     val context = LocalContext.current
-    LaunchedEffect(vm.isFullscreenVideo) {
+    LaunchedEffect(vm.isFullscreenVideo, vm.isFullscreenTriggeredManually) {
         if (vm.isFullscreenVideo) {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            if (vm.isFullscreenTriggeredManually) {
+                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+            } else {
+                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR)
+            }
             context.findActivity()?.let { hideSystemBars(it) }
         } else {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
             context.findActivity()?.let { showSystemBars(it) }
         }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ -> }
 
-    val homeListState = rememberLazyListState()
-    val subsListState = rememberLazyListState()
+    val homeListState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val subsListState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val libListState = rememberLazyListState()
 
     val searchState = rememberTextFieldState(vm.searchQuery)
@@ -156,6 +160,7 @@ fun RutubeApp(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 val progress = if (vm.playerState == PlayerState.FULL) 0f else 1f
                 RutubeBottomBar(
@@ -182,13 +187,18 @@ fun RutubeApp(
             }
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                Column(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (vm.isFullscreenVideo) 0f else if (vm.playerState == PlayerState.CLOSED) 1f else vm.playerTransitionProgress }.padding(bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding())) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = if (vm.isFullscreenVideo) 0f else if (vm.playerState == PlayerState.CLOSED) 1f else vm.playerTransitionProgress }
+                        .padding(bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding())
+                ) {
                     if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible && !vm.isNotificationSettingsVisible) {
                         AppTopBar(vm = vm, searchState = searchState, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
                             scope.launch { homeListState.scrollToItem(0) }
                         })
                     }
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
                         AnimatedContent(
                             targetState = vm.currentNav,
                             transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
@@ -233,14 +243,17 @@ fun RutubeApp(
                             vm.performSearch(it)
                             scope.launch { homeListState.scrollToItem(0) }
                         },
-                        onRemoveSearchQuery = { vm.removeSearchQuery(it) }
+                        onRemoveSearchQuery = { vm.removeSearchQuery(it) },
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                     )
 
-                    RutubeAppOverlays(
-                        vm = vm,
-                        onThemeToggle = onThemeToggle,
-                        context = context
-                    )
+                    Box(modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
+                        RutubeAppOverlays(
+                            vm = vm,
+                            onThemeToggle = onThemeToggle,
+                            context = context
+                        )
+                    }
                 }
 
                 RutubePlayerContainer(

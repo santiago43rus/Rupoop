@@ -165,9 +165,37 @@ fun LibraryHeader(icon: ImageVector, title: String) {
 
 @Composable
 fun LibraryRow(icon: ImageVector, title: String, count: String, onAction: (() -> Unit)? = null, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null); Spacer(Modifier.width(16.dp)); Text(title, Modifier.weight(1f)); Text(count, color = Color.Gray)
-        if (onAction != null) IconButton(onClick = onAction) { Icon(Icons.Default.Delete, null, tint = Color.Gray, modifier = Modifier.size(20.dp)) }
-        else Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Color.Gray)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 8.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(16.dp))
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.width(8.dp))
+        Text(count, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.width(8.dp))
+        if (onAction != null) {
+            Icon(
+                Icons.Default.Delete,
+                null,
+                tint = Color.Gray,
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .clickable { onAction() }
+                    .padding(2.dp)
+            )
+        } else {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                null,
+                tint = Color.Gray,
+                modifier = Modifier.size(24.dp)
+            )
+        }
     }
 }

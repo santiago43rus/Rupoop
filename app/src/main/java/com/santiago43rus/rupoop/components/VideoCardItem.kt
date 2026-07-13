@@ -1,5 +1,6 @@
 package com.santiago43rus.rupoop.components
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,7 +35,8 @@ fun VideoCardItem(
     onClick: () -> Unit,
     onAuthorClick: (Author) -> Unit,
     onMoreClick: (String) -> Unit,
-    isEditMode: Boolean = false
+    isEditMode: Boolean = false,
+    isEditOnlyMode: Boolean = false
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -62,15 +64,20 @@ fun VideoCardItem(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .padding(bottom = 12.dp)
+            .padding(bottom = 16.dp)
     ) {
         // Preview (Thumbnail)
-        Box(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+        ) {
             AsyncImage(
                 model = video.thumbnailUrl ?: localThumbnailBitmap.value ?: video.videoUrl, contentDescription = null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(16 / 9f)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Color.DarkGray),
                 contentScale = ContentScale.Crop
             )
@@ -164,16 +171,97 @@ fun VideoCardItem(
                     )
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    if (!isEditMode) {
-                        DropdownMenuItem(text = { Text("Не интересно") }, onClick = { showMenu = false; onMoreClick("not_interested") }, leadingIcon = { Icon(Icons.Default.VisibilityOff, null) })
-                    } else {
+                    if (isEditOnlyMode) {
                         DropdownMenuItem(text = { Text("Удалить") }, onClick = { showMenu = false; onMoreClick("remove") }, leadingIcon = { Icon(Icons.Default.Delete, null) })
+                    } else {
+                        if (!isEditMode) {
+                            DropdownMenuItem(text = { Text("Не интересно") }, onClick = { showMenu = false; onMoreClick("not_interested") }, leadingIcon = { Icon(Icons.Default.VisibilityOff, null) })
+                        } else {
+                            DropdownMenuItem(text = { Text("Удалить") }, onClick = { showMenu = false; onMoreClick("remove") }, leadingIcon = { Icon(Icons.Default.Delete, null) })
+                        }
+                        DropdownMenuItem(text = { Text("В плейлист") }, onClick = { showMenu = false; onMoreClick("playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) })
+                        DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { showMenu = false; onMoreClick("later") }, leadingIcon = { Icon(Icons.Default.WatchLater, null) })
+                        DropdownMenuItem(text = { Text("Поделиться") }, onClick = { showMenu = false; onMoreClick("share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
+                        DropdownMenuItem(text = { Text("Скачать") }, onClick = { showMenu = false; onMoreClick("download") }, leadingIcon = { Icon(Icons.Outlined.Download, null) })
                     }
-                    DropdownMenuItem(text = { Text("В плейлист") }, onClick = { showMenu = false; onMoreClick("playlist") }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) })
-                    DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { showMenu = false; onMoreClick("later") }, leadingIcon = { Icon(Icons.Default.WatchLater, null) })
-                    DropdownMenuItem(text = { Text("Поделиться") }, onClick = { showMenu = false; onMoreClick("share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
-                    DropdownMenuItem(text = { Text("Скачать") }, onClick = { showMenu = false; onMoreClick("download") }, leadingIcon = { Icon(Icons.Outlined.Download, null) })
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun VideoCardShimmer() {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val alpha by transition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 0.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shimmer_alpha"
+    )
+
+    val shimmerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+    ) {
+        // Thumbnail Shimmer
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16 / 9f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(shimmerColor)
+            )
+        }
+
+        // Title and Avatar Row
+        Row(
+            modifier = Modifier
+                .padding(top = 12.dp, start = 12.dp, end = 12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = androidx.compose.ui.Alignment.Top
+        ) {
+            // Avatar
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(shimmerColor)
+            )
+
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .weight(1f)
+            ) {
+                // Title line 1
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(shimmerColor)
+                )
+                Spacer(Modifier.height(6.dp))
+                // Title line 2
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(shimmerColor)
+                )
             }
         }
     }

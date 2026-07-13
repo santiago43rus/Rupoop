@@ -49,8 +49,8 @@ fun RutubeBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.navigationBars)
-                .height(64.dp),
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+                .height(50.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -63,7 +63,7 @@ fun RutubeBottomBar(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth(0.9f)
-                        .height(56.dp)
+                        .height(44.dp)
                         .clip(androidx.compose.foundation.shape.CircleShape)
                         .clickable {
                             if (currentNav == NavItem.HOME) {
@@ -76,18 +76,19 @@ fun RutubeBottomBar(
                                 onNavChange(NavItem.HOME)
                             }
                         }
-                        .padding(4.dp),
+                        .padding(2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
                         imageVector = if (isHome) Icons.Filled.Home else Icons.Outlined.Home,
                         contentDescription = "Home",
-                        tint = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        tint = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = "Главная",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                         color = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -104,7 +105,7 @@ fun RutubeBottomBar(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth(0.9f)
-                        .height(56.dp)
+                        .height(44.dp)
                         .clip(androidx.compose.foundation.shape.CircleShape)
                         .clickable {
                             if (currentNav == NavItem.SUBSCRIPTIONS) {
@@ -117,18 +118,19 @@ fun RutubeBottomBar(
                                 onNavChange(NavItem.SUBSCRIPTIONS)
                             }
                         }
-                        .padding(4.dp),
+                        .padding(2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
                         imageVector = if (isSubs) Icons.Filled.Subscriptions else Icons.Outlined.Subscriptions,
                         contentDescription = "Subs",
-                        tint = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        tint = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = "Подписки",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                         color = if (isSubs) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -145,7 +147,7 @@ fun RutubeBottomBar(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth(0.9f)
-                        .height(56.dp)
+                        .height(44.dp)
                         .clip(androidx.compose.foundation.shape.CircleShape)
                         .clickable {
                             if (currentNav == NavItem.LIBRARY) {
@@ -158,18 +160,19 @@ fun RutubeBottomBar(
                                 onNavChange(NavItem.LIBRARY)
                             }
                         }
-                        .padding(4.dp),
+                        .padding(2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
                         imageVector = if (isLib) Icons.Filled.VideoLibrary else Icons.Outlined.VideoLibrary,
                         contentDescription = "Lib",
-                        tint = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        tint = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = "Библиотека",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                         color = if (isLib) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

@@ -10,12 +10,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.santiago43rus.rupoop.AppViewModel
 import com.santiago43rus.rupoop.*
 import com.santiago43rus.rupoop.components.*
@@ -81,7 +86,19 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
             )
         }
         LibrarySubScreen.HISTORY -> {
-            LazyColumn(Modifier.fillMaxSize()) {
+            val config = LocalConfiguration.current
+            val columns = when {
+                config.screenWidthDp >= 900 -> 3
+                config.screenWidthDp >= 600 -> 2
+                else -> 1
+            }
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = if (columns == 1) androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp) else androidx.compose.foundation.layout.PaddingValues(12.dp),
+                horizontalArrangement = if (columns == 1) androidx.compose.foundation.layout.Arrangement.spacedBy(0.dp) else androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+                verticalArrangement = if (columns == 1) androidx.compose.foundation.layout.Arrangement.spacedBy(0.dp) else androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+            ) {
                 items(vm.userRegistry.watchHistory) { item ->
                     val video = SearchResult(
                         videoUrl = item.videoUrl,
@@ -105,11 +122,10 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                                     deleteDialogMessage = "Вы уверены, что хотите удалить это видео из истории просмотров?"
                                     pendingDeleteAction = { vm.removeFromHistory(item.videoId) }
                                 }
-                                "share" -> vm.shareVideo(video)
-                                "download" -> vm.showDownloadDialog = video
                             }
                         },
-                        isEditMode = true
+                        isEditMode = true,
+                        isEditOnlyMode = true
                     )
                 }
             }

@@ -107,6 +107,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val searchController: SearchController = SearchController(
         scope = viewModelScope,
         registryManager = registryManager,
+        onRegistryUpdate = { userRegistry = it },
         pushToGitHub = { pushToGitHub() },
         filterHiddenAndDisliked = { filterHiddenAndDisliked(it) },
         getPlayerState = { playbackController.playerState },
@@ -253,8 +254,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         context.startActivity(chooser)
     }
 
-    fun toggleFullscreen(fill: Boolean) {
+    fun toggleFullscreen(fill: Boolean, isManual: Boolean = false) {
         isFullscreenVideo = fill
+        if (isManual) {
+            isFullscreenTriggeredManually = fill
+        }
     }
 
 

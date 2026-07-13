@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 class SearchController(
     private val scope: CoroutineScope,
     private val registryManager: UserRegistryManager,
+    private val onRegistryUpdate: (UserRegistry) -> Unit,
     private val pushToGitHub: () -> Unit,
     private val filterHiddenAndDisliked: (List<SearchResult>) -> List<SearchResult>,
     private val getPlayerState: () -> PlayerState,
@@ -66,6 +67,7 @@ class SearchController(
         if (getPlayerState() == PlayerState.FULL) setPlayerState(PlayerState.MINI)
 
         registryManager.addSearchQuery(query)
+        onRegistryUpdate(registryManager.registry)
         pushToGitHub()
         val requestNav = getCurrentNav()
         scope.launch {

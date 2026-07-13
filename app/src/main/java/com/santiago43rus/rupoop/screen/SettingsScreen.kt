@@ -158,7 +158,18 @@ fun SettingsScreen(
                             ))
                             vm.onRegistryUpdate(registryManager.registry)
                         },
-                        label = { Text(genre.replaceFirstChar { it.uppercase() }) }
+                        label = { Text(genre.replaceFirstChar { it.uppercase() }) },
+                        leadingIcon = if (selected) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Default.Done,
+                                    contentDescription = "Selected",
+                                    modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                )
+                            }
+                        } else {
+                            null
+                        }
                     )
                 }
             }
