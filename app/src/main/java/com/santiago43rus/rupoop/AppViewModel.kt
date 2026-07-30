@@ -232,12 +232,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 userRegistry = withContext(Dispatchers.IO) { syncManager.sync(token) }
                 settingsManager.lastSyncTime = System.currentTimeMillis()
                 pushJob = null
-                try {
-                    val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                    context.startService(intent)
-                } catch (e: Exception) {
-                    Log.e("Rupoop", "Failed to start PlaybackService", e)
-                }
             } catch (_: Exception) {
                 _snackbarMessage.emit("Ошибка синхронизации")
             }

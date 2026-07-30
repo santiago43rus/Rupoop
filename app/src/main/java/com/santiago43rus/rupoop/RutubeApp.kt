@@ -3,7 +3,9 @@ package com.santiago43rus.rupoop
 import android.Manifest
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.os.Build
+import android.view.OrientationEventListener
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -68,7 +70,35 @@ fun RutubeApp(
     }
     
     val context = LocalContext.current
-    LaunchedEffect(vm.isFullscreenVideo, vm.isFullscreenTriggeredManually) {
+    val isTablet = config.smallestScreenWidthDp >= 600
+
+    DisposableEffect(context) {
+        val listener = object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val isLandscapeOrientation = orientation in 60..120 || orientation in 240..300
+                val isPortraitOrientation = orientation in 0..30 || orientation in 330..359
+
+                if (isLandscapeOrientation) {
+                    if (vm.playerState == PlayerState.FULL && !vm.isFullscreenVideo) {
+                        vm.toggleFullscreen(true, false)
+                    }
+                } else if (isPortraitOrientation) {
+                    if (vm.isFullscreenVideo && !vm.isFullscreenTriggeredManually) {
+                        vm.toggleFullscreen(false, false)
+                    }
+                }
+            }
+        }
+        if (listener.canDetectOrientation()) {
+            listener.enable()
+        }
+        onDispose {
+            listener.disable()
+        }
+    }
+
+    LaunchedEffect(vm.isFullscreenVideo, vm.isFullscreenTriggeredManually, vm.playerState, isTablet) {
         if (vm.isFullscreenVideo) {
             if (vm.isFullscreenTriggeredManually) {
                 setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
@@ -162,7 +192,7 @@ fun RutubeApp(
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
-                val progress = if (vm.playerState == PlayerState.FULL) 0f else 1f
+                val progress = vm.playerTransitionProgress
                 RutubeBottomBar(
                     currentNav = vm.currentNav,
                     onNavChange = { vm.currentNav = it },

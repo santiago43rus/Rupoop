@@ -57,17 +57,25 @@ fun SettingsDialog(
     onQualitySelected: (String) -> Unit,
     onDismiss: () -> Unit,
     isBackgroundEnabled: Boolean = false,
-    onBackgroundToggle: () -> Unit = {}
+    onBackgroundToggle: () -> Unit = {},
+    displaySpeed: Float = exoPlayer.playbackParameters.speed,
+    onSpeedSelected: ((Float) -> Unit)? = null
 ) {
     var showQuality by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
+
+    val formattedSpeed = if (displaySpeed == displaySpeed.toInt().toFloat()) {
+        "${displaySpeed.toInt()}x"
+    } else {
+        "${displaySpeed}x"
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.padding(16.dp).fillMaxWidth()) {
                 Text("Настройки видео", style = MaterialTheme.typography.titleLarge)
                 ListItem(headlineContent = { Text("Качество") }, trailingContent = { Text(currentQuality) }, modifier = Modifier.clickable { showQuality = true })
-                ListItem(headlineContent = { Text("Скорость") }, trailingContent = { Text("${exoPlayer.playbackParameters.speed}x") }, modifier = Modifier.clickable { showSpeed = true })
+                ListItem(headlineContent = { Text("Скорость") }, trailingContent = { Text(formattedSpeed) }, modifier = Modifier.clickable { showSpeed = true })
             }
         }
     }
@@ -87,8 +95,12 @@ fun SettingsDialog(
         }, { showQuality = false })
     }
     if (showSpeed) {
-        OptionSelectionDialog("Скорость", listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f), exoPlayer.playbackParameters.speed, { speed ->
-            exoPlayer.playbackParameters = PlaybackParameters(speed)
+        OptionSelectionDialog("Скорость", listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f), displaySpeed, { speed ->
+            if (onSpeedSelected != null) {
+                onSpeedSelected(speed)
+            } else {
+                exoPlayer.playbackParameters = PlaybackParameters(speed)
+            }
             onDismiss()
         }, { showSpeed = false })
     }

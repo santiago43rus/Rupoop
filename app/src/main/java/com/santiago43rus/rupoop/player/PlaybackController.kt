@@ -54,6 +54,7 @@ class PlaybackController(
     var isPlaying by mutableStateOf(false)
     var isBuffering by mutableStateOf(false)
     var isBackgroundPlaybackEnabled by mutableStateOf(false)
+    var isFastForwarding by mutableStateOf(false)
 
     var relatedVideos by mutableStateOf<List<SearchResult>>(emptyList())
 

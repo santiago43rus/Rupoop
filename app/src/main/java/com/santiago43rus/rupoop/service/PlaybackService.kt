@@ -118,9 +118,11 @@ class PlaybackService : MediaSessionService() {
         }
 
         val seekBackButton = CommandButton.Builder(CommandButton.ICON_SKIP_BACK_15)
+            .setDisplayName("Назад")
             .setPlayerCommand(Player.COMMAND_SEEK_BACK)
             .build()
         val seekForwardButton = CommandButton.Builder(CommandButton.ICON_SKIP_FORWARD_15)
+            .setDisplayName("Вперед")
             .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
             .build()
 

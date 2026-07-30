@@ -49,21 +49,20 @@ fun MoreVideosOverlay(
     val config = LocalConfiguration.current
     val density = LocalDensity.current
     
-    val containerHeightPx = with(density) {
-        if (isFullscreen) {
-            config.screenHeightDp.dp.toPx()
-        } else {
-            (config.screenWidthDp.dp * (9f / 16f)).toPx()
-        }
-    }
+    val isTablet = config.screenWidthDp.dp >= 600.dp
+    val isWideLayout = isTablet && !isFullscreen
+
+    val panelWidth = if (isWideLayout) (config.screenWidthDp.dp * 0.6f) else config.screenWidthDp.dp
+    val panelHeight = if (isWideLayout) 240.dp else if (isFullscreen) config.screenHeightDp.dp else (config.screenWidthDp.dp * (9f / 16f))
+    val panelHeightPx = with(density) { panelHeight.toPx() }
     
     var panelDragY by remember { mutableStateOf(0f) }
     val isDraggingUp = moreVideosDragOffset < 0f
 
     val targetOffsetY = when {
-        isDraggingUp -> (containerHeightPx + moreVideosDragOffset).coerceAtLeast(0f)
+        isDraggingUp -> (panelHeightPx + moreVideosDragOffset).coerceAtLeast(0f)
         showMoreVideos -> panelDragY
-        else -> containerHeightPx
+        else -> panelHeightPx
     }
 
     val animatedOffsetY by animateFloatAsState(
@@ -72,126 +71,134 @@ fun MoreVideosOverlay(
         label = "moreVideosY"
     )
 
-    if ((showMoreVideos || animatedOffsetY < containerHeightPx) && !isLocalFile) {
+    if ((showMoreVideos || animatedOffsetY < panelHeightPx) && !isLocalFile) {
         Box(
-            modifier = modifier
-                .fillMaxSize()
-                .offset { IntOffset(0, animatedOffsetY.roundToInt()) }
-                .background(Color.Black.copy(0.9f))
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragStart = { },
-                        onDragEnd = {
-                            if (panelDragY > 100f) {
-                                onClose()
-                            }
-                            panelDragY = 0f
-                        },
-                        onDragCancel = { panelDragY = 0f }
-                    ) { change, dragAmount ->
-                        change.consume()
-                        panelDragY = (panelDragY + dragAmount.y).coerceAtLeast(0f)
-                    }
-                }
+            modifier = modifier.fillMaxSize(),
+            contentAlignment = if (isWideLayout) Alignment.BottomStart else Alignment.TopStart
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-                        .padding(horizontal = 16.dp),
-                    Arrangement.SpaceBetween,
-                    Alignment.CenterVertically
-                ) {
-                    Text("Ещё видео", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.Default.Close, null, tint = Color.White)
-                    }
-                }
-                
-                Row(
-                    Modifier
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                        .padding(vertical = 8.dp, horizontal = 16.dp)
-                ) {
-                    FilterChip(selected = true, onClick = {}, label = { Text("Все видео") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedContainerColor = Color.White.copy(0.2f)))
-                    Spacer(Modifier.width(8.dp))
-                    FilterChip(
-                        selected = false,
-                        onClick = {},
-                        label = {
-                            Text(
-                                text = "Автор: ${currentVideo?.author?.name ?: "Автор"}",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(labelColor = Color.White)
-                    )
-                }
-
-                val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
-                val startPadding = 16.dp + safeInsets.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
-                val endPadding = 16.dp + safeInsets.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
-
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(start = startPadding, end = endPadding)
-                ) {
-                    items(relatedVideos) { video ->
-                        Column(
-                            modifier = Modifier
-                                .width(240.dp)
-                                .clickable { 
-                                    onPlayRelated(video)
+            Box(
+                modifier = Modifier
+                    .width(panelWidth)
+                    .height(panelHeight)
+                    .offset { IntOffset(0, animatedOffsetY.roundToInt()) }
+                    .background(Color.Black.copy(0.9f))
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { },
+                            onDragEnd = {
+                                if (panelDragY > 100f) {
                                     onClose()
                                 }
-                        ) {
-                            Box {
-                                AsyncImage(
-                                    model = video.thumbnailUrl,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .aspectRatio(16 / 9f)
-                                        .clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop
+                                panelDragY = 0f
+                            },
+                            onDragCancel = { panelDragY = 0f }
+                        ) { change, dragAmount ->
+                            change.consume()
+                            panelDragY = (panelDragY + dragAmount.y).coerceAtLeast(0f)
+                        }
+                    }
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                            .padding(horizontal = 16.dp),
+                        Arrangement.SpaceBetween,
+                        Alignment.CenterVertically
+                    ) {
+                        Text("Ещё видео", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, null, tint = Color.White)
+                        }
+                    }
+                    
+                    Row(
+                        Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                            .padding(vertical = 4.dp, horizontal = 16.dp)
+                    ) {
+                        FilterChip(selected = true, onClick = {}, label = { Text("Все видео") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedContainerColor = Color.White.copy(0.2f)))
+                        Spacer(Modifier.width(8.dp))
+                        FilterChip(
+                            selected = false,
+                            onClick = {},
+                            label = {
+                                Text(
+                                    text = "Автор: ${currentVideo?.author?.name ?: "Автор"}",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                                video.duration?.let { dur ->
-                                    Surface(
-                                        color = Color.Black.copy(0.8f),
-                                        shape = RoundedCornerShape(4.dp),
-                                        modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
-                                    ) {
-                                        Text(
-                                            formatTime(dur.toLong() * 1000),
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                        )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(labelColor = Color.White)
+                        )
+                    }
+
+                    val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
+                    val startPadding = 16.dp + safeInsets.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+                    val endPadding = 16.dp + safeInsets.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+
+                    val itemWidth = if (isTablet) 280.dp else 240.dp
+
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(start = startPadding, end = endPadding)
+                    ) {
+                        items(relatedVideos) { video ->
+                            Column(
+                                modifier = Modifier
+                                    .width(itemWidth)
+                                    .clickable { 
+                                        onPlayRelated(video)
+                                        onClose()
+                                    }
+                            ) {
+                                Box {
+                                    AsyncImage(
+                                        model = video.thumbnailUrl,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(16 / 9f)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    video.duration?.let { dur ->
+                                        Surface(
+                                            color = Color.Black.copy(0.8f),
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
+                                        ) {
+                                            Text(
+                                                formatTime(dur.toLong() * 1000),
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            Row {
-                                AsyncImage(
-                                    model = video.author?.avatarUrl ?: "",
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp).clip(CircleShape).background(Color.Gray)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Column {
-                                    Text(video.title, color = Color.White, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                                    val viewsText = formatViewCount(video.hits)
-                                    val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
-                                    val metaText = buildString {
-                                        append(video.author?.name ?: "Автор")
-                                        append(" • Rutube")
-                                        if (viewsText.isNotEmpty()) append(" • $viewsText")
-                                        if (timeAgoText.isNotEmpty()) append(" • $timeAgoText")
+                                Spacer(Modifier.height(6.dp))
+                                Row {
+                                    AsyncImage(
+                                        model = video.author?.avatarUrl ?: "",
+                                        contentDescription = null,
+                                        modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.Gray)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column {
+                                        Text(video.title, color = Color.White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                                        val viewsText = formatViewCount(video.hits)
+                                        val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
+                                        val metaText = buildString {
+                                            append(video.author?.name ?: "Автор")
+                                            append(" • Rutube")
+                                            if (viewsText.isNotEmpty()) append(" • $viewsText")
+                                            if (timeAgoText.isNotEmpty()) append(" • $timeAgoText")
+                                        }
+                                        Text(metaText, color = Color.White.copy(0.6f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
-                                    Text(metaText, color = Color.White.copy(0.6f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }

@@ -51,7 +51,8 @@ fun MainFeedScreen(
                 horizontalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(16.dp),
                 verticalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(12.dp)
             ) {
-                items(6) {
+                val shimmerCount = if (columns > 1) columns * 4 else 6
+                items(shimmerCount) {
                     VideoCardShimmer()
                 }
             }

@@ -118,6 +118,10 @@ var AppViewModel.isBackgroundPlaybackEnabled: Boolean
     get() = playbackController.isBackgroundPlaybackEnabled
     set(value) { playbackController.isBackgroundPlaybackEnabled = value }
 
+var AppViewModel.isFastForwarding: Boolean
+    get() = playbackController.isFastForwarding
+    set(value) { playbackController.isFastForwarding = value }
+
 @get:UnstableApi
 @set:UnstableApi
 var AppViewModel.relatedVideos: List<SearchResult>

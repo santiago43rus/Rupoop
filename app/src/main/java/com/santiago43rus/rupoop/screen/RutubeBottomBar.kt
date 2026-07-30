@@ -45,11 +45,11 @@ fun RutubeBottomBar(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer { translationY = size.height * (1f - progress.coerceIn(0f, 1f)) }
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
                 .height(50.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically

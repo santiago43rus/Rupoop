@@ -87,7 +87,8 @@ fun SubscriptionsScreen(
                         }
                         HorizontalDivider()
                     }
-                    items(6) {
+                    val shimmerCount = if (columns > 1) columns * 4 else 6
+                    items(shimmerCount) {
                         VideoCardShimmer()
                     }
                 }

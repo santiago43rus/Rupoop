@@ -35,7 +35,9 @@ fun RelatedVideosList(
     onMoreClick: (SearchResult, String) -> Unit,
     alphaProgress: Float,
     isBackgroundEnabled: Boolean = false,
-    onBackgroundPlayToggle: () -> Unit = {}
+    onBackgroundPlayToggle: () -> Unit = {},
+    showVideoDetails: Boolean = true,
+    useTwoColumns: Boolean = false
 ) {
     val isLocalFile = currentVideo?.videoUrl != null && !currentVideo.videoUrl.startsWith("http")
 
@@ -45,34 +47,68 @@ fun RelatedVideosList(
         },
         state = listState
     ) {
-        item {
-            VideoDetails(
-                currentVideo, userRegistry,
-                onAuthorClick = onAuthorClick,
-                onToggleSub = onToggleSub,
-                onLike = onLike,
-                onDislike = onDislike,
-                onShare = onShare,
-                onAddToPlaylist = onAddToPlaylist,
-                onDownload = onDownload,
-                isBackgroundEnabled = isBackgroundEnabled,
-                onBackgroundPlayToggle = onBackgroundPlayToggle
-            )
-            if (!isLocalFile) {
-                HorizontalDivider()
+        if (showVideoDetails) {
+            item {
+                VideoDetails(
+                    currentVideo, userRegistry,
+                    onAuthorClick = onAuthorClick,
+                    onToggleSub = onToggleSub,
+                    onLike = onLike,
+                    onDislike = onDislike,
+                    onShare = onShare,
+                    onAddToPlaylist = onAddToPlaylist,
+                    onDownload = onDownload,
+                    isBackgroundEnabled = isBackgroundEnabled,
+                    onBackgroundPlayToggle = onBackgroundPlayToggle
+                )
+                if (!isLocalFile) {
+                    HorizontalDivider()
+                    Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
+                }
+            }
+        } else if (!isLocalFile) {
+            item {
                 Text("Рекомендации", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
             }
         }
         if (!isLocalFile) {
-            items(relatedVideos) { video ->
-                val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                VideoCardItem(
-                    video = video,
-                    history = history,
-                    onClick = { onVideoClick(video, relatedVideos) },
-                    onAuthorClick = onAuthorClick,
-                    onMoreClick = { action -> onMoreClick(video, action) }
-                )
+            if (useTwoColumns) {
+                val pairs = relatedVideos.chunked(2)
+                items(pairs) { pair ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (video in pair) {
+                            val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                            Box(modifier = Modifier.weight(1f)) {
+                                VideoCardItem(
+                                    video = video,
+                                    history = history,
+                                    onClick = { onVideoClick(video, relatedVideos) },
+                                    onAuthorClick = onAuthorClick,
+                                    onMoreClick = { action -> onMoreClick(video, action) }
+                                )
+                            }
+                        }
+                        if (pair.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                items(relatedVideos) { video ->
+                    val history = userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                    VideoCardItem(
+                        video = video,
+                        history = history,
+                        onClick = { onVideoClick(video, relatedVideos) },
+                        onAuthorClick = onAuthorClick,
+                        onMoreClick = { action -> onMoreClick(video, action) }
+                    )
+                }
             }
         }
     }
