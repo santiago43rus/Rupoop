@@ -1,4 +1,4 @@
-package com.santiago43rus.rupoop.screen
+﻿package com.santiago43rus.rupoop.screen
 
 import android.app.Activity
 import android.app.PictureInPictureParams
@@ -82,7 +82,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     val statusBarsTopPadding = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
     
     var isLargeMiniPlayer by remember { mutableStateOf(false) }
-    val miniWidthDp = if (isLandscape && !isTablet) 140.dp else if (isLargeMiniPlayer) 240.dp else 180.dp
+    val miniWidthDp = if (isLandscape && !isTablet) 210.dp else if (isLargeMiniPlayer) 240.dp else 180.dp
     val miniHeightDp = miniWidthDp * 9f / 16f
 
     val miniWidthPx = with(density) { miniWidthDp.toPx() }
@@ -173,12 +173,18 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
         screenWidth * 9f / 16f
     }
 
-    val currentWidth = if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) screenWidth else {
-        lerp(startWidth, miniWidthDp, realProgress)
+    val isMiniState = vm.playerState == PlayerState.MINI
+
+    val currentWidth = when {
+        isMiniState -> miniWidthDp
+        vm.isFullscreenVideo && vm.playerState == PlayerState.FULL -> screenWidth
+        else -> lerp(startWidth, miniWidthDp, realProgress)
     }
 
-    val currentHeight = if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) screenHeight else {
-        lerp(startHeight, miniHeightDp, realProgress)
+    val currentHeight = when {
+        isMiniState -> miniHeightDp
+        vm.isFullscreenVideo && vm.playerState == PlayerState.FULL -> screenHeight
+        else -> lerp(startHeight, miniHeightDp, realProgress)
     }
 
     val startY = if (isWideScreen || (!vm.isFullscreenVideo && !isLandscape)) {
@@ -187,13 +193,21 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
         0.dp
     }
 
-    val currentX = with(density) { (realProgress * floatingX.value).toDp() }
-    val currentY = if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) 0.dp else {
-        val startYPx = with(density) { startY.toPx() }
-        with(density) { (startYPx + (floatingY.value - startYPx) * realProgress).toDp() }
+    val currentX = if (isMiniState) {
+        with(density) { floatingX.value.toDp() }
+    } else {
+        with(density) { (realProgress * floatingX.value).toDp() }
+    }
+    val currentY = when {
+        isMiniState -> with(density) { floatingY.value.toDp() }
+        vm.isFullscreenVideo && vm.playerState == PlayerState.FULL -> 0.dp
+        else -> {
+            val startYPx = with(density) { startY.toPx() }
+            with(density) { (startYPx + (floatingY.value - startYPx) * realProgress).toDp() }
+        }
     }
 
-    val cornerRadius = 16.dp * realProgress
+    val cornerRadius = if (isMiniState) 16.dp else 16.dp * realProgress
 
     val maxDragDistanceVertical = 150f
     val fsProgress = (fullscreenDragOffsetY.value / maxDragDistanceVertical).coerceIn(0f, 1f)
@@ -500,3 +514,5 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
         }
     }
 }
+
+

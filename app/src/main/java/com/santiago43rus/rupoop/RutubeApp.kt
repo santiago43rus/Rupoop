@@ -1,4 +1,4 @@
-package com.santiago43rus.rupoop
+﻿package com.santiago43rus.rupoop
 
 import android.Manifest
 import android.app.Activity
@@ -189,10 +189,14 @@ fun RutubeApp(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        val sharedUiProgress = when (vm.playerState) {
+            PlayerState.CLOSED, PlayerState.MINI -> 1f
+            PlayerState.FULL -> vm.playerTransitionProgress.coerceIn(0f, 1f)
+        }
+
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
-                val progress = vm.playerTransitionProgress
                 RutubeBottomBar(
                     currentNav = vm.currentNav,
                     onNavChange = { vm.currentNav = it },
@@ -211,7 +215,7 @@ fun RutubeApp(
                     onScrollHome = { scope.launch { homeListState.animateScrollToItem(0) } },
                     onScrollSubs = { scope.launch { subsListState.animateScrollToItem(0) } },
                     onScrollLib = { scope.launch { libListState.animateScrollToItem(0) } },
-                    progress = progress,
+                    progress = sharedUiProgress,
                     isFullscreenVideo = vm.isFullscreenVideo
                 )
             }
@@ -220,7 +224,7 @@ fun RutubeApp(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer { alpha = if (vm.isFullscreenVideo) 0f else if (vm.playerState == PlayerState.CLOSED) 1f else vm.playerTransitionProgress }
+                        .graphicsLayer { alpha = if (vm.isFullscreenVideo) 0f else sharedUiProgress }
                         .padding(bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding())
                 ) {
                     if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible && !vm.isNotificationSettingsVisible) {
@@ -316,3 +320,6 @@ fun RutubeApp(
         }
     }
 }
+
+
+
