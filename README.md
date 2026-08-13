@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/santiago43rus/Rupoop/actions"><img src="https://github.com/santiago43rus/Rupoop/workflows/Build%20APK/badge.svg" alt="Build Status"/></a>
+  <a href="https://github.com/santiago43rus/Rupoop/actions/workflows/build.yml"><img src="https://github.com/santiago43rus/Rupoop/actions/workflows/build.yml/badge.svg" alt="Build Status"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"/></a>
   <a href="https://github.com/santiago43rus/Rupoop/releases"><img src="https://img.shields.io/github/v/release/santiago43rus/Rupoop?include_prereleases" alt="Release"/></a>
 </p>
@@ -38,7 +38,7 @@
 
 - Android Studio Ladybug+ (или Gradle 9.x CLI)
 - JDK 17+
-- Android SDK 36
+- Android SDK 37
 - Min SDK 29 (Android 10)
 
 ### Сборка
@@ -157,16 +157,17 @@ GitHub Actions автоматически собирает APK при каждо
 2. **Settings** → **Secrets and variables** → **Actions**
 3. Для каждого секрета: **«New repository secret»** → введите имя и значение
 
-### Обязательные секреты
+### Секреты для сборки приложения в GitHub Actions
 
 Без них CI/CD **соберёт APK**, но авторизация и синхронизация в нём работать не будут.
 
 | Имя секрета | Что вставить | Откуда взять |
 |-------------|-------------|--------------|
 | `GH_CLIENT_ID` | `Ov23liNg8BumTncLXG8e` | Страница OAuth App на GitHub (см. выше) |
-| `GH_CLIENT_SECRET` | `fb80bc91c32112b...` | Там же, Client Secret |
 | `PROXY_URL` | `https://rupoop-proxy.ijonmarston.workers.dev/` | URL вашего Cloudflare Worker |
-| `DONATE_URL` | `https://pay.cloudtips.ru/p/1988b19b` | Ваша страница CloudTips |
+| `DONATE_URL` | `https://pay.cloudtips.ru/p/1988b19b` | Ваша страница CloudTips (опционально) |
+
+> ℹ️ **Примечание:** Секрет `GH_CLIENT_SECRET` хранится исключительно в окружении Cloudflare Worker и **не требуется** в GitHub Secrets репозитория приложения.
 
 ### Секреты для подписи APK (опционально)
 

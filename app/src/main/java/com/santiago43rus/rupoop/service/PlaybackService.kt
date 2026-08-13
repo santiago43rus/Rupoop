@@ -198,6 +198,7 @@ class PlaybackService : MediaSessionService() {
             this,
             2026,
             Intent(this, com.santiago43rus.rupoop.MainActivity::class.java).apply {
+                action = "OPEN_PLAYER"
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

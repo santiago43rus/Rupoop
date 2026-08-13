@@ -5,7 +5,10 @@
 -renamesourcefileattribute SourceFile
 
 # ── Custom App Code Safety ──────────────────────────────────────────────────
-# (Removed greedy rule that kept all app code, as it defeats obfuscation)
+# Data models and services preservation
+-keep class com.santiago43rus.rupoop.data.** { *; }
+-keepclassmembers class com.santiago43rus.rupoop.data.** { *; }
+-keep class com.santiago43rus.rupoop.service.** { *; }
 
 # ── Kotlin Serialization ────────────────────────────────────────────────────
 -keepclassmembers class * {

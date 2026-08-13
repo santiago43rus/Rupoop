@@ -22,6 +22,7 @@ class MainActivity : ComponentActivity() {
     private var pendingLocalFilePath by mutableStateOf<String?>(null)
     private var pendingLocalFileTitle by mutableStateOf<String?>(null)
     private var pendingOpenDownloads by mutableStateOf(false)
+    private var pendingOpenPlayer by mutableStateOf(false)
 
     @OptIn(androidx.media3.common.util.UnstableApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,6 +37,16 @@ class MainActivity : ComponentActivity() {
                 "light" -> false
                 "dark", "easter", "secret" -> true
                 else -> systemDarkTheme
+            }
+
+            // Handle pending player expansion from notification tap
+            LaunchedEffect(pendingOpenPlayer) {
+                if (pendingOpenPlayer) {
+                    if (vm.currentVideo != null && vm.playerState == PlayerState.MINI) {
+                        vm.playerState = PlayerState.FULL
+                    }
+                    pendingOpenPlayer = false
+                }
             }
 
             // Handle pending local file playback
@@ -87,7 +98,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == "OPEN_DOWNLOADS") {
+        if (intent?.action == "OPEN_PLAYER") {
+            pendingOpenPlayer = true
+        } else if (intent?.action == "OPEN_DOWNLOADS") {
             pendingOpenDownloads = true
         } else if (intent?.action == "PLAY_LOCAL_FILE") {
             pendingLocalFilePath = intent.getStringExtra("FILE_PATH")

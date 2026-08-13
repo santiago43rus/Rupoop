@@ -73,6 +73,9 @@ jobs:
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
+        with:
+          name: Rupoop-release
+          path: release-apks
         
       - name: Delete old release if exists (To clear debug apks & duplicate changelogs)
         env:
@@ -82,6 +85,8 @@ jobs:
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: Rupoop-release/*.apk
+          files: release-apks/*.apk
           generate_release_notes: true
