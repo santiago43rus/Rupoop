@@ -44,6 +44,7 @@ import com.santiago43rus.rupoop.util.NavItem
 import com.santiago43rus.rupoop.util.OverlayState
 import java.util.Locale
 
+@androidx.media3.common.util.UnstableApi
 @Composable
 fun AppTopBar(
     vm: AppViewModel,
@@ -118,6 +119,7 @@ fun AppTopBar(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
             .height(48.dp),
         color = MaterialTheme.colorScheme.background,
         tonalElevation = 1.dp

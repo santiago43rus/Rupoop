@@ -308,7 +308,6 @@ fun CustomVideoPlayer(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (shouldFillMax) Modifier.fillMaxSize() else Modifier.aspectRatio(16 / 9f))
-            .then(if (!isFullscreen) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)
             .offset { IntOffset(swipeOffsetX.roundToInt(), swipeOffsetY.roundToInt()) }
             .graphicsLayer {
                 scaleX = swipeScale

@@ -80,7 +80,7 @@ fun RutubeApp(
                 val isPortraitOrientation = orientation in 0..30 || orientation in 330..359
 
                 if (isLandscapeOrientation) {
-                    if (vm.playerState == PlayerState.FULL && !vm.isFullscreenVideo) {
+                    if (vm.playerState == PlayerState.FULL && !vm.isFullscreenVideo && !vm.isPortraitLocked) {
                         vm.toggleFullscreen(true, false)
                     }
                 } else if (isPortraitOrientation) {
@@ -98,7 +98,7 @@ fun RutubeApp(
         }
     }
 
-    LaunchedEffect(vm.isFullscreenVideo, vm.isFullscreenTriggeredManually, vm.playerState, isTablet) {
+    LaunchedEffect(vm.isFullscreenVideo, vm.isFullscreenTriggeredManually, vm.playerState, vm.isPortraitLocked, isTablet) {
         if (vm.isFullscreenVideo) {
             if (vm.isFullscreenTriggeredManually) {
                 setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
@@ -106,6 +106,9 @@ fun RutubeApp(
                 setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR)
             }
             context.findActivity()?.let { hideSystemBars(it) }
+        } else if (vm.isPortraitLocked && vm.playerState == PlayerState.FULL) {
+            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT)
+            context.findActivity()?.let { showSystemBars(it) }
         } else {
             setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
             context.findActivity()?.let { showSystemBars(it) }

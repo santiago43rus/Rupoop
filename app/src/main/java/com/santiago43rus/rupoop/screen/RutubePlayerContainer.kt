@@ -120,40 +120,35 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     val maxDragDp = (screenHeight - statusBarsTopPadding - bottomPadding - miniHeightDp).coerceAtLeast(1.dp)
     val maxDragPx = with(density) { maxDragDp.toPx() }
 
-    val dragOffsetY = remember { Animatable(if (vm.playerState == PlayerState.FULL) 0f else maxDragPx) }
+    val animProgress = remember { Animatable(if (vm.playerState == PlayerState.FULL) 0f else 1f) }
     val fullscreenDragOffsetY = remember { Animatable(0f) }
     var lastPlayerState by remember { mutableStateOf(vm.playerState) }
 
-    LaunchedEffect(config.orientation, screenWidthPx, screenHeightPx, bottomClearancePx, isLargeMiniPlayer) {
-        if (vm.playerState == PlayerState.MINI) {
-            floatingX.snapTo(maxX)
-            floatingY.snapTo(maxY)
-        } else if (vm.playerState == PlayerState.FULL) {
-            floatingX.snapTo(floatingX.value.coerceIn(minX, maxX))
-            floatingY.snapTo(floatingY.value.coerceIn(minY, maxY))
+    LaunchedEffect(vm.playerState) {
+        if (vm.playerState == PlayerState.MINI || vm.playerState == PlayerState.CLOSED) {
+            vm.isPortraitLocked = false
+        }
+        if (vm.playerState != lastPlayerState) {
+            val target = if (vm.playerState == PlayerState.FULL) 0f else 1f
+            if (vm.playerState == PlayerState.MINI) {
+                floatingX.snapTo(maxX)
+                floatingY.snapTo(maxY)
+            }
+            lastPlayerState = vm.playerState
+            animProgress.animateTo(target, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
         }
     }
 
-    LaunchedEffect(vm.playerState, maxDragPx) {
-        if (maxDragPx > 0f) {
-            val target = if (vm.playerState == PlayerState.FULL) 0f else maxDragPx
-            if (vm.playerState != lastPlayerState) {
-                if (vm.playerState == PlayerState.MINI) {
-                    floatingX.snapTo(maxX)
-                    floatingY.snapTo(maxY)
-                }
-                dragOffsetY.animateTo(target, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
-                lastPlayerState = vm.playerState
-            } else {
-                dragOffsetY.snapTo(target)
-            }
+    LaunchedEffect(config.orientation, screenWidthPx, screenHeightPx, bottomClearancePx, isLargeMiniPlayer, maxX, maxY) {
+        floatingX.snapTo(maxX)
+        floatingY.snapTo(maxY)
+        if (vm.playerState == PlayerState.MINI && !animProgress.isRunning) {
+            animProgress.snapTo(1f)
         }
     }
 
     val realProgress by remember {
-        derivedStateOf {
-            if (maxDragPx > 0f) (dragOffsetY.value / maxDragPx).coerceIn(0f, 1f) else 0f
-        }
+        derivedStateOf { animProgress.value.coerceIn(0f, 1f) }
     }
     LaunchedEffect(realProgress) {
         vm.playerTransitionProgress = realProgress
@@ -173,18 +168,20 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
         screenWidth * 9f / 16f
     }
 
-    val isMiniState = vm.playerState == PlayerState.MINI
-
-    val currentWidth = when {
-        isMiniState -> miniWidthDp
-        vm.isFullscreenVideo && vm.playerState == PlayerState.FULL -> screenWidth
-        else -> lerp(startWidth, miniWidthDp, realProgress)
+    val currentWidth = if (realProgress > 0f) {
+        lerp(startWidth, miniWidthDp, realProgress)
+    } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
+        screenWidth
+    } else {
+        startWidth
     }
 
-    val currentHeight = when {
-        isMiniState -> miniHeightDp
-        vm.isFullscreenVideo && vm.playerState == PlayerState.FULL -> screenHeight
-        else -> lerp(startHeight, miniHeightDp, realProgress)
+    val currentHeight = if (realProgress > 0f) {
+        lerp(startHeight, miniHeightDp, realProgress)
+    } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
+        screenHeight
+    } else {
+        startHeight
     }
 
     val startY = if (isWideScreen || (!vm.isFullscreenVideo && !isLandscape)) {
@@ -193,31 +190,28 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
         0.dp
     }
 
-    val currentX = if (isMiniState) {
-        with(density) { floatingX.value.toDp() }
+    val currentX = with(density) { (realProgress * floatingX.value).toDp() }
+
+    val currentY = if (realProgress > 0f) {
+        val startYPx = with(density) { startY.toPx() }
+        with(density) { (startYPx + (floatingY.value - startYPx) * realProgress).toDp() }
+    } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
+        0.dp
     } else {
-        with(density) { (realProgress * floatingX.value).toDp() }
-    }
-    val currentY = when {
-        isMiniState -> with(density) { floatingY.value.toDp() }
-        vm.isFullscreenVideo && vm.playerState == PlayerState.FULL -> 0.dp
-        else -> {
-            val startYPx = with(density) { startY.toPx() }
-            with(density) { (startYPx + (floatingY.value - startYPx) * realProgress).toDp() }
-        }
+        startY
     }
 
-    val cornerRadius = if (isMiniState) 16.dp else 16.dp * realProgress
+    val cornerRadius = 16.dp * realProgress
 
     val maxDragDistanceVertical = 150f
     val fsProgress = (fullscreenDragOffsetY.value / maxDragDistanceVertical).coerceIn(0f, 1f)
     val fsScale = 1f + (0.15f * fsProgress)
     val fsOffsetY = -fullscreenDragOffsetY.value * 0.3f
 
-    val fullPlayerDragModifier = if (vm.playerState == PlayerState.FULL && !vm.isFullscreenVideo && !vm.isFastForwarding) {
+    val fullPlayerDragModifier = if (vm.playerState == PlayerState.FULL && !vm.isFullscreenVideo) {
         var touchStartY = 0f
         var initialDragDirection = 0f
-        Modifier.pointerInput(vm.playerState, vm.isFullscreenVideo, vm.isFastForwarding) {
+        Modifier.pointerInput(vm.playerState, vm.isFullscreenVideo) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 touchStartY = down.position.y
@@ -247,8 +241,9 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                         val isAtTop = relatedListState.firstVisibleItemIndex == 0 && relatedListState.firstVisibleItemScrollOffset == 0
                         val isTouchOnPlayer = touchStartY < size.width * (9f / 16f)
 
-                        if (isAtTop || isTouchOnPlayer || (dragOffsetY.value > 0 && dragOffsetY.value < maxDragPx)) {
-                            scope.launch { dragOffsetY.snapTo((dragOffsetY.value + activeDragAmount).coerceIn(0f, maxDragPx)) }
+                        if (isAtTop || isTouchOnPlayer || (animProgress.value > 0f && animProgress.value < 1f)) {
+                            val deltaProgress = if (maxDragPx > 0f) activeDragAmount / maxDragPx else 0f
+                            scope.launch { animProgress.snapTo((animProgress.value + deltaProgress).coerceIn(0f, 1f)) }
                         }
                     } else if (isDragging && initialDragDirection < 0f) {
                         val isTouchOnPlayer = touchStartY < size.width * (9f / 16f)
@@ -268,19 +263,19 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                     fullscreenDragOffsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
 
                     if (isDragging) {
-                        if (dragOffsetY.value > maxDragPx + 80f) {
+                        if (animProgress.value > 1.2f) {
                             vm.closePlayer()
-                            dragOffsetY.snapTo(maxDragPx)
-                        } else if (dragOffsetY.value > 0f) {
-                            val toMini = dragOffsetY.value > maxDragPx * 0.30f
+                            animProgress.snapTo(1f)
+                        } else if (animProgress.value > 0f) {
+                            val toMini = animProgress.value > 0.30f
                             vm.playerState = if (toMini) PlayerState.MINI else PlayerState.FULL
-                            dragOffsetY.animateTo(if (toMini) maxDragPx else 0f, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
+                            animProgress.animateTo(if (toMini) 1f else 0f, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
                         } else {
-                            dragOffsetY.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
+                            animProgress.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = Spring.StiffnessMediumLow))
                         }
                     } else {
-                        val target = if (vm.playerState == PlayerState.FULL) 0f else maxDragPx
-                        dragOffsetY.snapTo(target)
+                        val target = if (vm.playerState == PlayerState.FULL) 0f else 1f
+                        animProgress.snapTo(target)
                     }
                 }
             }
@@ -311,7 +306,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     } else Modifier
 
     Box(modifier = Modifier.fillMaxSize()) {
-        val relatedListAlpha = if (vm.playerState == PlayerState.MINI || vm.isFullscreenVideo) 0f else (1f - realProgress * 1.5f).coerceIn(0f, 1f)
+        val relatedListAlpha = if (vm.isFullscreenVideo) 0f else (1f - realProgress * 1.5f).coerceIn(0f, 1f)
         val relatedListTranslationY = if (vm.isFullscreenVideo) 0f else with(density) { realProgress * 250.dp.toPx() }
 
         if (relatedListAlpha > 0f && !vm.isFullscreenVideo) {
@@ -423,8 +418,8 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
             modifier = Modifier.offset(x = currentX, y = currentY).width(currentWidth).height(currentHeight).then(fullPlayerDragModifier).then(miniPlayerGesturesModifier)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                val isMiniLayout = vm.playerState == PlayerState.MINI || realProgress >= 0.7f
-                val miniOverlayAlpha = if (vm.playerState == PlayerState.MINI) 1f else ((realProgress - 0.7f) / 0.3f).coerceIn(0f, 1f)
+                val isMiniLayout = realProgress >= 0.5f || vm.playerState == PlayerState.MINI
+                val miniOverlayAlpha = ((realProgress - 0.7f) / 0.3f).coerceIn(0f, 1f)
 
                 // Persistent CustomVideoPlayer across both FULL and MINI states to avoid unmounting/re-binding ExoPlayer surface
                 Box(modifier = Modifier.fillMaxSize().graphicsLayer {
@@ -435,10 +430,20 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                     CustomVideoPlayer(
                         exoPlayer = vm.exoPlayer, isPlaying = vm.isPlaying, isBuffering = vm.isBuffering, isFullscreen = vm.isFullscreenVideo, currentVideo = vm.currentVideo, relatedVideos = vm.relatedVideos,
                         onMinimize = {
-                            vm.toggleFullscreen(false, false)
+                            vm.isPortraitLocked = false
+                            if (vm.isFullscreenVideo) {
+                                vm.toggleFullscreen(false, false)
+                            }
                             vm.playerState = PlayerState.MINI
                         }, 
-                        onToggleFullscreen = { vm.toggleFullscreen(!vm.isFullscreenVideo, true) }, onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
+                        onToggleFullscreen = {
+                            if (vm.isFullscreenVideo && isLandscape && !isTablet) {
+                                vm.isPortraitLocked = true
+                            } else {
+                                vm.isPortraitLocked = false
+                            }
+                            vm.toggleFullscreen(!vm.isFullscreenVideo, true)
+                        }, onNext = { vm.playNext() }, onPrevious = { vm.playPrevious() },
                         isFirstVideo = vm.currentVideoIndex <= 0, isPreviousDisliked = vm.isPreviousVideoDislikedOrHidden(),
                         isLastVideo = if (vm.isPlaylistMode) vm.currentVideoIndex >= vm.currentVideoList.size - 1 else (vm.currentVideoIndex >= vm.currentVideoList.size - 1 && vm.relatedVideos.isEmpty()),
                         isTransitioning = realProgress > 0f || vm.playerState == PlayerState.MINI, onPlayRelated = { vm.playVideo(it, vm.relatedVideos) },
@@ -469,7 +474,13 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                                 .background(Color.Black.copy(alpha = 0.25f))
                                 .pointerInput(Unit) {
                                     detectTapGestures(
-                                        onTap = { vm.playerState = PlayerState.FULL },
+                                        onTap = {
+                                            vm.isPortraitLocked = false
+                                            vm.playerState = PlayerState.FULL
+                                            if (isLandscape) {
+                                                vm.toggleFullscreen(true, false)
+                                            }
+                                        },
                                         onDoubleTap = { isLargeMiniPlayer = !isLargeMiniPlayer }
                                     )
                                 }

@@ -84,9 +84,7 @@ fun ControlsOverlay(
         modifier = modifier.fillMaxSize()
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            modifier = Modifier.fillMaxSize()
         ) {
             val config = LocalConfiguration.current
             val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -131,6 +129,7 @@ fun ControlsOverlay(
                     Modifier
                         .fillMaxWidth()
                         .then(if (isFullscreen) Modifier.statusBarsPadding() else Modifier)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                         .padding(
                             start = topBarPaddingStart,
                             end = topBarPaddingEnd,
@@ -230,6 +229,7 @@ fun ControlsOverlay(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .then(if (isFullscreen) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)) else Modifier)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
                     .padding(bottom = bottomBarPaddingBottom)
                     .padding(start = bottomBarPaddingStart, end = bottomBarPaddingEnd)
                     .fillMaxWidth(),

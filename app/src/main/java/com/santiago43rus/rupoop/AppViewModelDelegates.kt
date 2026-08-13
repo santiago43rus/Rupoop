@@ -58,13 +58,27 @@ var AppViewModel.isSearchVisible: Boolean
     get() = navigationController.isSearchVisible
     set(value) { navigationController.isSearchVisible = value }
 
+var AppViewModel.isPortraitLocked: Boolean
+    get() = playbackController.isPortraitLocked
+    set(value) { playbackController.isPortraitLocked = value }
+
 var AppViewModel.overlayOrder: List<OverlayState>
     get() = navigationController.overlayOrder
     set(value) { navigationController.overlayOrder = value }
 
 fun AppViewModel.restoreSearchStateForTab(tab: NavItem) = navigationController.restoreSearchStateForTab(tab)
 fun AppViewModel.clearCurrentSearchStack() = navigationController.clearCurrentSearchStack()
-fun AppViewModel.handleBack(): Boolean = navigationController.handleBack()
+fun AppViewModel.handleBack(): Boolean {
+    if (isFullscreenVideo) {
+        val config = context.resources.configuration
+        if (config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE && config.smallestScreenWidthDp < 600) {
+            isPortraitLocked = true
+        }
+        toggleFullscreen(false, true)
+        return true
+    }
+    return navigationController.handleBack()
+}
 
 // ── Playback Property Delegation ──
 val AppViewModel.exoPlayer: ExoPlayer

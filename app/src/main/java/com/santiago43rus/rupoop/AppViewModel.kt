@@ -253,6 +253,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (isManual) {
             isFullscreenTriggeredManually = fill
         }
+        if (fill) {
+            isPortraitLocked = false
+        }
     }
 
 
