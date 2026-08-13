@@ -93,7 +93,12 @@ data class AppSettings(
     val enabledGenres: List<String> = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
         "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы"
-    )
+    ),
+    val autoPlayNext: Boolean = true,
+    val doubleTapSeekDuration: Int = 10,
+    val appIcon: String = "system",
+    val showDownloadNotifications: Boolean = true,
+    val showBackgroundNotifications: Boolean = true
 )
 
 @Serializable

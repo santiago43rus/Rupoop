@@ -250,9 +250,9 @@ class UserRegistryManager(private val context: Context) {
 
         val combinedHistory = (local.watchHistory + remote.watchHistory)
             .filter { it.timestamp > maxWatchClearedAt }
-            .groupBy { it.videoId }
+            .groupBy { if (it.videoId.isNotEmpty()) it.videoId else extractId(it.videoUrl) }
             .map { (_, items) ->
-                items.maxByOrNull { it.timestamp }!!
+                items.maxWithOrNull(compareBy({ it.timestamp }, { it.progress }))!!
             }
             .sortedByDescending { it.timestamp }
             .take(500)
@@ -267,8 +267,24 @@ class UserRegistryManager(private val context: Context) {
 
         val combinedWeights = local.tagWeights.toMutableMap()
         remote.tagWeights.forEach { (tag, weight) ->
-            combinedWeights[tag] = (combinedWeights[tag] ?: 0f) + weight
+            combinedWeights[tag] = maxOf(combinedWeights[tag] ?: 0f, weight)
         }
+
+        val combinedAppSettings = AppSettings(
+            theme = if (local.appSettings.theme != "system") local.appSettings.theme else remote.appSettings.theme,
+            language = remote.appSettings.language,
+            videoQuality = remote.appSettings.videoQuality,
+            adultContentEnabled = local.appSettings.adultContentEnabled && remote.appSettings.adultContentEnabled,
+            kidsContentEnabled = local.appSettings.kidsContentEnabled || remote.appSettings.kidsContentEnabled,
+            downloadQuality = if (local.appSettings.downloadQuality != "1080") local.appSettings.downloadQuality else remote.appSettings.downloadQuality,
+            syncFrequencyHours = local.appSettings.syncFrequencyHours,
+            enabledGenres = (local.appSettings.enabledGenres + remote.appSettings.enabledGenres).distinct(),
+            autoPlayNext = local.appSettings.autoPlayNext,
+            doubleTapSeekDuration = local.appSettings.doubleTapSeekDuration,
+            appIcon = if (local.appSettings.appIcon != "system") local.appSettings.appIcon else remote.appSettings.appIcon,
+            showDownloadNotifications = local.appSettings.showDownloadNotifications,
+            showBackgroundNotifications = local.appSettings.showBackgroundNotifications
+        )
 
         val merged = UserRegistry(
             watchHistory = combinedHistory,
@@ -277,13 +293,17 @@ class UserRegistryManager(private val context: Context) {
             subscriptions = (local.subscriptions + remote.subscriptions).distinctBy { it.name },
             likedVideos = (local.likedVideos + remote.likedVideos).distinctBy { it.videoUrl },
             watchLater = (local.watchLater + remote.watchLater).distinctBy { it.videoUrl },
-            playlists = (local.playlists + remote.playlists).distinctBy { it.name },
+            playlists = (local.playlists + remote.playlists).groupBy { it.name }.map { (_, lists) ->
+                val first = lists.first()
+                val allVideos = lists.flatMap { it.videos }.distinctBy { it.videoUrl }
+                first.copy(videos = allVideos)
+            },
             hiddenVideos = (local.hiddenVideos + remote.hiddenVideos).distinct(),
             hiddenTitles = (local.hiddenTitles + remote.hiddenTitles).distinct(),
             dislikedVideos = (local.dislikedVideos + remote.dislikedVideos).distinct(),
             hiddenVideosList = (local.hiddenVideosList + remote.hiddenVideosList).distinctBy { it.videoUrl },
             dislikedVideosList = (local.dislikedVideosList + remote.dislikedVideosList).distinctBy { it.videoUrl },
-            appSettings = remote.appSettings,
+            appSettings = combinedAppSettings,
             lastSynced = System.currentTimeMillis(),
             watchHistoryClearedAt = maxWatchClearedAt,
             searchHistoryClearedAt = maxSearchClearedAt

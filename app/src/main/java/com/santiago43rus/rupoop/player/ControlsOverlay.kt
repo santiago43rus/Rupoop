@@ -73,14 +73,13 @@ fun ControlsOverlay(
     onSeekEnd: () -> Unit,
     onToggleCaptions: () -> Unit = {},
     bufferedPercent: Int = 0,
+    isExpandingToFullscreen: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
-        visible = (showControls || isSeeking) && !isTransitioning,
+        visible = (showControls || isSeeking) && !isTransitioning && !isExpandingToFullscreen,
         enter = fadeIn(animationSpec = tween(300)),
-        // Fade out almost instantly when the player itself is transitioning (e.g. collapsing into the
-        // mini player) so the full controls don't linger and flash over the shrinking/growing player.
-        exit = fadeOut(animationSpec = tween(if (isTransitioning) 80 else 300)),
+        exit = fadeOut(animationSpec = tween(if (isTransitioning || isExpandingToFullscreen) 0 else 300)),
         modifier = modifier.fillMaxSize()
     ) {
         Box(

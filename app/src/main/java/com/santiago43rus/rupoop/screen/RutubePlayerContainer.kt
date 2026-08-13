@@ -449,7 +449,8 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                         isTransitioning = realProgress > 0f || vm.playerState == PlayerState.MINI, onPlayRelated = { vm.playVideo(it, vm.relatedVideos) },
                         onFastForwardingChange = { vm.isFastForwarding = it },
                         showMoreVideosState = showMoreVideosState,
-                        moreVideosDragOffsetState = moreVideosDragOffsetState
+                        moreVideosDragOffsetState = moreVideosDragOffsetState,
+                        isExpandingToFullscreen = fullscreenDragOffsetY.value > 0f
                     )
                 }
 

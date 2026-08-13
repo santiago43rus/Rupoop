@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.santiago43rus.rupoop.BuildConfig
 import com.santiago43rus.rupoop.util.*
 import com.santiago43rus.rupoop.AppViewModel
+import com.santiago43rus.rupoop.isAuthenticated
 import androidx.compose.ui.Alignment
 
 @Composable
@@ -220,6 +221,31 @@ fun SettingsScreen(
 
             // ── GitHub Синхронизация ──
             Text("GitHub Синхронизация", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            if (vm.isAuthenticated) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { vm.pullFromGist() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Загрузить", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { vm.pushToGist() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                    ) {
+                        Icon(Icons.Default.Upload, null, modifier = Modifier.size(18.dp), tint = Color.White)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Выгрузить", color = Color.White)
+                    }
+                }
+            }
             ListItem(
                 headlineContent = {
                     Column(modifier = Modifier.fillMaxWidth()) {

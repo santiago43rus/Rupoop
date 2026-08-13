@@ -75,7 +75,8 @@ fun CustomVideoPlayer(
     onBackgroundToggle: () -> Unit = {},
     onFastForwardingChange: (Boolean) -> Unit = {},
     showMoreVideosState: MutableState<Boolean> = remember { mutableStateOf(false) },
-    moreVideosDragOffsetState: MutableState<Float> = remember { mutableStateOf(0f) }
+    moreVideosDragOffsetState: MutableState<Float> = remember { mutableStateOf(0f) },
+    isExpandingToFullscreen: Boolean = false
 ) {
     val showControlsState = remember { mutableStateOf(true) }
     var showControls by showControlsState
@@ -612,6 +613,7 @@ fun CustomVideoPlayer(
             isSeeking = isSeeking,
             isTransitioning = isTransitioning,
             isFullscreen = isFullscreen,
+            isExpandingToFullscreen = isExpandingToFullscreen,
             draggingPos = draggingPos,
             currentTime = currentTime,
             duration = duration,

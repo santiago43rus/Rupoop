@@ -173,16 +173,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         pushJob?.cancel()
         pushJob = viewModelScope.launch {
             delay(5000)
-            val appSettings = AppSettings(
-                theme = settingsManager.themeMode,
-                downloadQuality = settingsManager.downloadQuality,
-                syncFrequencyHours = settingsManager.syncFrequencyHours,
-                adultContentEnabled = settingsManager.adultContentEnabled,
-                kidsContentEnabled = settingsManager.kidsContentEnabled,
-                enabledGenres = settingsManager.enabledGenres.toList()
-            )
-            val updatedRegistry = registryManager.registry.copy(appSettings = appSettings)
-            syncManager.push(token, updatedRegistry)
+            syncManager.push(token)
         }
     }
 
@@ -225,17 +216,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun syncWithGitHub() {
+    fun pullFromGist() {
         val token = settingsManager.accessToken ?: return
         viewModelScope.launch {
             try {
-                userRegistry = withContext(Dispatchers.IO) { syncManager.sync(token) }
+                userRegistry = withContext(Dispatchers.IO) { syncManager.pull(token) }
                 settingsManager.lastSyncTime = System.currentTimeMillis()
-                pushJob = null
+                _snackbarMessage.emit("Данные загружены из Gist")
             } catch (_: Exception) {
-                _snackbarMessage.emit("Ошибка синхронизации")
+                _snackbarMessage.emit("Ошибка загрузки из Gist")
             }
         }
+    }
+
+    fun pushToGist() {
+        val token = settingsManager.accessToken ?: return
+        viewModelScope.launch {
+            try {
+                userRegistry = withContext(Dispatchers.IO) { syncManager.push(token) }
+                settingsManager.lastSyncTime = System.currentTimeMillis()
+                pushJob = null
+                _snackbarMessage.emit("Данные выгружены в Gist")
+            } catch (_: Exception) {
+                _snackbarMessage.emit("Ошибка выгрузки в Gist")
+            }
+        }
+    }
+
+    fun syncWithGitHub() {
+        pushToGist()
     }
 
     fun shareVideo(video: SearchResult) {

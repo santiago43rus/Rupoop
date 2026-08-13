@@ -222,7 +222,8 @@ fun AppTopBar(
                                         DropdownMenuItem(text = { Text(user.login, fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                                         HorizontalDivider()
                                     }
-                                    DropdownMenuItem(text = { Text("Синхронизировать") }, onClick = { vm.isAccountMenuExpanded = false; vm.syncWithGitHub() })
+                                    DropdownMenuItem(text = { Text("Загрузить") }, onClick = { vm.isAccountMenuExpanded = false; vm.pullFromGist() })
+                                    DropdownMenuItem(text = { Text("Выгрузить") }, onClick = { vm.isAccountMenuExpanded = false; vm.pushToGist() })
                                     DropdownMenuItem(text = { Text("Выйти") }, onClick = { vm.isAccountMenuExpanded = false; vm.logout() })
                                 }
                             }

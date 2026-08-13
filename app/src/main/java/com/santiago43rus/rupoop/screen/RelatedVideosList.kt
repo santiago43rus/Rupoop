@@ -72,7 +72,25 @@ fun RelatedVideosList(
             }
         }
         if (!isLocalFile) {
-            if (useTwoColumns) {
+            if (relatedVideos.isEmpty()) {
+                if (useTwoColumns) {
+                    items(3) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) { com.santiago43rus.rupoop.components.VideoCardShimmer() }
+                            Box(modifier = Modifier.weight(1f)) { com.santiago43rus.rupoop.components.VideoCardShimmer() }
+                        }
+                    }
+                } else {
+                    items(6) {
+                        com.santiago43rus.rupoop.components.VideoCardShimmer()
+                    }
+                }
+            } else if (useTwoColumns) {
                 val pairs = relatedVideos.chunked(2)
                 items(pairs) { pair ->
                     Row(
