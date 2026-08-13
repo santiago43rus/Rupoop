@@ -118,6 +118,7 @@ class GistSyncManager(
         settingsManager.appIcon = appSettings.appIcon
         settingsManager.showDownloadNotifications = appSettings.showDownloadNotifications
         settingsManager.showBackgroundNotifications = appSettings.showBackgroundNotifications
+        settingsManager.isEasterEggUnlocked = appSettings.isEasterEggUnlocked || settingsManager.isEasterEggUnlocked
     }
 
     private fun buildAppSettingsFromPreferences(): AppSettings {
@@ -132,7 +133,8 @@ class GistSyncManager(
             doubleTapSeekDuration = settingsManager.doubleTapSeekDuration,
             appIcon = settingsManager.appIcon,
             showDownloadNotifications = settingsManager.showDownloadNotifications,
-            showBackgroundNotifications = settingsManager.showBackgroundNotifications
+            showBackgroundNotifications = settingsManager.showBackgroundNotifications,
+            isEasterEggUnlocked = settingsManager.isEasterEggUnlocked
         )
     }
 }

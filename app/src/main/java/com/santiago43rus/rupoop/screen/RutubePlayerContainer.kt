@@ -8,7 +8,9 @@ import android.util.Rational
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -71,7 +73,8 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     val isLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
     val isWideScreen = isTablet && isLandscape
 
-    LaunchedEffect(config.orientation, vm.playerState) {
+    LaunchedEffect(config.orientation, vm.playerState, isTablet) {
+        if (isTablet) return@LaunchedEffect
         if (vm.isFullscreenVideo && vm.isFullscreenTriggeredManually) return@LaunchedEffect
         if (vm.playerState == PlayerState.FULL && vm.currentVideo != null) {
             val isCurrentlyLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -168,7 +171,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
         screenWidth * 9f / 16f
     }
 
-    val currentWidth = if (realProgress > 0f) {
+    val targetWidth = if (realProgress > 0f) {
         lerp(startWidth, miniWidthDp, realProgress)
     } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
         screenWidth
@@ -176,7 +179,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
         startWidth
     }
 
-    val currentHeight = if (realProgress > 0f) {
+    val targetHeight = if (realProgress > 0f) {
         lerp(startHeight, miniHeightDp, realProgress)
     } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
         screenHeight
@@ -192,7 +195,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
 
     val currentX = with(density) { (realProgress * floatingX.value).toDp() }
 
-    val currentY = if (realProgress > 0f) {
+    val targetY = if (realProgress > 0f) {
         val startYPx = with(density) { startY.toPx() }
         with(density) { (startYPx + (floatingY.value - startYPx) * realProgress).toDp() }
     } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
@@ -200,6 +203,26 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     } else {
         startY
     }
+
+    val isTabletTransition = isTablet && isLandscape && realProgress == 0f
+
+    val currentWidth by animateDpAsState(
+        targetValue = targetWidth,
+        animationSpec = if (isTabletTransition) spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow) else snap(),
+        label = "playerCurrentWidth"
+    )
+
+    val currentHeight by animateDpAsState(
+        targetValue = targetHeight,
+        animationSpec = if (isTabletTransition) spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow) else snap(),
+        label = "playerCurrentHeight"
+    )
+
+    val currentY by animateDpAsState(
+        targetValue = targetY,
+        animationSpec = if (isTabletTransition) spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow) else snap(),
+        label = "playerCurrentY"
+    )
 
     val cornerRadius = 16.dp * realProgress
 
@@ -306,10 +329,20 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     } else Modifier
 
     Box(modifier = Modifier.fillMaxSize()) {
-        val relatedListAlpha = if (vm.isFullscreenVideo) 0f else (1f - realProgress * 1.5f).coerceIn(0f, 1f)
-        val relatedListTranslationY = if (vm.isFullscreenVideo) 0f else with(density) { realProgress * 250.dp.toPx() }
+        val baseRelatedAlpha = if (vm.isFullscreenVideo) 0f else (1f - realProgress * 1.5f).coerceIn(0f, 1f)
+        val relatedListAlpha by animateFloatAsState(
+            targetValue = baseRelatedAlpha,
+            animationSpec = if (isTabletTransition) tween(durationMillis = 250) else snap(),
+            label = "relatedListAlpha"
+        )
+        val baseRelatedTranslationY = if (vm.isFullscreenVideo) with(density) { 60.dp.toPx() } else with(density) { realProgress * 250.dp.toPx() }
+        val relatedListTranslationY by animateFloatAsState(
+            targetValue = baseRelatedTranslationY,
+            animationSpec = if (isTabletTransition) tween(durationMillis = 250) else snap(),
+            label = "relatedListTranslationY"
+        )
 
-        if (relatedListAlpha > 0f && !vm.isFullscreenVideo) {
+        if (relatedListAlpha > 0f) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

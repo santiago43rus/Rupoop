@@ -302,8 +302,9 @@ fun CustomVideoPlayer(
     var selectedQuality by remember { mutableStateOf("Авто") }
 
     val configuration = LocalConfiguration.current
+    val isTablet = configuration.smallestScreenWidthDp >= 600
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val shouldFillMax = isFullscreen || (isLandscape && !isTransitioning)
+    val shouldFillMax = isFullscreen || (isLandscape && !isTablet && !isTransitioning)
 
     Box(
         modifier = Modifier
@@ -327,7 +328,9 @@ fun CustomVideoPlayer(
                 swipeOffsetX = swipeOffsetXState,
                 swipeOffsetY = swipeOffsetYState,
                 onToggleFullscreen = onToggleFullscreen,
-                isFastForwarding = isFastForwarding
+                isFastForwarding = isFastForwarding,
+                isTablet = isTablet,
+                isLandscape = isLandscape
             )
             // Pinch-to-zoom + pan. Deliberately hand-rolled instead of detectTransformGestures: that
             // helper can start consuming pointer events on a single finger once touch-slop is crossed,

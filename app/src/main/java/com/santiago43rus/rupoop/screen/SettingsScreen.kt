@@ -1,9 +1,11 @@
 package com.santiago43rus.rupoop.screen
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,6 +22,7 @@ import com.santiago43rus.rupoop.AppViewModel
 import com.santiago43rus.rupoop.isAuthenticated
 import androidx.compose.ui.Alignment
 
+@androidx.media3.common.util.UnstableApi
 @Composable
 fun SettingsScreen(
     vm: AppViewModel,
@@ -38,6 +41,11 @@ fun SettingsScreen(
     var cacheSize by remember { mutableStateOf(getCacheSize(context)) }
     var themeMode by remember { mutableStateOf(settingsManager.themeMode) }
     var selectedIcon by remember { mutableStateOf(settingsManager.appIcon) }
+    var isEasterUnlocked by remember { mutableStateOf(settingsManager.isEasterEggUnlocked) }
+
+    var versionClicks by remember { mutableIntStateOf(0) }
+    var lastVersionClickTime by remember { mutableLongStateOf(0L) }
+    var toastRef by remember { mutableStateOf<android.widget.Toast?>(null) }
 
     val allGenres = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
@@ -48,17 +56,33 @@ fun SettingsScreen(
     LazyColumn(Modifier.fillMaxSize().imePadding().padding(16.dp)) {
         item {
             // ── Внешний вид ──
-            Text("Внешний вид", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            Text("Внешний вид", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             
             Text("Тема приложения", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
-            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                val themes = listOf("system" to "Системная", "light" to "Светлая", "dark" to "Тёмная")
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val themes = remember(isEasterUnlocked) {
+                    val list = mutableListOf("system" to "Системная", "light" to "Светлая", "dark" to "Тёмная")
+                    if (isEasterUnlocked) {
+                        list.add("easter" to "Секретная ✨")
+                    }
+                    list
+                }
                 themes.forEach { (mode, label) ->
                     FilterChip(
                         selected = themeMode == mode,
                         onClick = {
                             themeMode = mode
                             onThemeToggle(mode)
+                            registryManager.updateRegistry(registryManager.registry.copy(
+                                appSettings = registryManager.registry.appSettings.copy(theme = mode)
+                            ))
+                            vm.onRegistryUpdate(registryManager.registry)
                         },
                         label = { Text(label) },
                         leadingIcon = {
@@ -70,8 +94,20 @@ fun SettingsScreen(
             
             // Icon selection
             Text("Иконка приложения", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 4.dp))
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                val icons = listOf("system" to "Системная", "default" to "Светлая", "dark" to "Тёмная")
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val icons = remember(isEasterUnlocked) {
+                    val list = mutableListOf("system" to "Системная", "default" to "Светлая", "dark" to "Тёмная")
+                    if (isEasterUnlocked) {
+                        list.add("easter" to "Секретная ✨")
+                    }
+                    list
+                }
                 icons.forEach { (iconId, label) ->
                     FilterChip(
                         selected = selectedIcon == iconId,
@@ -79,6 +115,10 @@ fun SettingsScreen(
                             selectedIcon = iconId
                             settingsManager.appIcon = iconId
                             switchAppIcon(context, iconId)
+                            registryManager.updateRegistry(registryManager.registry.copy(
+                                appSettings = registryManager.registry.appSettings.copy(appIcon = iconId)
+                            ))
+                            vm.onRegistryUpdate(registryManager.registry)
                         },
                         label = { Text(label) },
                         leadingIcon = {
@@ -91,7 +131,7 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // ── Плеер ──
-            Text("Плеер", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            Text("Плеер", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
 
             var doubleTapSeek by remember { mutableIntStateOf(settingsManager.doubleTapSeekDuration) }
             Text("Время перемотки (двойное касание)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
@@ -110,7 +150,7 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // ── Уведомления ──
-            Text("Уведомления", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            Text("Уведомления", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             ListItem(
                 headlineContent = { Text("Настройки уведомлений") },
                 supportingContent = { Text("Управление уведомлениями загрузки и воспроизведения") },
@@ -137,7 +177,7 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // ── Жанры ──
-            Text("Жанры", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            Text("Жанры", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(4.dp))
             Text("Выберите жанры для ленты рекомендаций", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
             Spacer(Modifier.height(8.dp))
@@ -177,7 +217,7 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // ── Загрузка ──
-            Text("Загрузка", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            Text("Загрузка", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Text("Качество видео для скачивания", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), Arrangement.SpaceEvenly) {
                 listOf("360", "480", "720", "1080").forEach { q ->
@@ -210,7 +250,7 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // ── Контент и рекомендации ──
-            Text("Контент и рекомендации", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            Text("Контент и рекомендации", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             ListItem(
                 headlineContent = { Text("Скрытые и неинтересные видео") },
                 supportingContent = { Text("Управление дизлайками и скрытыми видео") },
@@ -220,7 +260,7 @@ fun SettingsScreen(
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             // ── GitHub Синхронизация ──
-            Text("GitHub Синхронизация", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+            Text("GitHub Синхронизация", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             if (vm.isAuthenticated) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -238,11 +278,11 @@ fun SettingsScreen(
                     Button(
                         onClick = { vm.pushToGist() },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Icon(Icons.Default.Upload, null, modifier = Modifier.size(18.dp), tint = Color.White)
+                        Icon(Icons.Default.Upload, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimary)
                         Spacer(Modifier.width(4.dp))
-                        Text("Выгрузить", color = Color.White)
+                        Text("Выгрузить", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -302,7 +342,7 @@ fun SettingsScreen(
                                     vm.onRegistryUpdate(registryManager.registry)
                                 }
                             ) {
-                                Text("Сбросить", color = Color(0xFFE53935))
+                                Text("Сбросить", color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -315,7 +355,36 @@ fun SettingsScreen(
                 uriHandler = uriHandler,
                 donateUrl = BuildConfig.DONATE_URL,
                 versionName = BuildConfig.VERSION_NAME,
-                versionCode = BuildConfig.VERSION_CODE
+                versionCode = BuildConfig.VERSION_CODE,
+                onVersionClick = {
+                    if (isEasterUnlocked || settingsManager.isEasterEggUnlocked) {
+                        return@SupportAndAboutSection
+                    }
+
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastVersionClickTime < 600) {
+                        versionClicks++
+                    } else {
+                        versionClicks = 1
+                    }
+                    lastVersionClickTime = currentTime
+
+                    if (versionClicks >= 10) {
+                        settingsManager.isEasterEggUnlocked = true
+                        isEasterUnlocked = true
+                        registryManager.updateRegistry(registryManager.registry.copy(
+                            appSettings = registryManager.registry.appSettings.copy(isEasterEggUnlocked = true)
+                        ))
+                        vm.onRegistryUpdate(registryManager.registry)
+
+                        toastRef?.cancel()
+                        toastRef = android.widget.Toast.makeText(context, "Пасхалка найдена! Секретная тема и иконка открыты! 🎉", android.widget.Toast.LENGTH_SHORT).apply { show() }
+                        versionClicks = 0
+                    } else if (versionClicks in 6..9) {
+                        toastRef?.cancel()
+                        toastRef = android.widget.Toast.makeText(context, "Осталось нажать: ${10 - versionClicks}", android.widget.Toast.LENGTH_SHORT).apply { show() }
+                    }
+                }
             )
 
             Spacer(Modifier.height(32.dp))

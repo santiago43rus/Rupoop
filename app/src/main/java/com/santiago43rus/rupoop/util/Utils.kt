@@ -82,9 +82,11 @@ fun formatFileSize(bytes: Long): String {
 }
 
 fun switchAppIcon(context: Context, iconMode: String) {
+    val isEaster = iconMode == "easter" || iconMode == "secret"
     val useLightIcon = when (iconMode) {
         "default", "light" -> true
         "dark" -> false
+        "easter", "secret" -> false
         else -> {
             val uiMode = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
             uiMode != android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -94,15 +96,13 @@ fun switchAppIcon(context: Context, iconMode: String) {
     val pm = context.packageManager
     val defaultComponent = android.content.ComponentName(context, "com.santiago43rus.rupoop.MainActivity")
     val lightComponent = android.content.ComponentName(context, "com.santiago43rus.rupoop.MainActivityLight")
+    val easterComponent = android.content.ComponentName(context, "com.santiago43rus.rupoop.MainActivityEaster")
 
-    pm.setComponentEnabledSetting(
-        defaultComponent,
-        if (useLightIcon) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-        android.content.pm.PackageManager.DONT_KILL_APP
-    )
-    pm.setComponentEnabledSetting(
-        lightComponent,
-        if (useLightIcon) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-        android.content.pm.PackageManager.DONT_KILL_APP
-    )
+    val defaultState = if (!isEaster && !useLightIcon) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+    val lightState = if (!isEaster && useLightIcon) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+    val easterState = if (isEaster) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+
+    pm.setComponentEnabledSetting(defaultComponent, defaultState, android.content.pm.PackageManager.DONT_KILL_APP)
+    pm.setComponentEnabledSetting(lightComponent, lightState, android.content.pm.PackageManager.DONT_KILL_APP)
+    pm.setComponentEnabledSetting(easterComponent, easterState, android.content.pm.PackageManager.DONT_KILL_APP)
 }

@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
             val systemDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
             val isDarkTheme = when (themeMode) {
                 "light" -> false
-                "dark" -> true
+                "dark", "easter", "secret" -> true
                 else -> systemDarkTheme
             }
 
@@ -62,10 +62,10 @@ class MainActivity : ComponentActivity() {
             SideEffect {
                 val window = (this as Activity).window
                 val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-                insetsController.isAppearanceLightStatusBars = !isDarkTheme
+                insetsController.isAppearanceLightStatusBars = !isDarkTheme && themeMode != "easter" && themeMode != "secret"
             }
 
-            RupoopTheme(darkTheme = isDarkTheme) {
+            RupoopTheme(themeMode = themeMode, darkTheme = isDarkTheme) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     RutubeApp(
                         vm = vm,

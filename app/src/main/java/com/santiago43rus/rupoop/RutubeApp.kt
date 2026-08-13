@@ -72,10 +72,10 @@ fun RutubeApp(
     val context = LocalContext.current
     val isTablet = config.smallestScreenWidthDp >= 600
 
-    DisposableEffect(context) {
+    DisposableEffect(context, isTablet) {
         val listener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
-                if (orientation == ORIENTATION_UNKNOWN) return
+                if (orientation == ORIENTATION_UNKNOWN || isTablet) return
                 val isLandscapeOrientation = orientation in 60..120 || orientation in 240..300
                 val isPortraitOrientation = orientation in 0..30 || orientation in 330..359
 
@@ -100,7 +100,7 @@ fun RutubeApp(
 
     LaunchedEffect(vm.isFullscreenVideo, vm.isFullscreenTriggeredManually, vm.playerState, vm.isPortraitLocked, isTablet) {
         if (vm.isFullscreenVideo) {
-            if (vm.isFullscreenTriggeredManually) {
+            if (vm.isFullscreenTriggeredManually && !isTablet) {
                 setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
             } else {
                 setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR)

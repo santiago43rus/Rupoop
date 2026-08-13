@@ -38,15 +38,44 @@ private val LightColorScheme = lightColorScheme(
     outline = Color(0xFFD0D0D0)
 )
 
+private val EasterEggColorScheme = darkColorScheme(
+    primary = EasterPrimary,
+    onPrimary = Color.Black,
+    secondary = EasterPrimaryDark,
+    tertiary = Color(0xFF69F0AE),
+    background = EasterBackground,
+    surface = EasterSurface,
+    surfaceVariant = EasterSurfaceVariant,
+    onBackground = EasterOnBackground,
+    onSurface = EasterOnSurface,
+    onSurfaceVariant = EasterOnSurfaceVariant,
+    outline = EasterOutline
+)
+
 @Composable
 fun RupoopTheme(
+    themeMode: String = "system",
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val isEaster = themeMode == "easter" || themeMode == "secret"
+    val isDark = when (themeMode) {
+        "light" -> false
+        "dark" -> true
+        "easter", "secret" -> true
+        else -> darkTheme
+    }
+
+    val colorScheme = when {
+        isEaster -> EasterEggColorScheme
+        isDark -> DarkColorScheme
+        else -> LightColorScheme
+    }
+
+    val selectionColor = if (isEaster) EasterPrimary else RupoopRed
     val customTextSelectionColors = TextSelectionColors(
-        handleColor = RupoopRed,
-        backgroundColor = RupoopRed.copy(alpha = 0.4f)
+        handleColor = selectionColor,
+        backgroundColor = selectionColor.copy(alpha = 0.4f)
     )
 
     CompositionLocalProvider(LocalTextSelectionColors provides customTextSelectionColors) {

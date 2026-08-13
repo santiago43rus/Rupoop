@@ -22,7 +22,7 @@ fun CacheAndHistorySection(
     onClearSearchHistory: () -> Unit
 ) {
     // ── Кэш ──
-    Text("Кэш и хранилище", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+    Text("Кэш и хранилище", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
     ListItem(
         headlineContent = { Text("Размер кэша") },
         supportingContent = { Text(formatFileSize(cacheSize)) },
@@ -35,7 +35,7 @@ fun CacheAndHistorySection(
     HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
     // ── История и конфиденциальность ──
-    Text("История и конфиденциальность", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+    Text("История и конфиденциальность", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
     Button(
         onClick = onClearWatchHistory,
         modifier = Modifier.fillMaxWidth(),
@@ -54,10 +54,11 @@ fun SupportAndAboutSection(
     uriHandler: UriHandler,
     donateUrl: String,
     versionName: String,
-    versionCode: Int
+    versionCode: Int,
+    onVersionClick: () -> Unit = {}
 ) {
     // ── Поддержать автора ──
-    Text("Поддержать автора", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+    Text("Поддержать автора", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
     Spacer(Modifier.height(4.dp))
     Text(
         "Если приложение полезно — поддержите разработку ❤️",
@@ -88,11 +89,12 @@ fun SupportAndAboutSection(
     HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
     // ── О приложении ──
-    Text("О приложении", style = MaterialTheme.typography.titleMedium, color = Color(0xFFE53935))
+    Text("О приложении", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
     ListItem(
         headlineContent = { Text("Версия") },
         supportingContent = { Text("$versionName ($versionCode)") },
-        leadingContent = { Icon(Icons.Default.Info, null, tint = Color.Gray) }
+        leadingContent = { Icon(Icons.Default.Info, null, tint = Color.Gray) },
+        modifier = Modifier.clickable { onVersionClick() }
     )
     ListItem(
         headlineContent = { Text("Исходный код") },

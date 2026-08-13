@@ -148,7 +148,7 @@ fun AppTopBar(
                     Icon(
                         imageVector = Icons.Default.PlayCircleFilled,
                         contentDescription = null,
-                        tint = Color(0xFFE53935),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                     Spacer(Modifier.width(6.dp))

@@ -394,8 +394,10 @@ fun Modifier.playerDragGestures(
     swipeOffsetX: MutableState<Float>,
     swipeOffsetY: MutableState<Float>,
     onToggleFullscreen: () -> Unit,
-    isFastForwarding: Boolean = false
-): Modifier = pointerInput(isFullscreen, isFastForwarding) {
+    isFastForwarding: Boolean = false,
+    isTablet: Boolean = false,
+    isLandscape: Boolean = false
+): Modifier = pointerInput(isFullscreen, isFastForwarding, isTablet, isLandscape) {
     if (!isFullscreen || isFastForwarding) return@pointerInput
     var totalDragY = 0f
     var totalDragX = 0f
@@ -430,9 +432,13 @@ fun Modifier.playerDragGestures(
             val absY = kotlin.math.abs(totalDragY)
             val absX = kotlin.math.abs(totalDragX)
 
+            val isTabletLandscape = isTablet && isLandscape
+
             if (!isMoreVideosGesture && !isScreenTransitionGesture && absY > 20f && absY > absX) {
-                if (isFullscreen && totalDragY < 0 && !showMoreVideos.value && !isLocalFile) {
+                if (isFullscreen && totalDragY < 0 && !showMoreVideos.value && !isLocalFile && !isTabletLandscape) {
                     isMoreVideosGesture = true
+                } else if (isFullscreen && totalDragY < 0 && isTabletLandscape) {
+                    isScreenTransitionGesture = true
                 } else if (isFullscreen && totalDragY > 0) {
                     isScreenTransitionGesture = true
                 } else if (!isFullscreen && totalDragY < 0) {
@@ -447,7 +453,8 @@ fun Modifier.playerDragGestures(
                     moreVideosDragOffset.value = 0f
                 }
             } else if (isScreenTransitionGesture) {
-                val activeDrag = if (isFullscreen) totalDragY else -totalDragY
+                val isUpwardTransition = totalDragY < 0
+                val activeDrag = if (isUpwardTransition) -totalDragY else (if (isFullscreen) totalDragY else -totalDragY)
 
                 if (activeDrag > 0) {
                     val maxDist = if (isFullscreen) maxDragDistanceFullScreen else maxDragDistanceVertical
@@ -457,7 +464,7 @@ fun Modifier.playerDragGestures(
                     if (isFullscreen) {
                         swipeScale.value = 1f - (0.2f * progress)
                         swipeOffsetX.value = 0f
-                        swipeOffsetY.value = boundedDrag * dragMultiplier * 0.4f
+                        swipeOffsetY.value = if (isUpwardTransition) -boundedDrag * dragMultiplier * 0.4f else boundedDrag * dragMultiplier * 0.4f
                     } else {
                         swipeScale.value = 1f + (0.25f * progress)
                         swipeOffsetX.value = 0f
@@ -480,7 +487,8 @@ fun Modifier.playerDragGestures(
                     returnControls = true
                 }
             } else if (isScreenTransitionGesture) {
-                val activeDrag = if (isFullscreen) totalDragY else -totalDragY
+                val isUpwardTransition = totalDragY < 0
+                val activeDrag = if (isUpwardTransition) -totalDragY else (if (isFullscreen) totalDragY else -totalDragY)
                 val threshold = if (isFullscreen) 40f else 60f
 
                 if (activeDrag > threshold) {

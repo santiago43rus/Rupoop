@@ -62,6 +62,10 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("app_icon", "system") ?: "system"
         set(value) = prefs.edit { putString("app_icon", value) }
 
+    var isEasterEggUnlocked: Boolean
+        get() = prefs.getBoolean("easter_egg_unlocked", false)
+        set(value) = prefs.edit { putBoolean("easter_egg_unlocked", value) }
+
     var autoPlayNext: Boolean
         get() = prefs.getBoolean("auto_play_next", true)
         set(value) = prefs.edit { putBoolean("auto_play_next", value) }
