@@ -107,7 +107,7 @@ class MainActivity : ComponentActivity() {
             pendingLocalFileTitle = intent.getStringExtra("TITLE")
         } else if (intent?.action == Intent.ACTION_VIEW) {
             val data: Uri? = intent.data
-            if (data != null && data.host == "rutube.ru" && data.path?.startsWith("/video/") == true) {
+            if (data != null) {
                 deepLinkVideoUrl = data.toString()
             }
         }

@@ -191,6 +191,15 @@ fun RutubeApp(
         ContentSelectionDialog(settingsManager = vm.settingsManager, onDismiss = { vm.dismissOnboarding() })
     }
 
+    if (vm.showOpenUrlDialog) {
+        com.santiago43rus.rupoop.components.OpenUrlDialog(
+            onDismiss = { vm.showOpenUrlDialog = false },
+            onPlayUrl = { url ->
+                vm.playVideo(com.santiago43rus.rupoop.data.SearchResult(videoUrl = url, title = "Загрузка..."))
+            }
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         val sharedUiProgress = when (vm.playerState) {
             PlayerState.CLOSED, PlayerState.MINI -> 1f

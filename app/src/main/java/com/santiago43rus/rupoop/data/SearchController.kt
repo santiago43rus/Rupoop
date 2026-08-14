@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.santiago43rus.rupoop.network.RetrofitClient
+import com.santiago43rus.rupoop.parser.UniversalVideoParser
 import com.santiago43rus.rupoop.util.NavItem
 import com.santiago43rus.rupoop.util.OverlayState
 import com.santiago43rus.rupoop.util.PlayerState
@@ -27,7 +28,8 @@ class SearchController(
     private val getOverlayOrder: () -> List<OverlayState>,
     private val setOverlayOrder: (List<OverlayState>) -> Unit,
     private val getIsSearchVisible: () -> Boolean,
-    private val setIsSearchVisible: (Boolean) -> Unit
+    private val setIsSearchVisible: (Boolean) -> Unit,
+    private val onPlayUrl: ((String) -> Unit)? = null
 ) {
 
     var searchQuery by mutableStateOf("")
@@ -38,6 +40,10 @@ class SearchController(
     fun updateSearchQuery(query: String) {
         searchQuery = query
         if (query.isBlank()) {
+            searchSuggestions = emptyList()
+            return
+        }
+        if (UniversalVideoParser.isHttpUrl(query)) {
             searchSuggestions = emptyList()
             return
         }
@@ -59,27 +65,39 @@ class SearchController(
     }
 
     fun performSearch(query: String, ordering: String? = searchSortOrder) {
-        searchQuery = query
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+
+        searchQuery = trimmed
         isSearchExpanded = false
+
+        if (UniversalVideoParser.isHttpUrl(trimmed)) {
+            registryManager.addSearchQuery(trimmed)
+            onRegistryUpdate(registryManager.registry)
+            pushToGitHub()
+            setIsSearchVisible(false)
+            onPlayUrl?.invoke(trimmed)
+            return
+        }
 
         setIsSearchVisible(true)
         setOverlayOrder(getOverlayOrder().filter { it != OverlayState.SEARCH } + OverlayState.SEARCH)
         if (getPlayerState() == PlayerState.FULL) setPlayerState(PlayerState.MINI)
 
-        registryManager.addSearchQuery(query)
+        registryManager.addSearchQuery(trimmed)
         onRegistryUpdate(registryManager.registry)
         pushToGitHub()
         val requestNav = getCurrentNav()
         scope.launch {
             try {
-                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(query, ordering = ordering) }
+                val resp = withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(trimmed, ordering = ordering) }
                 val filteredResults = filterHiddenAndDisliked(resp.results)
                 val currentStack = getSearchStacks()[requestNav] ?: mutableListOf()
-                currentStack.add(NavigationController.SearchState(query, filteredResults, ordering))
+                currentStack.add(NavigationController.SearchState(trimmed, filteredResults, ordering))
                 getSearchStacks()[requestNav] = currentStack
 
                 if (getCurrentNav() == requestNav) {
-                    updateSearchStates(query, filteredResults, ordering, false, true)
+                    updateSearchStates(trimmed, filteredResults, ordering, false, true)
                 }
             } catch (e: Exception) {
                 Log.e("Rupoop", "Search error", e)

@@ -17,6 +17,7 @@ import com.santiago43rus.rupoop.auth.GistSyncManager
 import com.santiago43rus.rupoop.auth.GitHubAuthManager
 import com.santiago43rus.rupoop.data.*
 import com.santiago43rus.rupoop.network.RetrofitClient
+import com.santiago43rus.rupoop.parser.UniversalVideoParser
 import com.santiago43rus.rupoop.player.PlaybackController
 import com.santiago43rus.rupoop.player.*
 import com.santiago43rus.rupoop.service.DownloadService
@@ -124,7 +125,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         getOverlayOrder = { navigationController.overlayOrder },
         setOverlayOrder = { navigationController.overlayOrder = it },
         getIsSearchVisible = { navigationController.isSearchVisible },
-        setIsSearchVisible = { navigationController.isSearchVisible = it }
+        setIsSearchVisible = { navigationController.isSearchVisible = it },
+        onPlayUrl = { url ->
+            playVideo(SearchResult(videoUrl = url, title = "Загрузка..."))
+        }
     )
 
     val authController: AuthController = AuthController(
@@ -161,6 +165,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     var showPlaylistDialog by mutableStateOf<SearchResult?>(null)
     var showDownloadDialog by mutableStateOf<SearchResult?>(null)
+    var showOpenUrlDialog by mutableStateOf(false)
     var showOnboarding by mutableStateOf(settingsManager.isFirstLaunch)
 
     var searchResults by mutableStateOf<List<SearchResult>>(emptyList())
@@ -199,29 +204,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             _snackbarMessage.emit("Скачивание начато: ${video.title}")
-            extractId(video.videoUrl)?.let { id ->
-                val uniqueId = "${id}___${System.currentTimeMillis()}"
-                try {
-                    val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(id) }
-                    opt.videoBalancer?.m3u8?.let { m3u8Url ->
-                        val serviceIntent = Intent(context, DownloadService::class.java).apply {
-                            putExtra("VIDEO_URL", m3u8Url)
-                            putExtra("TITLE", video.title)
-                            putExtra("VIDEO_ID", uniqueId)
-                            putExtra("THUMBNAIL_URL", video.thumbnailUrl)
-                            putExtra("QUALITY", settingsManager.downloadQuality)
-                            putExtra("IS_AUDIO", isAudio)
-                        }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            context.startForegroundService(serviceIntent)
-                        } else {
-                            context.startService(serviceIntent)
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("RupoopDownload", "Error starting download", e)
-                    _snackbarMessage.emit("Ошибка начала загрузки")
+            val rawUrl = video.videoUrl
+            val isExternal = UniversalVideoParser.isHttpUrl(rawUrl) && !UniversalVideoParser.isRutubeUrl(rawUrl)
+            val id = extractId(rawUrl) ?: rawUrl
+            val uniqueId = "${id}___${System.currentTimeMillis()}"
+
+            try {
+                val streamUrl = if (isExternal) {
+                    val parsed = withContext(Dispatchers.IO) { UniversalVideoParser.parse(rawUrl) }
+                    parsed?.streamUrl
+                } else {
+                    val rutubeId = UniversalVideoParser.extractRutubeId(rawUrl) ?: id
+                    val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(rutubeId) }
+                    opt.videoBalancer?.m3u8
                 }
+
+                if (!streamUrl.isNullOrEmpty()) {
+                    val serviceIntent = Intent(context, DownloadService::class.java).apply {
+                        putExtra("VIDEO_URL", streamUrl)
+                        putExtra("TITLE", video.title)
+                        putExtra("VIDEO_ID", uniqueId)
+                        putExtra("THUMBNAIL_URL", video.thumbnailUrl)
+                        putExtra("QUALITY", settingsManager.downloadQuality)
+                        putExtra("IS_AUDIO", isAudio)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent)
+                    } else {
+                        context.startService(serviceIntent)
+                    }
+                } else {
+                    _snackbarMessage.emit("Не удалось получить ссылку для скачивания")
+                }
+            } catch (e: Exception) {
+                Log.e("RupoopDownload", "Error starting download", e)
+                _snackbarMessage.emit("Ошибка начала загрузки")
             }
         }
     }

@@ -218,3 +218,74 @@ fun DeleteConfirmationDialog(
         onDismiss = onDismiss
     )
 }
+
+@Composable
+fun OpenUrlDialog(
+    onDismiss: () -> Unit,
+    onPlayUrl: (String) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var urlText by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Открыть видео по ссылке") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Поддерживаются видео с Rutube, VK (vk.com / vk.ru / vkvideo.ru), Lordfilm и пиратских плееров, а также прямые ссылки .m3u8 и .mp4",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+
+                OutlinedTextField(
+                    value = urlText,
+                    onValueChange = { urlText = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    placeholder = { Text("https://...") },
+                    singleLine = false,
+                    maxLines = 3,
+                    trailingIcon = {
+                        TextButton(
+                            onClick = {
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                val clip = clipboard?.primaryClip?.getItemAt(0)?.text?.toString()
+                                if (!clip.isNullOrBlank()) {
+                                    urlText = clip.trim()
+                                }
+                            }
+                        ) {
+                            Text("Вставить", fontSize = 12.sp)
+                        }
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val trimmed = urlText.trim()
+                    if (trimmed.isNotBlank()) {
+                        onPlayUrl(trimmed)
+                        onDismiss()
+                    }
+                },
+                enabled = urlText.isNotBlank()
+            ) {
+                Text("Воспроизвести")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+}

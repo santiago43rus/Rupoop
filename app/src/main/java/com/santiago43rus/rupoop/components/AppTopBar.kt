@@ -180,6 +180,9 @@ fun AppTopBar(
                 // Non-search actions
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (topVisible == null && vm.currentLibSub == LibrarySubScreen.NONE && !vm.isSettingsVisible) {
+                        IconButton(onClick = { vm.showOpenUrlDialog = true }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.Link, "Открыть по ссылке", modifier = Modifier.size(20.dp))
+                        }
                         IconButton(onClick = { vm.isSearchExpanded = true }, modifier = Modifier.size(36.dp)) {
                             Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp))
                         }
