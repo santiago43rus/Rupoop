@@ -92,6 +92,39 @@ class GistSyncManager(
         }
     }
 
+    suspend fun pushDirect(token: String): UserRegistry = pushMutex.withLock {
+        val authHeader = "Bearer $token"
+        Log.d("RupoopAuth", "Starting Direct Gist Push")
+        return try {
+            var gistId = getOrFindGistId(authHeader)
+
+            val currentWithPrefs = registryManager.registry.copy(
+                appSettings = buildAppSettingsFromPreferences(),
+                lastSynced = System.currentTimeMillis()
+            )
+            registryManager.updateRegistry(currentWithPrefs)
+
+            val request = GistRequest(
+                description = "Rupoop User Registry",
+                public = false,
+                files = mapOf(SYNC_FILE_NAME to GistFile(content = json.encodeToString(currentWithPrefs)))
+            )
+
+            if (gistId != null) {
+                gistApi.updateGist(authHeader, gistId, request)
+            } else {
+                val newGist = gistApi.createGist(authHeader, request)
+                gistId = newGist.id
+                settingsManager.cachedGistId = gistId
+            }
+
+            currentWithPrefs
+        } catch (e: Exception) {
+            Log.e("RupoopAuth", "Direct push failed", e)
+            registryManager.registry
+        }
+    }
+
     suspend fun sync(token: String): UserRegistry {
         return push(token)
     }

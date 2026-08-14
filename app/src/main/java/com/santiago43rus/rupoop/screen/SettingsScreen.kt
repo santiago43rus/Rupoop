@@ -19,6 +19,9 @@ import androidx.compose.ui.unit.dp
 import com.santiago43rus.rupoop.BuildConfig
 import com.santiago43rus.rupoop.util.*
 import com.santiago43rus.rupoop.AppViewModel
+import com.santiago43rus.rupoop.clearWatchHistory
+import com.santiago43rus.rupoop.clearSearchHistory
+import com.santiago43rus.rupoop.components.DeleteConfirmationDialog
 import com.santiago43rus.rupoop.isAuthenticated
 import androidx.compose.ui.Alignment
 
@@ -46,6 +49,11 @@ fun SettingsScreen(
     var versionClicks by remember { mutableIntStateOf(0) }
     var lastVersionClickTime by remember { mutableLongStateOf(0L) }
     var toastRef by remember { mutableStateOf<android.widget.Toast?>(null) }
+
+    var pendingClearAction by remember { mutableStateOf<((deleteFromGist: Boolean) -> Unit)?>(null) }
+    var clearDialogTitle by remember { mutableStateOf("") }
+    var clearDialogMessage by remember { mutableStateOf("") }
+    var clearDialogShowGist by remember { mutableStateOf(false) }
 
     val allGenres = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
@@ -239,12 +247,20 @@ fun SettingsScreen(
                     cacheSize = getCacheSize(context)
                 },
                 onClearWatchHistory = {
-                    registryManager.clearWatchHistory()
-                    vm.onRegistryUpdate(registryManager.registry)
+                    clearDialogTitle = "Очистить историю просмотров"
+                    clearDialogMessage = "Вы уверены, что хотите полностью очистить историю просмотров?"
+                    clearDialogShowGist = vm.isAuthenticated
+                    pendingClearAction = { fromGist ->
+                        vm.clearWatchHistory(fromGist)
+                    }
                 },
                 onClearSearchHistory = {
-                    registryManager.clearSearchHistory()
-                    vm.onRegistryUpdate(registryManager.registry)
+                    clearDialogTitle = "Очистить историю поиска"
+                    clearDialogMessage = "Вы уверены, что хотите полностью очистить историю поиска?"
+                    clearDialogShowGist = vm.isAuthenticated
+                    pendingClearAction = { fromGist ->
+                        vm.clearSearchHistory(fromGist)
+                    }
                 }
             )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -389,5 +405,21 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(32.dp))
         }
+    }
+
+    if (pendingClearAction != null) {
+        DeleteConfirmationDialog(
+            title = clearDialogTitle,
+            message = clearDialogMessage,
+            showGistCheckbox = clearDialogShowGist,
+            confirmButtonText = "Очистить",
+            onConfirm = { deleteFromGist ->
+                pendingClearAction?.invoke(deleteFromGist)
+                pendingClearAction = null
+            },
+            onDismiss = {
+                pendingClearAction = null
+            }
+        )
     }
 }

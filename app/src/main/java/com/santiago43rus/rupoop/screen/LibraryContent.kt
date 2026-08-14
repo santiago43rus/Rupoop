@@ -31,11 +31,13 @@ import com.santiago43rus.rupoop.util.extractId
 import kotlinx.coroutines.delay
 import java.io.File
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
-    var pendingDeleteAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var pendingDeleteAction by remember { mutableStateOf<((deleteFromGist: Boolean) -> Unit)?>(null) }
     var deleteDialogTitle by remember { mutableStateOf("") }
     var deleteDialogMessage by remember { mutableStateOf("") }
+    var deleteDialogShowGist by remember { mutableStateOf(false) }
 
     var pendingDeleteVideoId by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -65,7 +67,8 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         "remove" -> {
                             deleteDialogTitle = "Удалить из истории"
                             deleteDialogMessage = "Вы уверены, что хотите удалить это видео из истории просмотров?"
-                            pendingDeleteAction = { vm.removeFromHistory(item.videoId) }
+                            deleteDialogShowGist = vm.isAuthenticated
+                            pendingDeleteAction = { fromGist -> vm.removeFromHistory(item.videoId, fromGist) }
                         }
                         "share" -> vm.shareVideo(video)
                         "download" -> vm.showDownloadDialog = video
@@ -120,7 +123,8 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                                 "remove" -> {
                                     deleteDialogTitle = "Удалить из истории"
                                     deleteDialogMessage = "Вы уверены, что хотите удалить это видео из истории просмотров?"
-                                    pendingDeleteAction = { vm.removeFromHistory(item.videoId) }
+                                    deleteDialogShowGist = vm.isAuthenticated
+                                    pendingDeleteAction = { fromGist -> vm.removeFromHistory(item.videoId, fromGist) }
                                 }
                             }
                         },
@@ -133,12 +137,14 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
         LibrarySubScreen.LIKED -> VideoListScreen(vm.userRegistry.likedVideos, { v -> vm.playVideo(v, vm.userRegistry.likedVideos, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video ->
             deleteDialogTitle = "Удалить из понравившихся"
             deleteDialogMessage = "Вы уверены, что хотите удалить это видео из списка понравившихся?"
-            pendingDeleteAction = { vm.toggleLike(video) }
+            deleteDialogShowGist = vm.isAuthenticated
+            pendingDeleteAction = { fromGist -> vm.removeFromLiked(video, fromGist) }
         }, { vm.showDownloadDialog = it })
         LibrarySubScreen.WATCH_LATER -> VideoListScreen(vm.userRegistry.watchLater, { v -> vm.playVideo(v, vm.userRegistry.watchLater, true) }, { vm.loadAuthorVideos(it, false) }, { vm.shareVideo(it) }, { video ->
             deleteDialogTitle = "Удалить из \"Смотреть позже\""
             deleteDialogMessage = "Вы уверены, что хотите удалить это видео из списка \"Смотреть позже\"?"
-            pendingDeleteAction = { vm.toggleWatchLater(video) }
+            deleteDialogShowGist = vm.isAuthenticated
+            pendingDeleteAction = { fromGist -> vm.removeFromWatchLater(video, fromGist) }
         }, { vm.showDownloadDialog = it })
         LibrarySubScreen.PLAYLISTS -> {
             LazyColumn(Modifier.fillMaxSize()) {
@@ -150,7 +156,8 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                         onAction = {
                             deleteDialogTitle = "Удалить плейлист"
                             deleteDialogMessage = "Вы уверены, что хотите удалить плейлист \"${playlist.name}\"?"
-                            pendingDeleteAction = { vm.deletePlaylist(playlist.id) }
+                            deleteDialogShowGist = vm.isAuthenticated
+                            pendingDeleteAction = { fromGist -> vm.deletePlaylist(playlist.id, fromGist) }
                         }) {
                         vm.selectedPlaylist = playlist
                         vm.currentLibSub = LibrarySubScreen.PLAYLIST_DETAIL
@@ -167,7 +174,8 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 { video ->
                     deleteDialogTitle = "Удалить из плейлиста"
                     deleteDialogMessage = "Вы уверены, что хотите удалить это видео из плейлиста?"
-                    pendingDeleteAction = { vm.selectedPlaylist?.let { vm.removeFromPlaylist(it.id, video.videoUrl) } }
+                    deleteDialogShowGist = vm.isAuthenticated
+                    pendingDeleteAction = { fromGist -> vm.selectedPlaylist?.let { vm.removeFromPlaylist(it.id, video.videoUrl, fromGist) } }
                 },
                 { vm.showDownloadDialog = it }
             )
@@ -207,17 +215,12 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
                 onDelete = { videoId ->
                     deleteDialogTitle = "Удалить загрузку"
                     deleteDialogMessage = "Вы уверены, что хотите удалить этот файл с устройства?"
-                    pendingDeleteAction = {
+                    deleteDialogShowGist = false
+                    pendingDeleteAction = { _ ->
                         val item = downloads.find { it.videoId == videoId }
                         val isActiveOrPaused = item?.status == DownloadStatus.DOWNLOADING || item?.status == DownloadStatus.PAUSED
 
                         if (isActiveOrPaused) {
-                            // The item is still downloading (or paused mid-download). Just wiping
-                            // the tracker row here (the old behavior) left the background task
-                            // running untouched and its notification stuck on screen forever,
-                            // since DownloadService was never told to stop. Route through the
-                            // same CANCEL path the notification's "Отмена" button uses: it cancels
-                            // the coroutine, deletes any partial file, and clears the notification.
                             val intent = Intent(vm.getApplication(), DownloadService::class.java).apply {
                                 action = "CANCEL"
                                 putExtra("VIDEO_ID", videoId)
@@ -279,8 +282,9 @@ fun LibraryContent(vm: AppViewModel, listState: LazyListState) {
         DeleteConfirmationDialog(
             title = deleteDialogTitle,
             message = deleteDialogMessage,
-            onConfirm = {
-                pendingDeleteAction?.invoke()
+            showGistCheckbox = deleteDialogShowGist,
+            onConfirm = { deleteFromGist ->
+                pendingDeleteAction?.invoke(deleteFromGist)
                 pendingDeleteAction = null
             },
             onDismiss = {

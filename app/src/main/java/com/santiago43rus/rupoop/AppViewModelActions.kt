@@ -9,7 +9,8 @@ import com.santiago43rus.rupoop.util.extractId
 @UnstableApi
 fun AppViewModel.toggleSubscription(author: Author) {
     val subs = userRegistry.subscriptions.toMutableList()
-    if (subs.any { it.name.equals(author.name, ignoreCase = true) }) {
+    val isSubbed = subs.any { it.name.equals(author.name, ignoreCase = true) }
+    if (isSubbed) {
         subs.removeAll { it.name.equals(author.name, ignoreCase = true) }
     } else {
         subs.add(author)
@@ -19,6 +20,20 @@ fun AppViewModel.toggleSubscription(author: Author) {
     pushToGitHub()
 }
 
+@UnstableApi
+fun AppViewModel.unsubscribeAuthor(author: Author, deleteFromGist: Boolean = false) {
+    val subs = userRegistry.subscriptions.toMutableList()
+    subs.removeAll { it.name.equals(author.name, ignoreCase = true) }
+    registryManager.updateRegistry(userRegistry.copy(subscriptions = subs))
+    userRegistry = registryManager.registry
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("Вы отписались от ${author.name} (удалено из Gist)")
+    } else {
+        showSnackbar("Вы отписались от ${author.name}")
+    }
+}
+
 // ── Like ──
 @UnstableApi
 fun AppViewModel.toggleLike(video: SearchResult) {
@@ -26,6 +41,20 @@ fun AppViewModel.toggleLike(video: SearchResult) {
     userRegistry = registryManager.registry
     pushToGitHub()
     showSnackbar(if (added) "Добавлено в Понравившиеся" else "Удалено из Понравившихся")
+}
+
+@UnstableApi
+fun AppViewModel.removeFromLiked(video: SearchResult, deleteFromGist: Boolean = false) {
+    val liked = userRegistry.likedVideos.toMutableList()
+    liked.removeAll { it.videoUrl == video.videoUrl }
+    registryManager.updateRegistry(userRegistry.copy(likedVideos = liked))
+    userRegistry = registryManager.registry
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("Удалено из понравившихся и GitHub Gist")
+    } else {
+        showSnackbar("Удалено из понравившихся")
+    }
 }
 
 // ── Dislike ──
@@ -47,6 +76,20 @@ fun AppViewModel.toggleWatchLater(video: SearchResult) {
     userRegistry = registryManager.registry
     pushToGitHub()
     showSnackbar(if (added) "Добавлено в Смотреть позже" else "Удалено из Смотреть позже")
+}
+
+@UnstableApi
+fun AppViewModel.removeFromWatchLater(video: SearchResult, deleteFromGist: Boolean = false) {
+    val later = userRegistry.watchLater.toMutableList()
+    later.removeAll { it.videoUrl == video.videoUrl }
+    registryManager.updateRegistry(userRegistry.copy(watchLater = later))
+    userRegistry = registryManager.registry
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("Удалено из «Смотреть позже» и GitHub Gist")
+    } else {
+        showSnackbar("Удалено из «Смотреть позже»")
+    }
 }
 
 @UnstableApi
@@ -87,32 +130,84 @@ fun AppViewModel.createPlaylistAndAdd(name: String, video: SearchResult) {
 
 // ── History ──
 @UnstableApi
-fun AppViewModel.removeFromHistory(videoId: String) {
+fun AppViewModel.removeFromHistory(videoId: String, deleteFromGist: Boolean = false) {
     registryManager.removeFromHistory(videoId)
     userRegistry = registryManager.registry
-    pushToGitHub()
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("Удалено из истории и GitHub Gist")
+    }
 }
 
 @UnstableApi
-fun AppViewModel.removeSearchQuery(query: String) {
+fun AppViewModel.clearWatchHistory(deleteFromGist: Boolean = false) {
+    registryManager.clearWatchHistory()
+    userRegistry = registryManager.registry
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("История просмотров очищена везде")
+    } else {
+        showSnackbar("История просмотров очищена на устройстве")
+    }
+}
+
+@UnstableApi
+fun AppViewModel.removeSearchQuery(query: String, deleteFromGist: Boolean = false) {
     registryManager.removeSearchQuery(query)
     userRegistry = registryManager.registry
-    pushToGitHub()
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("Запрос удален из истории и GitHub Gist")
+    }
 }
 
 @UnstableApi
-fun AppViewModel.deletePlaylist(id: String) {
+fun AppViewModel.clearSearchHistory(deleteFromGist: Boolean = false) {
+    registryManager.clearSearchHistory()
+    userRegistry = registryManager.registry
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("История поиска очищена везде")
+    } else {
+        showSnackbar("История поиска очищена на устройстве")
+    }
+}
+
+@UnstableApi
+fun AppViewModel.deletePlaylist(id: String, deleteFromGist: Boolean = false) {
     registryManager.deletePlaylist(id)
     userRegistry = registryManager.registry
-    pushToGitHub()
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("Плейлист удален локально и из GitHub Gist")
+    } else {
+        showSnackbar("Плейлист удален")
+    }
 }
 
 @UnstableApi
-fun AppViewModel.removeFromPlaylist(playlistId: String, videoUrl: String) {
+fun AppViewModel.removeFromPlaylist(playlistId: String, videoUrl: String, deleteFromGist: Boolean = false) {
     registryManager.removeFromPlaylist(playlistId, videoUrl)
     userRegistry = registryManager.registry
     selectedPlaylist = userRegistry.playlists.find { it.id == playlistId }
-    pushToGitHub()
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("Удалено из плейлиста и GitHub Gist")
+    } else {
+        showSnackbar("Удалено из плейлиста")
+    }
+}
+
+@UnstableApi
+fun AppViewModel.restoreHiddenVideo(videoId: String, title: String, deleteFromGist: Boolean = false) {
+    registryManager.restoreVideo(videoId, title)
+    userRegistry = registryManager.registry
+    if (deleteFromGist) {
+        pushToGitHub(forceDirect = true)
+        showSnackbar("Видео удалено из скрытых и GitHub Gist")
+    } else {
+        showSnackbar("Видео удалено из скрытых")
+    }
 }
 
 @UnstableApi

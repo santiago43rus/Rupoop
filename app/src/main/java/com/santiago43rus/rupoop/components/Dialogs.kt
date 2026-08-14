@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -154,14 +155,66 @@ fun PlaylistSelectionDialog(
 fun DeleteConfirmationDialog(
     title: String,
     message: String,
-    onConfirm: () -> Unit,
+    showGistCheckbox: Boolean = false,
+    initialGistChecked: Boolean = true,
+    confirmButtonText: String = "Удалить",
+    onConfirm: (deleteFromGist: Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var deleteFromGist by remember { mutableStateOf(initialGistChecked) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Text(message) },
-        confirmButton = { Button(onClick = onConfirm) { Text("Удалить") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(message)
+                if (showGistCheckbox) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { deleteFromGist = !deleteFromGist }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = deleteFromGist,
+                            onCheckedChange = { deleteFromGist = it }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Удалить также из GitHub Gist",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(if (showGistCheckbox) deleteFromGist else false) }) {
+                Text(confirmButtonText)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
+}
+
+@Composable
+fun DeleteConfirmationDialog(
+    title: String,
+    message: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    DeleteConfirmationDialog(
+        title = title,
+        message = message,
+        showGistCheckbox = false,
+        onConfirm = { onConfirm() },
+        onDismiss = onDismiss
     )
 }

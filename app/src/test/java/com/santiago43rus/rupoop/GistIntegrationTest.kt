@@ -169,6 +169,51 @@ class GistIntegrationTest {
     }
 
     @Test
+    fun testGistItemDeletion() {
+        val originalRegistry = UserRegistry(
+            watchHistory = listOf(
+                WatchHistoryItem(videoId = "v1", timestamp = 1000L, progress = 10L, totalDuration = 100L),
+                WatchHistoryItem(videoId = "v2", timestamp = 2000L, progress = 20L, totalDuration = 100L)
+            ),
+            searchHistory = listOf("query1", "query2"),
+            subscriptions = listOf(Author(id = 1L, name = "Author 1"), Author(id = 2L, name = "Author 2")),
+            likedVideos = listOf(
+                SearchResult(videoUrl = "https://rutube.ru/video/v1/", title = "Video 1"),
+                SearchResult(videoUrl = "https://rutube.ru/video/v2/", title = "Video 2")
+            ),
+            watchLater = listOf(
+                SearchResult(videoUrl = "https://rutube.ru/video/v1/", title = "Video 1")
+            ),
+            playlists = listOf(
+                Playlist(id = "p1", name = "Playlist 1", videos = listOf(SearchResult(videoUrl = "https://rutube.ru/video/v1/", title = "Video 1")))
+            )
+        )
+
+        // Simulate deleting v1 from history, query1 from search, Author 1 from subs, v1 from liked, v1 from watch later, p1 from playlists
+        val updatedRegistry = originalRegistry.copy(
+            watchHistory = originalRegistry.watchHistory.filterNot { it.videoId == "v1" },
+            searchHistory = originalRegistry.searchHistory.filterNot { it == "query1" },
+            subscriptions = originalRegistry.subscriptions.filterNot { it.name == "Author 1" },
+            likedVideos = originalRegistry.likedVideos.filterNot { it.videoUrl == "https://rutube.ru/video/v1/" },
+            watchLater = emptyList(),
+            playlists = emptyList()
+        )
+
+        val jsonString = json.encodeToString(updatedRegistry)
+        val decoded = json.decodeFromString<UserRegistry>(jsonString)
+
+        assertEquals(1, decoded.watchHistory.size)
+        assertEquals("v2", decoded.watchHistory[0].videoId)
+        assertEquals(listOf("query2"), decoded.searchHistory)
+        assertEquals(1, decoded.subscriptions.size)
+        assertEquals("Author 2", decoded.subscriptions[0].name)
+        assertEquals(1, decoded.likedVideos.size)
+        assertEquals("https://rutube.ru/video/v2/", decoded.likedVideos[0].videoUrl)
+        assertTrue(decoded.watchLater.isEmpty())
+        assertTrue(decoded.playlists.isEmpty())
+    }
+
+    @Test
     fun testProxyGistApiConnection() = runBlocking {
         try {
             val response = gistApi.listGists("Bearer invalid_test_token")

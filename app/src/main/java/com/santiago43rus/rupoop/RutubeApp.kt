@@ -280,8 +280,9 @@ fun RutubeApp(
                             vm.performSearch(it)
                             scope.launch { homeListState.scrollToItem(0) }
                         },
-                        onRemoveSearchQuery = { vm.removeSearchQuery(it) },
-                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        onRemoveSearchQuery = { query, fromGist -> vm.removeSearchQuery(query, fromGist) },
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+                        isGitHubAuthenticated = vm.isAuthenticated
                     )
 
                     Box(modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {

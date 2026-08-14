@@ -10,12 +10,13 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.NorthWest
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.santiago43rus.rupoop.components.DeleteConfirmationDialog
 
 @Composable
 fun SearchSuggestionsOverlay(
@@ -25,10 +26,13 @@ fun SearchSuggestionsOverlay(
     searchSuggestions: List<String>,
     searchHistory: List<String>,
     onPerformSearch: (String) -> Unit,
-    onRemoveSearchQuery: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onRemoveSearchQuery: (String, Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    isGitHubAuthenticated: Boolean = false
 ) {
     if (!isSearchExpanded) return
+
+    var queryToDelete by remember { mutableStateOf<String?>(null) }
 
     if (searchQuery.isNotEmpty()) {
         Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
@@ -94,7 +98,7 @@ fun SearchSuggestionsOverlay(
                             fontSize = 14.sp
                         )
                         IconButton(
-                            onClick = { onRemoveSearchQuery(query) },
+                            onClick = { queryToDelete = query },
                             modifier = Modifier.size(24.dp)
                         ) {
                             Icon(
@@ -108,5 +112,18 @@ fun SearchSuggestionsOverlay(
                 }
             }
         }
+    }
+
+    queryToDelete?.let { query ->
+        DeleteConfirmationDialog(
+            title = "Удалить из истории поиска",
+            message = "Вы уверены, что хотите удалить «$query» из истории поиска?",
+            showGistCheckbox = isGitHubAuthenticated,
+            onConfirm = { deleteFromGist ->
+                onRemoveSearchQuery(query, deleteFromGist)
+                queryToDelete = null
+            },
+            onDismiss = { queryToDelete = null }
+        )
     }
 }

@@ -8,8 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.santiago43rus.rupoop.components.DeleteConfirmationDialog
 import com.santiago43rus.rupoop.components.VideoCardItem
 import com.santiago43rus.rupoop.components.VideoCardShimmer
 import com.santiago43rus.rupoop.data.Author
@@ -39,10 +39,12 @@ fun AuthorScreen(
     onLoadMore: () -> Unit,
     onVideoClick: (SearchResult, List<SearchResult>) -> Unit,
     onAuthorClick: (Author) -> Unit,
-    onToggleSubscription: (Author) -> Unit,
+    onToggleSubscription: (Author, Boolean) -> Unit,
     onMoreClick: (SearchResult, String) -> Unit,
+    isGitHubAuthenticated: Boolean = false,
     currentSort: String = "-publication_ts",
-    onSortChange: (String) -> Unit = {}
+    onSortChange: (String) -> Unit = {},
+    listState: LazyGridState = rememberLazyGridState()
 ) {
     val config = LocalConfiguration.current
     val columns = when {
@@ -50,6 +52,8 @@ fun AuthorScreen(
         config.screenWidthDp >= 600 -> 2
         else -> 1
     }
+
+    var showUnsubDialog by remember { mutableStateOf(false) }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         PullToRefreshBox(
@@ -82,7 +86,13 @@ fun AuthorScreen(
                                 )
                                 val isSubbed = userRegistry.subscriptions.any { it.name.equals(a.name, ignoreCase = true) }
                                 Button(
-                                    onClick = { onToggleSubscription(a) },
+                                    onClick = {
+                                        if (isSubbed) {
+                                            showUnsubDialog = true
+                                        } else {
+                                            onToggleSubscription(a, false)
+                                        }
+                                    },
                                     colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                     modifier = Modifier.height(32.dp)
@@ -101,6 +111,7 @@ fun AuthorScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(columns),
                     modifier = Modifier.fillMaxSize(),
+                    state = listState,
                     contentPadding = if (columns == 1) PaddingValues(bottom = 16.dp) else PaddingValues(12.dp),
                     horizontalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(16.dp),
                     verticalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(12.dp)
@@ -122,7 +133,13 @@ fun AuthorScreen(
                                 )
                                 val isSubbed = userRegistry.subscriptions.any { it.name.equals(a.name, ignoreCase = true) }
                                 Button(
-                                    onClick = { onToggleSubscription(a) },
+                                    onClick = {
+                                        if (isSubbed) {
+                                            showUnsubDialog = true
+                                        } else {
+                                            onToggleSubscription(a, false)
+                                        }
+                                    },
                                     colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                     modifier = Modifier.height(32.dp)
@@ -168,5 +185,19 @@ fun AuthorScreen(
                 }
             }
         }
+    }
+
+    if (showUnsubDialog && author != null) {
+        DeleteConfirmationDialog(
+            title = "Отписаться от автора",
+            message = "Вы уверены, что хотите отписаться от «${author.name}»?",
+            showGistCheckbox = isGitHubAuthenticated,
+            confirmButtonText = "Отписаться",
+            onConfirm = { deleteFromGist ->
+                onToggleSubscription(author, deleteFromGist)
+                showUnsubDialog = false
+            },
+            onDismiss = { showUnsubDialog = false }
+        )
     }
 }

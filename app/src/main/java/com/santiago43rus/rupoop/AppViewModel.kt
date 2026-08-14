@@ -167,13 +167,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var authorSortOrder by mutableStateOf("-publication_ts")
 
     private var pushJob: Job? = null
-    fun pushToGitHub() {
+    fun pushToGitHub(forceDirect: Boolean = false) {
         val token = settingsManager.accessToken ?: return
         if (!isNetworkAvailable(context)) return
         pushJob?.cancel()
-        pushJob = viewModelScope.launch {
-            delay(5000)
-            syncManager.push(token)
+        if (forceDirect) {
+            pushJob = viewModelScope.launch {
+                try {
+                    withContext(Dispatchers.IO) { syncManager.pushDirect(token) }
+                } catch (e: Exception) {
+                    Log.e("RupoopAuth", "Direct push failed", e)
+                }
+            }
+        } else {
+            pushJob = viewModelScope.launch {
+                delay(5000)
+                syncManager.push(token)
+            }
         }
     }
 
@@ -233,7 +243,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val token = settingsManager.accessToken ?: return
         viewModelScope.launch {
             try {
-                userRegistry = withContext(Dispatchers.IO) { syncManager.push(token) }
+                userRegistry = withContext(Dispatchers.IO) { syncManager.pushDirect(token) }
                 settingsManager.lastSyncTime = System.currentTimeMillis()
                 pushJob = null
                 _snackbarMessage.emit("Данные выгружены в Gist")
@@ -274,9 +284,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loadHome(false)
     }
 
-    fun onRegistryUpdate(registry: UserRegistry) {
+    fun onRegistryUpdate(registry: UserRegistry, forceDirect: Boolean = false) {
         userRegistry = registry
-        pushToGitHub()
+        pushToGitHub(forceDirect)
     }
 
     override fun onCleared() {

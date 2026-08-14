@@ -48,8 +48,16 @@ fun RutubeAppOverlays(
                 onLoadMore = { vm.selectedAuthor?.let { vm.loadAuthorVideos(it, true) } },
                 onVideoClick = { video, list -> vm.playVideo(video, list) },
                 onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                onToggleSubscription = { vm.toggleSubscription(it) },
+                onToggleSubscription = { author, fromGist ->
+                    val isSubbed = vm.userRegistry.subscriptions.any { it.name.equals(author.name, ignoreCase = true) }
+                    if (isSubbed) {
+                        vm.unsubscribeAuthor(author, fromGist)
+                    } else {
+                        vm.toggleSubscription(author)
+                    }
+                },
                 onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
+                isGitHubAuthenticated = vm.isAuthenticated,
                 currentSort = vm.authorSortOrder,
                 onSortChange = { newSort ->
                     vm.authorSortOrder = newSort
@@ -142,7 +150,8 @@ fun RutubeAppOverlays(
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             HiddenVideosScreen(
                 registryManager = vm.registryManager,
-                onRegistryUpdate = { vm.onRegistryUpdate(it) },
+                onRegistryUpdate = { registry, fromGist -> vm.onRegistryUpdate(registry, fromGist) },
+                isGitHubAuthenticated = vm.isAuthenticated,
                 onDismiss = { vm.isHiddenVideosVisible = false }
             )
         }
