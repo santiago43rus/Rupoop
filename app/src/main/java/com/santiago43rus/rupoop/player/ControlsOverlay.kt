@@ -61,8 +61,6 @@ fun ControlsOverlay(
     isFirstVideo: Boolean,
     isPreviousDisliked: Boolean,
     isLastVideo: Boolean,
-    hasCaptions: Boolean = false,
-    captionsEnabled: Boolean = false,
     onMinimize: () -> Unit,
     onToggleFullscreen: () -> Unit,
     onNext: () -> Unit,
@@ -71,7 +69,6 @@ fun ControlsOverlay(
     onSeekStart: () -> Unit,
     onSeekChange: (Long) -> Unit,
     onSeekEnd: () -> Unit,
-    onToggleCaptions: () -> Unit = {},
     bufferedPercent: Int = 0,
     isExpandingToFullscreen: Boolean = false,
     modifier: Modifier = Modifier
@@ -149,16 +146,6 @@ fun ControlsOverlay(
                         }
                     } else {
                         Spacer(Modifier.weight(1f))
-                    }
-
-                    if (hasCaptions) {
-                        IconButton(onClick = onToggleCaptions) {
-                            Icon(
-                                if (captionsEnabled) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionOff,
-                                null,
-                                tint = if (captionsEnabled) Color.White else Color.White.copy(0.6f)
-                            )
-                        }
                     }
 
                     IconButton(onClick = onShowSettings) {

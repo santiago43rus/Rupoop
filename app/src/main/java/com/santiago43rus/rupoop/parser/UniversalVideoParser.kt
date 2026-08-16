@@ -4,19 +4,28 @@ import android.util.Log
 import com.santiago43rus.rupoop.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.URI
+import java.util.regex.Pattern
 
 object UniversalVideoParser {
 
     private const val TAG = "UniversalVideoParser"
 
+    private val DOMAIN_URL_PATTERN = Pattern.compile(
+        """^[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-zA-Z]{2,}(?:/[^\s]*)?$""",
+        Pattern.CASE_INSENSITIVE
+    )
+
     fun isHttpUrl(queryOrUrl: String): Boolean {
         val trimmed = queryOrUrl.trim()
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return true
-        if (trimmed.startsWith("vk.com/") || trimmed.startsWith("vk.ru/") || trimmed.startsWith("vkvideo.ru/")) return true
-        if (trimmed.startsWith("rutube.ru/")) return true
-        if (trimmed.contains(".lordfilm") || trimmed.contains("lordfilm.") || trimmed.contains("kinogo.") || trimmed.contains("rezka.")) return true
-        return false
+        if (trimmed.isEmpty() || trimmed.contains(" ")) return false
+        if (trimmed.startsWith("http://", ignoreCase = true) || trimmed.startsWith("https://", ignoreCase = true)) return true
+        if (trimmed.startsWith("vk.com/", ignoreCase = true) || trimmed.startsWith("vk.ru/", ignoreCase = true) || trimmed.startsWith("vkvideo.ru/", ignoreCase = true)) return true
+        if (trimmed.startsWith("rutube.ru/", ignoreCase = true)) return true
+        if (trimmed.startsWith("ok.ru/", ignoreCase = true) || trimmed.startsWith("odnoklassniki.ru/", ignoreCase = true) || trimmed.startsWith("m.ok.ru/", ignoreCase = true)) return true
+        if (trimmed.startsWith("dzen.ru/", ignoreCase = true) || trimmed.startsWith("yandex.ru/", ignoreCase = true)) return true
+        if (trimmed.startsWith("jut.su/", ignoreCase = true) || trimmed.startsWith("animego.", ignoreCase = true)) return true
+
+        return DOMAIN_URL_PATTERN.matcher(trimmed).matches()
     }
 
     fun isRutubeUrl(url: String): Boolean {
@@ -91,7 +100,15 @@ object UniversalVideoParser {
                 }
             }
 
-            // 4. Web page (Lordfilm, pirate balancers, generic video sites)
+            // 4. Odnoklassniki (OK.ru) link
+            if (OkVideoParser.isOkUrl(url)) {
+                val okResult = OkVideoParser.parse(url)
+                if (okResult != null) {
+                    return@withContext okResult
+                }
+            }
+
+            // 5. Web page (Lordfilm, pirate balancers, generic video sites, anime sites, etc.)
             val webResult = UnifiedWebVideoParser.parse(url)
             if (webResult != null) {
                 return@withContext webResult

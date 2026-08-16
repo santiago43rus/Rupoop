@@ -234,7 +234,7 @@ fun OpenUrlDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Поддерживаются видео с Rutube, VK (vk.com / vk.ru / vkvideo.ru), Lordfilm и пиратских плееров, а также прямые ссылки .m3u8 и .mp4",
+                    text = "Поддерживаются: Rutube, Lordfilm, Одноклассники, VK",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )

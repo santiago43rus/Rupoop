@@ -183,7 +183,9 @@ class PlaybackController(
         videoLoadingJob = scope.launch {
             try {
                 if (isExternalUrl) {
+                    Log.d("RupoopPlayer", "UniversalVideoParser parsing: $rawUrl")
                     val parsed = withContext(Dispatchers.IO) { UniversalVideoParser.parse(rawUrl) }
+                    Log.d("RupoopPlayer", "UniversalVideoParser result: streamUrl=${parsed?.streamUrl}, headers=${parsed?.headers}")
                     if (parsed != null && parsed.streamUrl.isNotBlank()) {
                         val updatedVideo = video.copy(
                             title = if (video.title == "Загрузка..." || video.title.isBlank()) parsed.title else video.title,
@@ -222,7 +224,21 @@ class PlaybackController(
                             .setMediaMetadata(mediaMetadata)
                             .build()
 
-                        exoPlayer.setMediaItem(mediaItem)
+                        val dataSourceFactory = DefaultHttpDataSource.Factory()
+                            .setUserAgent(parsed.headers["User-Agent"] ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                            .setAllowCrossProtocolRedirects(true)
+                            .setConnectTimeoutMs(15000)
+                            .setReadTimeoutMs(15000)
+
+                        if (parsed.headers.isNotEmpty()) {
+                            dataSourceFactory.setDefaultRequestProperties(parsed.headers)
+                        }
+
+                        val mediaSource = DefaultMediaSourceFactory(context)
+                            .setDataSourceFactory(dataSourceFactory)
+                            .createMediaSource(mediaItem)
+
+                        exoPlayer.setMediaSource(mediaSource)
                         exoPlayer.prepare()
 
                         syncPlaybackService()

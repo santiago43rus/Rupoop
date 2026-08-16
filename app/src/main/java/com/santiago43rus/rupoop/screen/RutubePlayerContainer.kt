@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
+import com.santiago43rus.rupoop.util.isAutoRotationEnabled
 import androidx.compose.ui.unit.dp
 import com.santiago43rus.rupoop.AppViewModel
 import com.santiago43rus.rupoop.*
@@ -75,6 +76,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
 
     LaunchedEffect(config.orientation, vm.playerState, isTablet) {
         if (isTablet) return@LaunchedEffect
+        if (!isAutoRotationEnabled(context)) return@LaunchedEffect
         if (vm.isFullscreenVideo && vm.isFullscreenTriggeredManually) return@LaunchedEffect
         if (vm.playerState == PlayerState.FULL && vm.currentVideo != null) {
             val isCurrentlyLandscape = config.orientation == Configuration.ORIENTATION_LANDSCAPE

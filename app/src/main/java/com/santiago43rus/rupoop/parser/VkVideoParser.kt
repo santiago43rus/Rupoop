@@ -236,8 +236,12 @@ object VkVideoParser {
         return text
             .replace("\\/", "/")
             .replace("\\u0026", "&")
+            .replace("&amp;", "&")
+            .replace("&#38;", "&")
+            .replace("&quot;", "")
             .replace("\\\"", "\"")
             .replace("\\n", " ")
+            .trim()
     }
 
     private fun extractMetaContent(html: String, property: String): String? {

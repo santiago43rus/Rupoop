@@ -136,28 +136,6 @@ fun CustomVideoPlayer(
         onDispose { exoPlayer.removeListener(listener) }
     }
 
-    // --- Captions ---
-    var hasTextTracks by remember { mutableStateOf(false) }
-    var captionsEnabled by remember { mutableStateOf(false) }
-    DisposableEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onTracksChanged(tracks: Tracks) {
-                hasTextTracks = tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.length > 0 }
-            }
-        }
-        exoPlayer.addListener(listener)
-        hasTextTracks = exoPlayer.currentTracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.length > 0 }
-        onDispose { exoPlayer.removeListener(listener) }
-    }
-
-    fun toggleCaptions() {
-        captionsEnabled = !captionsEnabled
-        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-            .buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !captionsEnabled)
-            .build()
-    }
-
     // --- Double-tap ripple ---
     var doubleTapRippleKey by remember { mutableIntStateOf(0) }
     var doubleTapPosition by remember { mutableStateOf(Offset.Zero) }
@@ -627,8 +605,6 @@ fun CustomVideoPlayer(
             isFirstVideo = isFirstVideo,
             isPreviousDisliked = isPreviousDisliked,
             isLastVideo = isLastVideo,
-            hasCaptions = hasTextTracks,
-            captionsEnabled = captionsEnabled,
             onMinimize = onMinimize,
             onToggleFullscreen = onToggleFullscreen,
             onNext = onNext,
@@ -653,7 +629,6 @@ fun CustomVideoPlayer(
                 }
                 draggingPos = null
             },
-            onToggleCaptions = { toggleCaptions() },
             bufferedPercent = bufferedPercent
         )
 

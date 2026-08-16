@@ -72,10 +72,32 @@ fun RutubeApp(
     val context = LocalContext.current
     val isTablet = config.smallestScreenWidthDp >= 600
 
-    DisposableEffect(context, isTablet) {
+    var isAutoRotateEnabled by remember { mutableStateOf(isAutoRotationEnabled(context)) }
+    DisposableEffect(context) {
+        val observer = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                isAutoRotateEnabled = isAutoRotationEnabled(context)
+            }
+        }
+        try {
+            context.contentResolver.registerContentObserver(
+                android.provider.Settings.System.getUriFor(android.provider.Settings.System.ACCELEROMETER_ROTATION),
+                false,
+                observer
+            )
+        } catch (_: Exception) {}
+        onDispose {
+            try {
+                context.contentResolver.unregisterContentObserver(observer)
+            } catch (_: Exception) {}
+        }
+    }
+
+    DisposableEffect(context, isTablet, isAutoRotateEnabled) {
         val listener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
                 if (orientation == ORIENTATION_UNKNOWN || isTablet) return
+                if (!isAutoRotateEnabled) return
                 val isLandscapeOrientation = orientation in 60..120 || orientation in 240..300
                 val isPortraitOrientation = orientation in 0..30 || orientation in 330..359
 
@@ -98,19 +120,25 @@ fun RutubeApp(
         }
     }
 
-    LaunchedEffect(vm.isFullscreenVideo, vm.isFullscreenTriggeredManually, vm.playerState, vm.isPortraitLocked, isTablet) {
+    LaunchedEffect(vm.isFullscreenVideo, vm.isFullscreenTriggeredManually, vm.playerState, vm.isPortraitLocked, isTablet, isAutoRotateEnabled) {
         if (vm.isFullscreenVideo) {
             if (vm.isFullscreenTriggeredManually && !isTablet) {
                 setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
-            } else {
+            } else if (isAutoRotateEnabled) {
                 setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR)
+            } else {
+                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
             }
             context.findActivity()?.let { hideSystemBars(it) }
         } else if (vm.isPortraitLocked && vm.playerState == PlayerState.FULL) {
             setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT)
             context.findActivity()?.let { showSystemBars(it) }
         } else {
-            setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+            if (isAutoRotateEnabled) {
+                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+            } else {
+                setScreenOrientation(context, ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+            }
             context.findActivity()?.let { showSystemBars(it) }
         }
     }

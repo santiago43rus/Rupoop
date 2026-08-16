@@ -29,6 +29,18 @@ fun setScreenOrientation(context: Context, orientation: Int) {
     context.findActivity()?.requestedOrientation = orientation
 }
 
+fun isAutoRotationEnabled(context: Context): Boolean {
+    return try {
+        android.provider.Settings.System.getInt(
+            context.contentResolver,
+            android.provider.Settings.System.ACCELEROMETER_ROTATION,
+            0
+        ) == 1
+    } catch (_: Exception) {
+        false
+    }
+}
+
 fun formatViewCount(views: Int?): String {
     return views.formatViewCount()
 }

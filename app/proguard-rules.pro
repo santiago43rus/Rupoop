@@ -5,9 +5,11 @@
 -renamesourcefileattribute SourceFile
 
 # ── Custom App Code Safety ──────────────────────────────────────────────────
-# Data models and services preservation
+# Data models, services and parsers preservation
 -keep class com.santiago43rus.rupoop.data.** { *; }
 -keepclassmembers class com.santiago43rus.rupoop.data.** { *; }
+-keep class com.santiago43rus.rupoop.parser.** { *; }
+-keepclassmembers class com.santiago43rus.rupoop.parser.** { *; }
 -keep class com.santiago43rus.rupoop.service.** { *; }
 
 # ── Kotlin Serialization ────────────────────────────────────────────────────
