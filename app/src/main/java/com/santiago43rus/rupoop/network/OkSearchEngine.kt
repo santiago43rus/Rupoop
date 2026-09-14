@@ -6,9 +6,6 @@ import com.santiago43rus.rupoop.data.SearchResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
-import okhttp3.Cookie
-import okhttp3.CookieJar
-import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLDecoder
@@ -22,58 +19,22 @@ object OkSearchEngine {
     private const val USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
-    private val cookieStore = mutableMapOf<String, List<Cookie>>()
-
     private val httpClient = OkHttpClient.Builder()
-        .cookieJar(object : CookieJar {
-            override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                synchronized(cookieStore) {
-                    val existing = cookieStore[url.host] ?: emptyList()
-                    val newMap = existing.associateBy { it.name }.toMutableMap()
-                    cookies.forEach { newMap[it.name] = it }
-                    cookieStore[url.host] = newMap.values.toList()
-                }
-            }
-            override fun loadForRequest(url: HttpUrl): List<Cookie> {
-                return synchronized(cookieStore) { cookieStore[url.host] ?: emptyList() }
-            }
-        })
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .followRedirects(true)
-        .followSslRedirects(true)
         .build()
-
-    private var sessionInitialized = false
-
-    private fun ensureSession() {
-        if (!sessionInitialized) {
-            try {
-                val initReq = Request.Builder()
-                    .url("https://ok.ru/video")
-                    .header("User-Agent", USER_AGENT)
-                    .header("Accept-Language", "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7")
-                    .build()
-                httpClient.newCall(initReq).execute().close()
-                sessionInitialized = true
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed initializing OK session", e)
-            }
-        }
-    }
 
     suspend fun search(query: String): List<SearchResult> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return@withContext emptyList()
 
-        ensureSession()
-
         val results = mutableListOf<SearchResult>()
 
         try {
-            val desktopResults = searchViaOkDesktopDataProps(trimmed)
-            if (desktopResults.isNotEmpty()) {
-                results.addAll(desktopResults)
+            val searchResults = searchViaOkVideoSearch(trimmed)
+            if (searchResults.isNotEmpty()) {
+                results.addAll(searchResults)
             }
         } catch (e: Exception) {
             Log.e(TAG, "OK search failed for query: $trimmed", e)
@@ -82,9 +43,9 @@ object OkSearchEngine {
         return@withContext results.distinctBy { it.videoUrl }
     }
 
-    private fun searchViaOkDesktopDataProps(query: String): List<SearchResult> {
+    private fun searchViaOkVideoSearch(query: String): List<SearchResult> {
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
-        val url = "https://ok.ru/video/search/$encodedQuery"
+        val url = "https://ok.ru/video/search?st.v.sq=$encodedQuery"
 
         val request = Request.Builder()
             .url(url)
@@ -99,66 +60,70 @@ object OkSearchEngine {
         val list = mutableListOf<SearchResult>()
 
         // 1. Extract and parse data-props from <video-search-result data-props="...">
-        val marker = "video-search-result data-props=\""
-        val startIdx = html.indexOf(marker)
-        if (startIdx != -1) {
+        val tagMarker = "<video-search-result"
+        val tagStart = html.indexOf(tagMarker)
+        if (tagStart != -1) {
             try {
-                val jsonStart = startIdx + marker.length
-                val endIdx = html.indexOf("\"", jsonStart)
-                if (endIdx > jsonStart) {
-                    val rawJson = html.substring(jsonStart, endIdx)
-                    val cleanJson = rawJson.replace("&quot;", "\"")
-                        .replace("&amp;", "&")
-                        .replace("&#39;", "'")
-                        .replace("&lt;", "<")
-                        .replace("&gt;", ">")
+                val propsMarker = "data-props=\""
+                val propsStart = html.indexOf(propsMarker, tagStart)
+                if (propsStart != -1) {
+                    val jsonStart = propsStart + propsMarker.length
+                    val endIdx = html.indexOf("\"", jsonStart)
+                    if (endIdx > jsonStart) {
+                        val rawJson = html.substring(jsonStart, endIdx)
+                        val cleanJson = rawJson.replace("&quot;", "\"")
+                            .replace("&amp;", "&")
+                            .replace("&#39;", "'")
+                            .replace("&lt;", "<")
+                            .replace("&gt;", ">")
 
-                    val root = RetrofitClient.json.parseToJsonElement(cleanJson).jsonObject
-                    val videosObj = root["videos"]?.jsonObject
-                    val items = videosObj?.get("list")?.jsonArray
+                        val root = RetrofitClient.json.parseToJsonElement(cleanJson).jsonObject
+                        val videosObj = root["videos"]?.jsonObject
+                        val items = videosObj?.get("list")?.jsonArray
 
-                    if (items != null) {
-                        for (itemElem in items) {
-                            val item = itemElem.jsonObject
-                            val movie = item["movie"]?.jsonObject
-                            val id = movie?.get("id")?.jsonPrimitive?.contentOrNull
-                                ?: item["id"]?.jsonPrimitive?.contentOrNull ?: continue
+                        if (items != null) {
+                            for (itemElem in items) {
+                                val item = itemElem.jsonObject
+                                val movie = item["movie"]?.jsonObject
+                                val id = movie?.get("id")?.jsonPrimitive?.contentOrNull
+                                    ?: item["id"]?.jsonPrimitive?.contentOrNull ?: continue
 
-                            val rawTitle = movie?.get("title")?.jsonPrimitive?.contentOrNull
-                                ?: item["name"]?.jsonPrimitive?.contentOrNull ?: ""
-                            val title = try {
-                                URLDecoder.decode(rawTitle, "UTF-8")
-                            } catch (_: Exception) {
-                                rawTitle
-                            }
+                                val rawTitle = movie?.get("title")?.jsonPrimitive?.contentOrNull
+                                    ?: item["name"]?.jsonPrimitive?.contentOrNull ?: ""
+                                val title = try {
+                                    URLDecoder.decode(rawTitle, "UTF-8")
+                                } catch (_: Exception) {
+                                    rawTitle
+                                }
 
-                            if (title.isBlank()) continue
+                                if (title.isBlank()) continue
 
-                            val thumb = movie?.get("thumbnail")?.jsonObject?.get("big")?.jsonPrimitive?.contentOrNull
-                                ?: movie?.get("thumbnail")?.jsonObject?.get("small")?.jsonPrimitive?.contentOrNull
-                                ?: item["imageUrl"]?.jsonPrimitive?.contentOrNull
+                                val thumb = movie?.get("thumbnail")?.jsonObject?.get("big")?.jsonPrimitive?.contentOrNull
+                                    ?: movie?.get("thumbnail")?.jsonObject?.get("small")?.jsonPrimitive?.contentOrNull
+                                    ?: item["imageUrl"]?.jsonPrimitive?.contentOrNull
 
-                            val durMs = movie?.get("duration")?.jsonPrimitive?.longOrNull
-                            val durSec = durMs?.div(1000)?.toInt()
+                                val durMs = movie?.get("duration")?.jsonPrimitive?.longOrNull
+                                val durSec = durMs?.div(1000)?.toInt()
 
-                            val ownerObj = item["owner"]?.jsonObject
-                            val userObj = ownerObj?.get("user")?.jsonObject
-                            val groupObj = ownerObj?.get("group")?.jsonObject
-                            val authorName = userObj?.get("name")?.jsonPrimitive?.contentOrNull
-                                ?: groupObj?.get("name")?.jsonPrimitive?.contentOrNull
-                                ?: "Одноклассники"
+                                val ownerObj = item["owner"]?.jsonObject
+                                val userObj = ownerObj?.get("user")?.jsonObject
+                                val groupObj = ownerObj?.get("group")?.jsonObject
+                                val authorName = userObj?.get("name")?.jsonPrimitive?.contentOrNull
+                                    ?: groupObj?.get("name")?.jsonPrimitive?.contentOrNull
+                                    ?: "Одноклассники"
 
-                            val videoUrl = "https://ok.ru/video/$id"
+                                val videoUrl = "https://ok.ru/video/$id"
 
-                            list.add(
-                                SearchResult(
-                                    videoUrl = videoUrl,
-                                    title = title,
-                                    thumbnailUrl = thumb,
-                                    author = Author(name = authorName),
-                                    duration = durSec
+                                list.add(
+                                    SearchResult(
+                                        videoUrl = videoUrl,
+                                        title = title,
+                                        thumbnailUrl = thumb,
+                                        author = Author(name = authorName),
+                                        duration = durSec
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }

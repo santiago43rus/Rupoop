@@ -37,10 +37,15 @@ class SearchEngineTest {
 
     @Test
     fun testLiveOkSearch() = runBlocking {
-        val results = OkSearchEngine.search("майнкрафт")
-        println("OK results: ${results.size}")
-        results.take(3).forEach { println("OK: ${it.title} (${it.duration}s) -> ${it.videoUrl}") }
-        assertTrue("OK search should return items", results.isNotEmpty())
+        val queries = listOf("ведьмак", "майнкрафт", "фильмы")
+        for (q in queries) {
+            val results = OkSearchEngine.search(q)
+            println("OK results for '$q': ${results.size}")
+            results.take(2).forEach {
+                println("OK: ${it.title} (${it.duration}s) -> ${it.videoUrl}")
+            }
+            assertTrue("OK search for '$q' should return items", results.isNotEmpty())
+        }
     }
 
     @Test
