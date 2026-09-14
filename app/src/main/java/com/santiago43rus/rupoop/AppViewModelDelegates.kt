@@ -196,7 +196,12 @@ var AppViewModel.searchSortOrder: String?
     get() = searchController.searchSortOrder
     set(value) { searchController.searchSortOrder = value }
 
+var AppViewModel.selectedSearchSource: com.santiago43rus.rupoop.data.SearchSource
+    get() = searchController.selectedSearchSource
+    set(value) { searchController.selectedSearchSource = value }
+
 fun AppViewModel.updateSearchQuery(query: String) = searchController.updateSearchQuery(query)
+fun AppViewModel.selectSearchSource(source: com.santiago43rus.rupoop.data.SearchSource) = searchController.selectSearchSource(source)
 @UnstableApi
 fun AppViewModel.performSearch(query: String, ordering: String? = searchSortOrder) = searchController.performSearch(query, ordering)
 
