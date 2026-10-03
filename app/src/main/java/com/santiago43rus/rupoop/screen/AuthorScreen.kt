@@ -61,7 +61,7 @@ fun AuthorScreen(
             onRefresh = onRefresh,
             state = rememberPullToRefreshState()
         ) {
-            if (authorVideos.isEmpty() && isRefreshing) {
+            if (authorVideos.isEmpty()) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(columns),
                     modifier = Modifier.fillMaxSize(),
@@ -103,8 +103,19 @@ fun AuthorScreen(
                             HorizontalDivider()
                         }
                     }
-                    items(6) {
-                        VideoCardShimmer()
+                    if (isRefreshing) {
+                        items(6) {
+                            VideoCardShimmer()
+                        }
+                    } else {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            com.santiago43rus.rupoop.components.ErrorPlaceholderView(
+                                modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                                title = "Не удалось загрузить",
+                                message = "Проверьте подключение к сети и повторите попытку",
+                                onRetry = onRefresh
+                            )
+                        }
                     }
                 }
             } else {

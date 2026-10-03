@@ -12,6 +12,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
@@ -198,8 +201,14 @@ fun ErrorRetryOverlay(
 }
 
 @Composable
-fun SpeedIndicator(isFastForwarding: Boolean, isSpeedLocked: Boolean, modifier: Modifier = Modifier) {
-    val visible = isFastForwarding || isSpeedLocked
+fun SpeedIndicator(
+    isFastForwarding: Boolean,
+    isSpeedLocked: Boolean,
+    showLockHint: Boolean = false,
+    showUnlockHint: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val visible = isFastForwarding || isSpeedLocked || showUnlockHint
     AnimatedVisibility(
         visible = visible,
         enter = scaleIn(
@@ -209,15 +218,13 @@ fun SpeedIndicator(isFastForwarding: Boolean, isSpeedLocked: Boolean, modifier: 
         exit = scaleOut(targetScale = 0.6f, animationSpec = tween(150)) + fadeOut(tween(150)),
         modifier = modifier
     ) {
-        // A small satisfying "pop" whenever the lock engages, and a color shift so the lock feels
-        // distinct and alive — similar to TikTok's speed-lock feedback.
         val pulse by animateFloatAsState(
-            targetValue = if (isSpeedLocked) 1.1f else 1f,
+            targetValue = if (isSpeedLocked) 1.05f else 1f,
             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
             label = "speedLockPulse"
         )
         val bgColor by animateColorAsState(
-            targetValue = if (isSpeedLocked) Color(0xFFE62117).copy(alpha = 0.9f) else Color.Black.copy(0.75f),
+            targetValue = if (isSpeedLocked) Color(0xFFE62117).copy(alpha = 0.92f) else Color.Black.copy(0.78f),
             animationSpec = tween(280),
             label = "speedLockBg"
         )
@@ -229,7 +236,7 @@ fun SpeedIndicator(isFastForwarding: Boolean, isSpeedLocked: Boolean, modifier: 
                 }
                 .clip(RoundedCornerShape(14.dp))
                 .background(bgColor)
-                .padding(horizontal = 10.dp, vertical = 5.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -238,19 +245,48 @@ fun SpeedIndicator(isFastForwarding: Boolean, isSpeedLocked: Boolean, modifier: 
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
                 )
-                Spacer(Modifier.width(3.dp))
-                Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                if (isSpeedLocked) {
+                    Icon(Icons.Default.Lock, null, tint = Color.White, modifier = Modifier.size(13.dp))
+                } else {
+                    Icon(Icons.Default.FastForward, null, tint = Color.White, modifier = Modifier.size(13.dp))
+                }
+
+                // Short-term hint for locking (disappears after a short delay)
                 AnimatedVisibility(
-                    visible = isSpeedLocked,
-                    enter = scaleIn(
-                        initialScale = 0f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
-                    ) + fadeIn(tween(150)),
-                    exit = scaleOut(targetScale = 0f, animationSpec = tween(120)) + fadeOut(tween(120))
+                    visible = showLockHint && !isSpeedLocked,
+                    enter = expandHorizontally(tween(200)) + fadeIn(tween(200)),
+                    exit = shrinkHorizontally(tween(200)) + fadeOut(tween(200))
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "•  Потяните вниз для фиксации",
+                            color = Color.White.copy(alpha = 0.95f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                         Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Default.Lock, null, tint = Color.White, modifier = Modifier.size(11.dp))
+                        Icon(Icons.Default.ArrowDownward, null, tint = Color.White, modifier = Modifier.size(13.dp))
+                    }
+                }
+
+                // Hint for unlocking (stays visible while finger is on screen)
+                AnimatedVisibility(
+                    visible = showUnlockHint && isSpeedLocked,
+                    enter = expandHorizontally(tween(200)) + fadeIn(tween(200)),
+                    exit = shrinkHorizontally(tween(200)) + fadeOut(tween(200))
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "•  Потяните вниз для снятия",
+                            color = Color.White.copy(alpha = 0.95f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Icon(Icons.Default.ArrowDownward, null, tint = Color.White, modifier = Modifier.size(13.dp))
                     }
                 }
             }
@@ -401,6 +437,7 @@ fun Modifier.playerDragGestures(
     if (!isFullscreen || isFastForwarding) return@pointerInput
     var totalDragY = 0f
     var totalDragX = 0f
+    var committedDirection = 0 // 0: uncommitted, 1: down, -1: up
     var isMoreVideosGesture = false
     var isScreenTransitionGesture = false
     var wasControlsVisible = false
@@ -414,6 +451,7 @@ fun Modifier.playerDragGestures(
         onDragStart = { offset ->
             totalDragY = 0f
             totalDragX = 0f
+            committedDirection = 0
             isMoreVideosGesture = false
             isScreenTransitionGesture = false
             ignoreGesture = isFastForwarding || showMoreVideos.value || offset.y < edgeMargin || offset.y > size.height - edgeMargin
@@ -434,66 +472,92 @@ fun Modifier.playerDragGestures(
 
             val isTabletLandscape = isTablet && isLandscape
 
-            if (!isMoreVideosGesture && !isScreenTransitionGesture && absY > 20f && absY > absX) {
-                if (isFullscreen && totalDragY < 0 && !showMoreVideos.value && !isLocalFile && !isTabletLandscape) {
-                    isMoreVideosGesture = true
-                } else if (isFullscreen && totalDragY < 0 && isTabletLandscape) {
-                    isScreenTransitionGesture = true
-                } else if (isFullscreen && totalDragY > 0) {
-                    isScreenTransitionGesture = true
-                } else if (!isFullscreen && totalDragY < 0) {
-                    isScreenTransitionGesture = true
+            if (committedDirection == 0 && absY > 20f && absY > absX) {
+                if (totalDragY > 0) {
+                    committedDirection = 1
+                    if (isFullscreen) {
+                        isScreenTransitionGesture = true
+                    }
+                } else {
+                    committedDirection = -1
+                    if (isFullscreen && !showMoreVideos.value && !isLocalFile && !isTabletLandscape) {
+                        isMoreVideosGesture = true
+                    } else if (isFullscreen && isTabletLandscape) {
+                        isScreenTransitionGesture = true
+                    } else if (!isFullscreen) {
+                        isScreenTransitionGesture = true
+                    }
                 }
             }
 
-            if (isMoreVideosGesture) {
-                if (totalDragY < 0) {
-                    moreVideosDragOffset.value = totalDragY * 1.25f
-                } else {
-                    moreVideosDragOffset.value = 0f
-                }
-            } else if (isScreenTransitionGesture) {
-                val isUpwardTransition = totalDragY < 0
-                val activeDrag = if (isUpwardTransition) -totalDragY else (if (isFullscreen) totalDragY else -totalDragY)
-
-                if (activeDrag > 0) {
+            if (committedDirection == 1) {
+                // Downward gesture committed:
+                // Only respond to positive totalDragY. If user drags back up past 0 (changed mind),
+                // do NOT trigger upward action or negative offsets.
+                val clampedDragY = totalDragY.coerceAtLeast(0f)
+                if (clampedDragY > 0f && isScreenTransitionGesture) {
                     val maxDist = if (isFullscreen) maxDragDistanceFullScreen else maxDragDistanceVertical
-                    val boundedDrag = activeDrag.coerceAtMost(maxDist)
+                    val boundedDrag = clampedDragY.coerceAtMost(maxDist)
                     val progress = boundedDrag / maxDist
-
-                    if (isFullscreen) {
-                        swipeScale.value = 1f - (0.2f * progress)
-                        swipeOffsetX.value = 0f
-                        swipeOffsetY.value = if (isUpwardTransition) -boundedDrag * dragMultiplier * 0.4f else boundedDrag * dragMultiplier * 0.4f
-                    } else {
-                        swipeScale.value = 1f + (0.25f * progress)
-                        swipeOffsetX.value = 0f
-                        swipeOffsetY.value = -boundedDrag * dragMultiplier * 0.4f
-                    }
+                    swipeScale.value = 1f - (0.2f * progress)
+                    swipeOffsetX.value = 0f
+                    swipeOffsetY.value = boundedDrag * dragMultiplier * 0.4f
                 } else {
                     swipeScale.value = 1f
                     swipeOffsetX.value = 0f
                     swipeOffsetY.value = 0f
+                }
+            } else if (committedDirection == -1) {
+                // Upward gesture committed:
+                // Only respond to negative totalDragY. If user drags back down past 0 (changed mind),
+                // do NOT trigger downward collapse or positive offsets.
+                val clampedDragY = totalDragY.coerceAtMost(0f)
+                if (isMoreVideosGesture) {
+                    moreVideosDragOffset.value = clampedDragY * 1.25f
+                } else if (isScreenTransitionGesture) {
+                    val activeUpward = -clampedDragY
+                    if (activeUpward > 0f) {
+                        val maxDist = if (isFullscreen) maxDragDistanceFullScreen else maxDragDistanceVertical
+                        val boundedDrag = activeUpward.coerceAtMost(maxDist)
+                        val progress = boundedDrag / maxDist
+                        swipeScale.value = 1f - (0.2f * progress)
+                        swipeOffsetX.value = 0f
+                        swipeOffsetY.value = -boundedDrag * dragMultiplier * 0.4f
+                    } else {
+                        swipeScale.value = 1f
+                        swipeOffsetX.value = 0f
+                        swipeOffsetY.value = 0f
+                    }
                 }
             }
         },
         onDragEnd = {
             if (ignoreGesture) return@detectDragGestures
             var returnControls = false
-            if (isMoreVideosGesture) {
-                if (totalDragY < -75f) {
-                    showMoreVideos.value = true
+
+            if (committedDirection == 1) {
+                val threshold = if (isFullscreen) 40f else 60f
+                if (totalDragY > threshold && isScreenTransitionGesture) {
+                    onToggleFullscreen()
+                    showControls.value = false
                 } else {
                     returnControls = true
                 }
-            } else if (isScreenTransitionGesture) {
-                val isUpwardTransition = totalDragY < 0
-                val activeDrag = if (isUpwardTransition) -totalDragY else (if (isFullscreen) totalDragY else -totalDragY)
-                val threshold = if (isFullscreen) 40f else 60f
-
-                if (activeDrag > threshold) {
-                    onToggleFullscreen()
-                    showControls.value = false
+            } else if (committedDirection == -1) {
+                if (isMoreVideosGesture) {
+                    if (totalDragY < -75f) {
+                        showMoreVideos.value = true
+                    } else {
+                        returnControls = true
+                    }
+                } else if (isScreenTransitionGesture) {
+                    val threshold = if (isFullscreen) -40f else -60f
+                    if (totalDragY < threshold) {
+                        onToggleFullscreen()
+                        showControls.value = false
+                    } else {
+                        returnControls = true
+                    }
                 } else {
                     returnControls = true
                 }
@@ -509,6 +573,7 @@ fun Modifier.playerDragGestures(
             swipeScale.value = 1f
             swipeOffsetY.value = 0f
             swipeOffsetX.value = 0f
+            committedDirection = 0
             isMoreVideosGesture = false
             isScreenTransitionGesture = false
         },
@@ -519,6 +584,7 @@ fun Modifier.playerDragGestures(
             swipeScale.value = 1f
             swipeOffsetY.value = 0f
             swipeOffsetX.value = 0f
+            committedDirection = 0
             isMoreVideosGesture = false
             isScreenTransitionGesture = false
         }

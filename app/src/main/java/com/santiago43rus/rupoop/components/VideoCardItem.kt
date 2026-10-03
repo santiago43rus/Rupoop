@@ -2,6 +2,7 @@ package com.santiago43rus.rupoop.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -114,6 +115,16 @@ fun VideoCardItem(
             }
         }
 
+        // Platform metadata
+        val videoUrlLower = video.videoUrl.lowercase()
+        val isLordfilm = videoUrlLower.contains("lordfilm") || videoUrlLower.contains("lordserials")
+        val platformName = when {
+            videoUrlLower.contains("vk.com") || videoUrlLower.contains("vkvideo.ru") || videoUrlLower.contains("vk.ru") -> "VK Видео"
+            videoUrlLower.contains("ok.ru") || videoUrlLower.contains("odnoklassniki.ru") -> "Одноклассники"
+            isLordfilm -> "Lordfilm"
+            else -> "Rutube"
+        }
+
         // Header: Author & Title
         Row(
             modifier = Modifier
@@ -121,18 +132,54 @@ fun VideoCardItem(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
-            AsyncImage(
-                model = video.author?.avatarUrl ?: "https://rutube.ru/static/img/default-avatar.png",
-                contentDescription = null,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color.Gray)
-                    .clickable { video.author?.let { onAuthorClick(it) } },
-                contentScale = ContentScale.Crop,
-                fallback = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
-                error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details)
-            )
+            if (isLordfilm) {
+                // Lordfilm Logo Avatar
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF1E1E1E))
+                        .border(1.dp, Color(0xFFE50914).copy(alpha = 0.85f), RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "LORD",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 7.sp,
+                            lineHeight = 8.sp,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "FILM",
+                            color = Color(0xFFE50914),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 7.sp,
+                            lineHeight = 8.sp,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+            } else {
+                val fallbackAvatar = if (platformName == "Одноклассники") "https://ok.ru/favicon.ico"
+                    else "https://rutube.ru/static/img/default-avatar.png"
+                AsyncImage(
+                    model = video.author?.avatarUrl ?: fallbackAvatar,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.Gray)
+                        .clickable { video.author?.let { onAuthorClick(it) } },
+                    contentScale = ContentScale.Crop,
+                    fallback = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
+                    error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details)
+                )
+            }
 
             Column(
                 modifier = Modifier
@@ -146,17 +193,25 @@ fun VideoCardItem(
                     lineHeight = 20.sp
                 )
                 Spacer(Modifier.height(2.dp))
-                val viewsText = formatViewCount(video.hits)
-                val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
-                val sep1 = if (viewsText.isNotEmpty()) " • " else ""
-                val sep2 = if (timeAgoText.isNotEmpty()) " • " else ""
-                Text(
-                    "${video.author?.name ?: "Автор"} • Rutube$sep1$viewsText$sep2$timeAgoText",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } },
-                    overflow = TextOverflow.Ellipsis
-                )
+                if (isLordfilm) {
+                    Text(
+                        platformName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    val viewsText = formatViewCount(video.hits)
+                    val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
+                    val sep1 = if (viewsText.isNotEmpty()) " • " else ""
+                    val sep2 = if (timeAgoText.isNotEmpty()) " • " else ""
+                    Text(
+                        "${video.author?.name ?: "Автор"} • $platformName$sep1$viewsText$sep2$timeAgoText",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } },
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             Box {

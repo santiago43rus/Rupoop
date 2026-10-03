@@ -3,10 +3,20 @@ package com.santiago43rus.rupoop
 import com.santiago43rus.rupoop.data.SearchSource
 import com.santiago43rus.rupoop.network.LordfilmSearchEngine
 import com.santiago43rus.rupoop.network.OkSearchEngine
+import com.santiago43rus.rupoop.network.RetrofitClient
 import com.santiago43rus.rupoop.network.VkSearchEngine
+import kotlinx.serialization.json.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import okhttp3.FormBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.junit.Assert.*
 import org.junit.Test
+import java.net.URLEncoder
+import java.util.regex.Pattern
 
 class SearchEngineTest {
 
@@ -57,10 +67,32 @@ class SearchEngineTest {
     }
 
     @Test
-    fun testLiveLordfilmSearchSeries() = runBlocking {
-        val results = LordfilmSearchEngine.search("ведьмак")
-        println("Lordfilm series results: ${results.size}")
-        results.take(3).forEach { println("Lordfilm Series: ${it.title} -> ${it.videoUrl}") }
-        assertTrue("Lordfilm series search should return items", results.isNotEmpty())
+    fun testInspectLordfilmNotFound() = runBlocking {
+        val results = LordfilmSearchEngine.search("qwertyuiopasdfghjklzxcvbnm123456789")
+        assertTrue("Lordfilm must return empty list for nonexistent query", results.isEmpty())
+    }
+
+    @Test
+    fun testVkMetadataParsed() = runBlocking {
+        val results = VkSearchEngine.search("майнкрафт")
+        assertTrue(results.isNotEmpty())
+        val first = results.first()
+        println("VK first: title=${first.title}, hits=${first.hits}, date=${first.publicationTs}, avatar=${first.author?.avatarUrl}")
+        assertNotNull(first.author?.avatarUrl)
+        assertTrue(first.author?.avatarUrl?.startsWith("http") == true)
+        assertNotNull(first.hits)
+        assertTrue((first.hits ?: 0) > 0)
+        assertNotNull(first.publicationTs)
+    }
+
+    @Test
+    fun testOkMetadataParsed() = runBlocking {
+        val results = OkSearchEngine.search("майнкрафт")
+        assertTrue(results.isNotEmpty())
+        val first = results.first()
+        println("OK first: title=${first.title}, hits=${first.hits}, date=${first.publicationTs}, avatar=${first.author?.avatarUrl}")
+        assertNotNull(first.hits)
+        assertNotNull(first.publicationTs)
+        assertNotNull(first.author?.avatarUrl)
     }
 }

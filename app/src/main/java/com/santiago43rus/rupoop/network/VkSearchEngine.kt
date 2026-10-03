@@ -86,6 +86,9 @@ object VkSearchEngine {
                         val rawTitle = item[3].jsonPrimitive.contentOrNull ?: ""
                         val durationText = item.getOrNull(5)?.jsonPrimitive?.contentOrNull ?: ""
                         val rawOwner = item.getOrNull(8)?.jsonPrimitive?.contentOrNull ?: ""
+                        val timestampSec = item.getOrNull(9)?.jsonPrimitive?.longOrNull
+                        val viewsCount = item.getOrNull(10)?.jsonPrimitive?.intOrNull
+                        val rawDurationSec = item.getOrNull(19)?.jsonPrimitive?.intOrNull
 
                         val title = unescapeHtml(rawTitle).trim()
                         if (title.isBlank()) continue
@@ -95,15 +98,39 @@ object VkSearchEngine {
                         val authorName = extractRegex(rawOwner, """<a[^>]*>(.*?)</a>""")
                             ?.let { unescapeHtml(it).trim() } ?: "VK Видео"
 
-                        val durationSec = parseDurationSeconds(durationText)
+                        // Extract author avatar: Look for userapi avatar or ava=1, or index 35
+                        val rawAvatar = item.firstOrNull { elem ->
+                            if (elem is JsonPrimitive && elem.isString) {
+                                val c = elem.content
+                                c.startsWith("http") && (c.contains("ava=1") || (c.contains("userapi.com") && c.contains("crop=")))
+                            } else false
+                        }?.jsonPrimitive?.contentOrNull
+                            ?: item.getOrNull(35)?.jsonPrimitive?.contentOrNull
+
+                        val avatarUrl = rawAvatar?.replace("\\/", "/")?.takeIf { it.startsWith("http") }
+
+                        val durationSec = rawDurationSec ?: parseDurationSeconds(durationText)
+
+                        val createdTs = timestampSec?.let { sec ->
+                            try {
+                                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                                sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                sdf.format(java.util.Date(sec * 1000L))
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
 
                         list.add(
                             SearchResult(
                                 videoUrl = videoUrl,
                                 title = title,
                                 thumbnailUrl = thumb,
-                                author = Author(name = authorName),
-                                duration = durationSec
+                                author = Author(name = authorName, avatarUrl = avatarUrl),
+                                duration = durationSec,
+                                hits = viewsCount,
+                                createdTs = createdTs,
+                                publicationTs = createdTs
                             )
                         )
                     }

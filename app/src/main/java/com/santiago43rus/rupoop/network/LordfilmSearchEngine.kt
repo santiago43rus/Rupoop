@@ -70,6 +70,12 @@ object LordfilmSearchEngine {
         if (!response.isSuccessful) return emptyList()
         val html = response.body.string()
 
+        if (html.contains("По вашему запросу ничего не найдено") ||
+            (html.contains("не найдено", ignoreCase = true) && !html.contains("item expand-link") && !html.contains("th-item"))
+        ) {
+            return emptyList()
+        }
+
         val list = mutableListOf<SearchResult>()
         val seenUrls = mutableSetOf<String>()
 
@@ -135,32 +141,6 @@ object LordfilmSearchEngine {
                     duration = null
                 )
             )
-        }
-
-        // 3. Fallback generic DLE html card format
-        if (list.isEmpty()) {
-            val fbPattern = Pattern.compile(
-                """href=["'](https?://[^"']+\.html)["'][^>]*>.*?<img[^>]+src=["']([^"']+)["'][^>]*alt=["']([^"']+)["']""",
-                Pattern.DOTALL or Pattern.CASE_INSENSITIVE
-            )
-            val fbMatcher = fbPattern.matcher(html)
-            while (fbMatcher.find()) {
-                val filmUrl = fbMatcher.group(1) ?: continue
-                if (!seenUrls.add(filmUrl)) continue
-                val poster = fbMatcher.group(2)
-                val title = unescapeHtml(fbMatcher.group(3) ?: "").trim()
-                if (title.length < 2) continue
-
-                list.add(
-                    SearchResult(
-                        videoUrl = filmUrl,
-                        title = title,
-                        thumbnailUrl = poster,
-                        author = Author(name = "Lordfilm"),
-                        duration = null
-                    )
-                )
-            }
         }
 
         return list

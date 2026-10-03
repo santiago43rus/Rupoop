@@ -24,7 +24,11 @@ fun VideoListScreen(
     onDownload: (SearchResult) -> Unit
 ) {
     if (videos.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Список пуст") }
+        EmptyPlaceholderView(
+            modifier = Modifier.fillMaxSize(),
+            title = "Список пуст",
+            message = "В этом разделе пока нет добавленных видео"
+        )
     } else {
         val config = LocalConfiguration.current
         val columns = when {

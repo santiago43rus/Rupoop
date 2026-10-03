@@ -55,11 +55,13 @@ fun SubscriptionsScreen(
         state = rememberPullToRefreshState()
     ) {
         if (userRegistry.subscriptions.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("У вас пока нет подписок")
-            }
+            com.santiago43rus.rupoop.components.EmptyPlaceholderView(
+                modifier = Modifier.fillMaxSize(),
+                title = "Нет подписок",
+                message = "Подпишитесь на любимых авторов, чтобы видеть их видео здесь"
+            )
         } else {
-            if (subscriptionVideos.isEmpty() && isRefreshing) {
+            if (subscriptionVideos.isEmpty()) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(columns),
                     modifier = Modifier.fillMaxSize(),
@@ -87,9 +89,20 @@ fun SubscriptionsScreen(
                         }
                         HorizontalDivider()
                     }
-                    val shimmerCount = if (columns > 1) columns * 4 else 6
-                    items(shimmerCount) {
-                        VideoCardShimmer()
+                    if (isRefreshing) {
+                        val shimmerCount = if (columns > 1) columns * 4 else 6
+                        items(shimmerCount) {
+                            VideoCardShimmer()
+                        }
+                    } else {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            com.santiago43rus.rupoop.components.ErrorPlaceholderView(
+                                modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+                                title = "Не удалось загрузить",
+                                message = "Проверьте подключение к сети и повторите попытку",
+                                onRetry = onRefresh
+                            )
+                        }
                     }
                 }
             } else {

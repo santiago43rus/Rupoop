@@ -61,23 +61,56 @@ fun SearchOverlay(vm: AppViewModel) {
                 }
             }
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                modifier = Modifier.fillMaxSize(),
-                state = listState,
-                contentPadding = PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(vm.searchResults) { video ->
-                    val history =
-                        vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
-                    VideoCardItem(
-                        video = video, history = history,
-                        onClick = { vm.playVideo(video, vm.searchResults) },
-                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
-                        onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
-                    )
+            if (vm.isSearching) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val shimmerCount = if (columns > 1) columns * 4 else 6
+                    items(shimmerCount) {
+                        com.santiago43rus.rupoop.components.VideoCardShimmer()
+                    }
+                }
+            } else if (vm.searchError) {
+                com.santiago43rus.rupoop.components.ErrorPlaceholderView(
+                    modifier = Modifier.fillMaxSize(),
+                    title = "Не удалось загрузить",
+                    message = "Произошла ошибка при поиске. Проверьте соединение и попробуйте снова.",
+                    onRetry = { vm.performSearch(vm.searchQuery) }
+                )
+            } else if (vm.searchResults.isEmpty() && vm.searchQuery.isNotBlank()) {
+                val subMsg = if (vm.selectedSearchSource != SearchSource.ALL) {
+                    "По запросу «${vm.searchQuery}» ничего не найдено на платформе ${vm.selectedSearchSource.displayName}"
+                } else {
+                    "По запросу «${vm.searchQuery}» ничего не найдено. Попробуйте изменить запрос."
+                }
+                com.santiago43rus.rupoop.components.EmptyPlaceholderView(
+                    modifier = Modifier.fillMaxSize(),
+                    title = "Ничего не найдено",
+                    message = subMsg
+                )
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(vm.searchResults) { video ->
+                        val history =
+                            vm.userRegistry.watchHistory.find { extractId(video.videoUrl) == it.videoId }
+                        VideoCardItem(
+                            video = video, history = history,
+                            onClick = { vm.playVideo(video, vm.searchResults) },
+                            onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                            onMoreClick = { action -> vm.handleVideoMoreAction(video, action) }
+                        )
+                    }
                 }
             }
         }

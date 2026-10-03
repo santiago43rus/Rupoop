@@ -49,6 +49,8 @@ class SearchController(
     var isSearchExpanded by mutableStateOf(false)
     var searchSortOrder by mutableStateOf<String?>(null) // null = default, "-created_ts" = newest
     var selectedSearchSource by mutableStateOf(SearchSource.ALL)
+    var isSearching by mutableStateOf(false)
+    var searchError by mutableStateOf(false)
 
     fun updateSearchQuery(query: String) {
         searchQuery = query
@@ -84,6 +86,8 @@ class SearchController(
         updateSearchStates(searchQuery, emptyList(), searchSortOrder, false, true)
 
         if (searchQuery.isNotBlank()) {
+            isSearching = true
+            searchError = false
             scope.launch {
                 try {
                     val newResults = executeMultiSourceSearch(searchQuery, searchSortOrder, source)
@@ -100,8 +104,12 @@ class SearchController(
                     if (getCurrentNav() == requestNav) {
                         updateSearchStates(searchQuery, filteredResults, searchSortOrder, false, true)
                     }
+                    searchError = false
                 } catch (e: Exception) {
                     Log.e("Rupoop", "Error selecting search source: $source", e)
+                    searchError = true
+                } finally {
+                    isSearching = false
                 }
             }
         }
@@ -135,6 +143,8 @@ class SearchController(
         onRegistryUpdate(registryManager.registry)
         pushToGitHub()
 
+        isSearching = true
+        searchError = false
         scope.launch {
             try {
                 val searchResults = executeMultiSourceSearch(trimmed, ordering, selectedSearchSource)
@@ -147,8 +157,12 @@ class SearchController(
                 if (getCurrentNav() == requestNav) {
                     updateSearchStates(trimmed, filteredResults, ordering, false, true)
                 }
+                searchError = false
             } catch (e: Exception) {
                 Log.e("Rupoop", "Search error", e)
+                searchError = true
+            } finally {
+                isSearching = false
             }
         }
     }

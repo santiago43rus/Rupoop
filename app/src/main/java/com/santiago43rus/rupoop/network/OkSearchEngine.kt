@@ -105,12 +105,35 @@ object OkSearchEngine {
                                 val durMs = movie?.get("duration")?.jsonPrimitive?.longOrNull
                                 val durSec = durMs?.div(1000)?.toInt()
 
+                                val totalViews = movie?.get("totalViews")?.jsonPrimitive?.intOrNull
+                                    ?: item["viewsCount"]?.jsonPrimitive?.intOrNull
+                                val createdMs = movie?.get("createdMs")?.jsonPrimitive?.longOrNull
+
+                                val createdTs = createdMs?.let { ms ->
+                                    try {
+                                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                                        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                                        sdf.format(java.util.Date(ms))
+                                    } catch (_: Exception) {
+                                        null
+                                    }
+                                }
+
                                 val ownerObj = item["owner"]?.jsonObject
                                 val userObj = ownerObj?.get("user")?.jsonObject
                                 val groupObj = ownerObj?.get("group")?.jsonObject
                                 val authorName = userObj?.get("name")?.jsonPrimitive?.contentOrNull
                                     ?: groupObj?.get("name")?.jsonPrimitive?.contentOrNull
                                     ?: "Одноклассники"
+
+                                val authorAvatar = userObj?.get("picAvatar")?.jsonPrimitive?.contentOrNull
+                                    ?: userObj?.get("picUrl")?.jsonPrimitive?.contentOrNull
+                                    ?: userObj?.get("avatar")?.jsonPrimitive?.contentOrNull
+                                    ?: groupObj?.get("picAvatar")?.jsonPrimitive?.contentOrNull
+                                    ?: groupObj?.get("picUrl")?.jsonPrimitive?.contentOrNull
+                                    ?: groupObj?.get("iconUrl")?.jsonPrimitive?.contentOrNull
+                                    ?: groupObj?.get("avatar")?.jsonPrimitive?.contentOrNull
+                                    ?: "https://ok.ru/favicon.ico"
 
                                 val videoUrl = "https://ok.ru/video/$id"
 
@@ -119,8 +142,11 @@ object OkSearchEngine {
                                         videoUrl = videoUrl,
                                         title = title,
                                         thumbnailUrl = thumb,
-                                        author = Author(name = authorName),
-                                        duration = durSec
+                                        author = Author(name = authorName, avatarUrl = authorAvatar),
+                                        duration = durSec,
+                                        hits = totalViews,
+                                        createdTs = createdTs,
+                                        publicationTs = createdTs
                                     )
                                 )
                             }

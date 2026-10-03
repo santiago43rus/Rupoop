@@ -169,6 +169,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var showOnboarding by mutableStateOf(settingsManager.isFirstLaunch)
 
     var searchResults by mutableStateOf<List<SearchResult>>(emptyList())
+    val isSearching: Boolean get() = searchController.isSearching
+    val searchError: Boolean get() = searchController.searchError
     var authorSortOrder by mutableStateOf("-publication_ts")
 
     private var pushJob: Job? = null

@@ -125,7 +125,13 @@ object UnifiedWebVideoParser {
                 )
             }
 
-            // 4. Find iframes and balancer links on page
+            // 4. Special handling for CdnVideoHub player (Lordfilm modern player component)
+            val cdnVideoHubResult = parseCdnVideoHub(html, normalizedUrl, title, thumbnail, hostName)
+            if (cdnVideoHubResult != null) {
+                return@withContext cdnVideoHubResult.copy(videoUrl = url)
+            }
+
+            // 5. Find iframes and balancer links on page
             val iframes = extractPotentialPlayerUrls(html, normalizedUrl)
             for (iframeUrl in iframes) {
                 // If iframe is Rutube
@@ -258,9 +264,10 @@ object UnifiedWebVideoParser {
     }
 
     private fun extractStreamFromPlayerHtml(html: String, baseUrl: String): String? {
-        // Priority 1: .m3u8 links in JS variables (file, hls, src, playlist, url, stream, source)
+        // Priority 1: .m3u8 links in JS variables (file, video, hls, src, playlist, url, stream, source)
         val m3u8Regexes = listOf(
             """(?:["']file["']|file)\s*:\s*["']([^"']+\.m3u8[^"']*)["']""",
+            """(?:["']video["']|video)\s*:\s*["']([^"']+\.m3u8[^"']*)["']""",
             """(?:["']hls["']|hls)\s*:\s*["']([^"']+\.m3u8[^"']*)["']""",
             """(?:["']src["']|src)\s*:\s*["']([^"']+\.m3u8[^"']*)["']""",
             """(?:["']source["']|source)\s*:\s*["']([^"']+\.m3u8[^"']*)["']""",
@@ -274,7 +281,8 @@ object UnifiedWebVideoParser {
         for (regex in m3u8Regexes) {
             val match = extractRegex(html, regex)
             if (!match.isNullOrBlank()) {
-                return resolveUrl(baseUrl, match)
+                val clean = match.replace("\\/", "/").replace("\\u0026", "&")
+                return resolveUrl(baseUrl, clean)
             }
         }
 
@@ -553,9 +561,9 @@ object UnifiedWebVideoParser {
             }
         }
 
-        // 3. Balancer embeds in script variables (e.g. data-player-url, iframe src in JS, voidboost, collaps, alloha, bazon, vibix, lumex)
+        // 3. Balancer embeds in script variables (e.g. data-player-url, iframe src in JS, voidboost, collaps, alloha, bazon, vibix, lumex, ladoni)
         val jsEmbedPattern = Pattern.compile(
-            """(?:src|url|link|player|balancer|iframe|embed)\s*[:=]\s*["'](https?:\/\/[^"'\s]+(?:embed|player|video|movie|collaps|lumex|alloha|kodik|voidboost|bazon|vibix|ashdi|aniboom|lordfilm|kinogo|rezka|seasonvar|filmix|zetflix)[^"'\s]*)["']""",
+            """(?:src|url|link|player|balancer|iframe|embed)\s*[:=]\s*["'](https?:\/\/[^"'\s]+(?:embed|player|video|movie|ladoni|collaps|lumex|alloha|kodik|voidboost|bazon|vibix|ashdi|aniboom|lordfilm|kinogo|rezka|seasonvar|filmix|zetflix)[^"'\s]*)["']""",
             Pattern.CASE_INSENSITIVE
         )
         val jsEmbedMatcher = jsEmbedPattern.matcher(html)
@@ -572,11 +580,11 @@ object UnifiedWebVideoParser {
         return results.distinct().sortedByDescending { url ->
             val lower = url.lowercase()
             when {
-                lower.contains("collaps") || lower.contains("lumex") || lower.contains("alloha") ||
-                        lower.contains("kodik") || lower.contains("aniqit") || lower.contains("voidboost") ||
-                        lower.contains("aniboom") || lower.contains("ashdi") || lower.contains("bazon") ||
-                        lower.contains("vibix") || lower.contains("ok.ru") || lower.contains("vk.com") ||
-                        lower.contains("vkvideo.ru") -> 4
+                lower.contains("ladoni") || lower.contains("collaps") || lower.contains("lumex") ||
+                        lower.contains("alloha") || lower.contains("kodik") || lower.contains("aniqit") ||
+                        lower.contains("voidboost") || lower.contains("aniboom") || lower.contains("ashdi") ||
+                        lower.contains("bazon") || lower.contains("vibix") || lower.contains("ok.ru") ||
+                        lower.contains("vk.com") || lower.contains("vkvideo.ru") -> 4
                 lower.contains("embed") || lower.contains("player") || lower.contains("video") -> 2
                 else -> 1
             }
@@ -702,5 +710,91 @@ object UnifiedWebVideoParser {
             .replace("&mdash;", "—")
             .replace("&#160;", " ")
             .replace("&nbsp;", " ")
+    }
+
+    private suspend fun parseCdnVideoHub(
+        html: String,
+        pageUrl: String,
+        fallbackTitle: String,
+        fallbackThumbnail: String?,
+        sourceName: String
+    ): ParsedVideo? = withContext(Dispatchers.IO) {
+        try {
+            val playerTagMatch = extractRegex(html, """(<video-player[^>]+id=["']cdnvideohubvideoplayer["'][^>]*>)""")
+                ?: extractRegex(html, """(<video-player[^>]+data-title-id=["'][^"']+["'][^>]*>)""")
+                ?: return@withContext null
+
+            val titleId = extractRegex(playerTagMatch, """data-title-id=["']([^"']+)["']""") ?: return@withContext null
+            val pubId = extractRegex(playerTagMatch, """data-publisher-id=["']([^"']+)["']""") ?: "1580"
+            val aggr = extractRegex(playerTagMatch, """data-aggregator=["']([^"']+)["']""") ?: "kp"
+
+            val origin = try {
+                val uri = URI(pageUrl)
+                "${uri.scheme}://${uri.host}"
+            } catch (_: Exception) {
+                "https://lordfilm.top"
+            }
+
+            val playlistUrl = "https://plapi.cdnvideohub.com/api/v1/player/sv/playlist?pub=$pubId&id=$titleId&aggr=$aggr"
+            val playlistReq = Request.Builder()
+                .url(playlistUrl)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "application/json")
+                .header("Origin", origin)
+                .header("Referer", "$origin/")
+                .build()
+
+            val playlistResp = httpClient.newCall(playlistReq).execute()
+            if (!playlistResp.isSuccessful) return@withContext null
+            val playlistJsonStr = playlistResp.body.string()
+
+            val titleName = extractRegex(playlistJsonStr, """"titleName"\s*:\s*"([^"]+)"""")?.let { unescapeHtml(it) } ?: fallbackTitle
+            val vkId = extractRegex(playlistJsonStr, """"vkId"\s*:\s*"([^"]+)"""")
+            if (vkId.isNullOrBlank()) return@withContext null
+
+            val videoUrl = "https://plapi.cdnvideohub.com/api/v1/player/sv/video/$vkId"
+            val videoReq = Request.Builder()
+                .url(videoUrl)
+                .header("User-Agent", USER_AGENT)
+                .header("Accept", "application/json")
+                .header("Origin", origin)
+                .header("Referer", "$origin/")
+                .build()
+
+            val videoResp = httpClient.newCall(videoReq).execute()
+            if (!videoResp.isSuccessful) return@withContext null
+            val videoJsonStr = videoResp.body.string()
+
+            val thumbUrl = extractRegex(videoJsonStr, """"thumbUrl"\s*:\s*"([^"]+)"""")?.replace("\\/", "/") ?: fallbackThumbnail
+            val duration = extractRegex(videoJsonStr, """"duration"\s*:\s*([0-9]+)""")?.toLongOrNull()
+
+            val rawStreamUrl = extractRegex(videoJsonStr, """"hlsUrl"\s*:\s*"([^"]+)"""")?.takeIf { it.isNotBlank() }
+                ?: extractRegex(videoJsonStr, """"mpegFullHdUrl"\s*:\s*"([^"]+)"""")?.takeIf { it.isNotBlank() }
+                ?: extractRegex(videoJsonStr, """"mpegHighUrl"\s*:\s*"([^"]+)"""")?.takeIf { it.isNotBlank() }
+                ?: extractRegex(videoJsonStr, """"mpegMediumUrl"\s*:\s*"([^"]+)"""")?.takeIf { it.isNotBlank() }
+                ?: extractRegex(videoJsonStr, """"mpegLowUrl"\s*:\s*"([^"]+)"""")?.takeIf { it.isNotBlank() }
+                ?: return@withContext null
+
+            val streamUrl = rawStreamUrl.replace("\\/", "/").replace("\\u0026", "&")
+
+            ParsedVideo(
+                videoUrl = pageUrl,
+                streamUrl = streamUrl,
+                title = titleName,
+                thumbnailUrl = thumbUrl,
+                authorName = sourceName,
+                durationSeconds = if (duration != null && duration > 0) duration else null,
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Referer" to "https://player.cdnvideohub.com/",
+                    "Origin" to "https://player.cdnvideohub.com"
+                ),
+                sourceName = sourceName
+            )
+        } catch (e: Exception) {
+            println("parseCdnVideoHub EXCEPTION: ${e.javaClass.name}: ${e.message}")
+            e.printStackTrace()
+            null
+        }
     }
 }

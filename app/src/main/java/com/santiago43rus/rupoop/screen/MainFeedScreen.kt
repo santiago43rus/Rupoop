@@ -43,18 +43,27 @@ fun MainFeedScreen(
         onRefresh = onRefresh,
         state = rememberPullToRefreshState()
     ) {
-        if (videos.isEmpty() && isRefreshing) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = if (columns == 1) PaddingValues(bottom = 16.dp) else PaddingValues(12.dp),
-                horizontalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(16.dp),
-                verticalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(12.dp)
-            ) {
-                val shimmerCount = if (columns > 1) columns * 4 else 6
-                items(shimmerCount) {
-                    VideoCardShimmer()
+        if (videos.isEmpty()) {
+            if (isRefreshing) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = if (columns == 1) PaddingValues(bottom = 16.dp) else PaddingValues(12.dp),
+                    horizontalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(16.dp),
+                    verticalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(12.dp)
+                ) {
+                    val shimmerCount = if (columns > 1) columns * 4 else 6
+                    items(shimmerCount) {
+                        VideoCardShimmer()
+                    }
                 }
+            } else {
+                com.santiago43rus.rupoop.components.ErrorPlaceholderView(
+                    modifier = Modifier.fillMaxSize(),
+                    title = "Не удалось загрузить",
+                    message = "Проверьте подключение к интернету и повторите попытку",
+                    onRetry = onRefresh
+                )
             }
         } else {
             LazyVerticalGrid(

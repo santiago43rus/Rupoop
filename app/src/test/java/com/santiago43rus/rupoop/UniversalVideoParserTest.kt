@@ -87,4 +87,28 @@ class UniversalVideoParserTest {
             assertTrue("Body should contain video data or m3u8 playlist", body.contains("#EXTM3U") || body.contains("ftyp") || resp.code == 200)
         }
     }
+
+    @Test
+    fun testRealLordfilmParsing() = kotlinx.coroutines.runBlocking {
+        val parsed = UniversalVideoParser.parse("https://lordfilm.top/469-interstellar-interstellar-2014.html")
+        assertNotNull("Lordfilm movie parsing should succeed", parsed)
+        assertTrue("Stream URL should not be blank", parsed!!.streamUrl.isNotBlank())
+        assertTrue("Stream URL should not have unescaped u0026", !parsed.streamUrl.contains("\\u0026"))
+
+        val client = okhttp3.OkHttpClient.Builder().followRedirects(true).build()
+        val reqBuilder = okhttp3.Request.Builder().url(parsed.streamUrl)
+        for ((k, v) in parsed.headers) {
+            reqBuilder.header(k, v)
+        }
+        val resp = client.newCall(reqBuilder.build()).execute()
+        assertEquals(200, resp.code)
+    }
+
+    @Test
+    fun testRealLordserialsParsing() = kotlinx.coroutines.runBlocking {
+        val parsed = UniversalVideoParser.parse("https://lordserials.fan/zarubezhnye-serialy/618-vedmak.html")
+        assertNotNull("Lordserials parsing should succeed", parsed)
+        assertTrue("Stream URL should not be blank", parsed!!.streamUrl.isNotBlank())
+        assertTrue("Stream URL should point to m3u8", parsed.streamUrl.contains(".m3u8"))
+    }
 }

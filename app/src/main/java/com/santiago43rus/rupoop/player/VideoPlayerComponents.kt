@@ -100,7 +100,16 @@ fun CustomVideoPlayer(
     var swipeOffsetY by swipeOffsetYState
     var originalSpeed by remember { mutableFloatStateOf(1.0f) }
     var isSpeedLocked by remember { mutableStateOf(false) }
+    var showSpeedLockHint by remember { mutableStateOf(false) }
+    var showSpeedUnlockHint by remember { mutableStateOf(false) }
     var totalDragY by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(showSpeedLockHint) {
+        if (showSpeedLockHint) {
+            delay(2200)
+            showSpeedLockHint = false
+        }
+    }
 
     // Continuous pinch-to-zoom + pan (crops into the video like YouTube, never stretches it).
     var zoomScale by remember { mutableFloatStateOf(1f) }
@@ -306,7 +315,7 @@ fun CustomVideoPlayer(
                 swipeOffsetX = swipeOffsetXState,
                 swipeOffsetY = swipeOffsetYState,
                 onToggleFullscreen = onToggleFullscreen,
-                isFastForwarding = isFastForwarding,
+                isFastForwarding = isFastForwarding || showSpeedUnlockHint || showSpeedLockHint,
                 isTablet = isTablet,
                 isLandscape = isLandscape
             )
@@ -454,30 +463,58 @@ fun CustomVideoPlayer(
                 }
 
                 suspend fun AwaitPointerEventScope.trackLongPressHold(down: PointerInputChange, downPos: Offset) {
-                    // Only capture the "base" speed if we're not already speed-locked at 2x — otherwise
-                    // we'd overwrite the real base speed (e.g. 1.5x) with the current locked 2x value,
-                    // and releasing/unlocking would incorrectly settle on 2x instead of the original speed.
                     if (!isSpeedLocked) {
                         originalSpeed = exoPlayer.playbackParameters.speed
+                        showControls = false // Popups/controls automatically disappear when holding 2x!
+                        isFastForwarding = true
+                        onFastForwardingChange(true)
+                        exoPlayer.playbackParameters = PlaybackParameters(2f)
+                        showSpeedLockHint = true
+                        showSpeedUnlockHint = false
+                    } else {
+                        // When speed is locked and user long-presses screen:
+                        // Controls do NOT hide automatically (user can still toggle and use them).
+                        // Show unlock hint while user holds finger on screen!
+                        showSpeedUnlockHint = true
+                        showSpeedLockHint = false
+                        onFastForwardingChange(true)
                     }
-                    isFastForwarding = true
-                    onFastForwardingChange(true)
-                    exoPlayer.playbackParameters = PlaybackParameters(2f)
-                    var hasMovedDown = false
+
+                    var hasToggledLock = false
+                    val swipeDownThreshold = 80f
+
                     try {
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
                             if (!change.pressed) break
-                            if (change.position.y - downPos.y > 100f) hasMovedDown = true
+
+                            val currentDragY = change.position.y - downPos.y
+                            if (currentDragY > 15f) {
+                                change.consume()
+                            }
+                            if (!hasToggledLock && currentDragY > swipeDownThreshold) {
+                                change.consume()
+                                hasToggledLock = true
+                                if (!isSpeedLocked) {
+                                    isSpeedLocked = true
+                                    showSpeedLockHint = false
+                                } else {
+                                    isSpeedLocked = false
+                                    showSpeedUnlockHint = false
+                                    exoPlayer.playbackParameters = PlaybackParameters(originalSpeed)
+                                }
+                            }
                         }
-                    } catch (e: Exception) { }
+                    } catch (_: Exception) { }
+
                     isFastForwarding = false
                     onFastForwardingChange(false)
-                    if (hasMovedDown) isSpeedLocked = !isSpeedLocked
                     if (!isSpeedLocked) {
                         exoPlayer.playbackParameters = PlaybackParameters(originalSpeed)
                     }
+                    showSpeedLockHint = false
+                    showSpeedUnlockHint = false
                 }
 
                 awaitEachGesture {
@@ -555,6 +592,8 @@ fun CustomVideoPlayer(
             SpeedIndicator(
                 isFastForwarding = isFastForwarding,
                 isSpeedLocked = isSpeedLocked,
+                showLockHint = showSpeedLockHint,
+                showUnlockHint = showSpeedUnlockHint,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 28.dp)
             )
         }
