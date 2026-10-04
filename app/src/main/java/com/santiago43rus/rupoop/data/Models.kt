@@ -90,6 +90,7 @@ data class AppSettings(
     val kidsContentEnabled: Boolean = true,
     val downloadQuality: String = "1080",
     val syncFrequencyHours: Int = 24,
+    val maxConcurrentDownloads: Int = 1,
     val enabledGenres: List<String> = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
         "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы"

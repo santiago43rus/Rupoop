@@ -29,12 +29,36 @@ class DownloadTask(
     var isAudio: Boolean,
     val thumbnailUrl: String?
 ) {
+    val orderTimestamp: Long = System.currentTimeMillis()
     var job: Job? = null
     var isPaused = false
+    var isPausedByUser = false
+    var isSuspended = false
     var isCancelled = false
     var downloadedSegments = 0
     var totalSegments = 0
     var outputFile: File? = null
+
+    val isRunning: Boolean
+        get() = job?.isActive == true && !isPaused && !isCancelled && !isSuspended
+
+    fun suspendTask() {
+        isSuspended = true
+        job?.cancel()
+        service.downloadTracker.updateStatus(videoId, DownloadStatus.PENDING)
+        val prog = if (totalSegments > 0) (downloadedSegments * 100) / totalSegments else 0
+        service.updateNotification(videoId, title, prog, isAudio, true, "В очереди...")
+    }
+
+    fun startOrResume() {
+        isSuspended = false
+        isPaused = false
+        isPausedByUser = false
+        service.downloadTracker.updateStatus(videoId, DownloadStatus.DOWNLOADING)
+        val prog = if (totalSegments > 0) (downloadedSegments * 100) / totalSegments else 0
+        service.updateNotification(videoId, title, prog, isAudio, false)
+        start()
+    }
 
     // The generation this run of the task belongs to. Every explicit pause/resume/cancel bumps
     // the shared generation counter for this upload id; progress notifications tagged with an
@@ -178,6 +202,10 @@ class DownloadTask(
                     Log.d("RupoopDownload", "Task paused: $videoId progress=$prog")
                     return@launch
                 } else if (e is CancellationException) {
+                    if (isSuspended) {
+                        Log.d("RupoopDownload", "Task suspended to queue: $videoId")
+                        return@launch
+                    }
                     service.downloadTracker.updateStatus(videoId, DownloadStatus.CANCELLED)
                     service.sendBroadcast(Intent(DownloadService.ACTION_DOWNLOAD_CANCELLED).putExtra("video_id", videoId))
                     Log.d("RupoopDownload", "Task cancelled (CancellationException): $videoId")
@@ -189,9 +217,15 @@ class DownloadTask(
                 service.updateNotification(videoId, title, 0, isAudio, false, "Ошибка: ${e.message}")
             } finally {
                 // Ensure task cleanup always happens once coroutine finishes
-                if (!isPaused || isCancelled) {
+                if (isSuspended) {
+                    service.checkAndStopService()
+                } else if (isPaused || isPausedByUser) {
+                    service.checkAndStopService()
+                    service.processQueue()
+                } else {
                     service.activeTasks.remove(videoId)
                     service.checkAndStopService()
+                    service.processQueue()
                 }
             }
         }

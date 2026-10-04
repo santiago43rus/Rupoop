@@ -39,9 +39,12 @@ fun SearchSuggestionsOverlay(
     var queryToDelete by remember { mutableStateOf<String?>(null) }
     val isUrl = UniversalVideoParser.isHttpUrl(searchQuery)
 
-    if (searchQuery.isNotEmpty()) {
-        Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
-            LazyColumn {
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        if (searchQuery.isNotEmpty()) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
                 if (isUrl) {
                     item {
                         Row(
@@ -112,10 +115,8 @@ fun SearchSuggestionsOverlay(
                     }
                 }
             }
-        }
-    } else if (searchHistory.isNotEmpty()) {
-        Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)) {
-            LazyColumn {
+        } else if (searchHistory.isNotEmpty()) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(searchHistory) { query ->
                     val isHistoryUrl = UniversalVideoParser.isHttpUrl(query)
                     Row(
@@ -154,6 +155,9 @@ fun SearchSuggestionsOverlay(
                     }
                 }
             }
+        } else {
+            // When there is no search query and no history, the background still covers the feed
+            Box(modifier = Modifier.fillMaxSize())
         }
     }
 

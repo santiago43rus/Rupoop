@@ -62,6 +62,12 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val relatedListState = rememberLazyListState()
+
+    LaunchedEffect(vm.currentVideo?.videoUrl) {
+        if (vm.currentVideo != null) {
+            relatedListState.scrollToItem(0)
+        }
+    }
     
     val showMoreVideosState = remember { mutableStateOf(false) }
     val moreVideosDragOffsetState = remember { mutableStateOf(0f) }
@@ -233,10 +239,10 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     val fsScale = 1f + (0.15f * fsProgress)
     val fsOffsetY = -fullscreenDragOffsetY.value * 0.3f
 
-    val fullPlayerDragModifier = if (vm.playerState == PlayerState.FULL && !vm.isFullscreenVideo) {
+    val fullPlayerDragModifier = if (vm.playerState == PlayerState.FULL && !vm.isFullscreenVideo && !vm.isZoomed) {
         var touchStartY = 0f
         var initialDragDirection = 0f
-        Modifier.pointerInput(vm.playerState, vm.isFullscreenVideo) {
+        Modifier.pointerInput(vm.playerState, vm.isFullscreenVideo, vm.isZoomed) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 touchStartY = down.position.y
@@ -450,7 +456,11 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
             elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
             border = if (realProgress > 0.4f) BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f * realProgress)) else null,
             colors = CardDefaults.cardColors(containerColor = Color.Black),
-            modifier = Modifier.offset(x = currentX, y = currentY).width(currentWidth).height(currentHeight).then(fullPlayerDragModifier).then(miniPlayerGesturesModifier)
+            modifier = (if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL && realProgress == 0f) {
+                Modifier.fillMaxSize()
+            } else {
+                Modifier.offset(x = currentX, y = currentY).width(currentWidth).height(currentHeight)
+            }).then(fullPlayerDragModifier).then(miniPlayerGesturesModifier)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 val isMiniLayout = realProgress >= 0.5f || vm.playerState == PlayerState.MINI
@@ -485,7 +495,8 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                         onFastForwardingChange = { vm.isFastForwarding = it },
                         showMoreVideosState = showMoreVideosState,
                         moreVideosDragOffsetState = moreVideosDragOffsetState,
-                        isExpandingToFullscreen = fullscreenDragOffsetY.value > 0f
+                        isExpandingToFullscreen = fullscreenDragOffsetY.value > 0f,
+                        onZoomedChange = { vm.isZoomed = it }
                     )
                 }
 

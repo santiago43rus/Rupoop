@@ -124,6 +124,10 @@ var AppViewModel.isPlaying: Boolean
     get() = playbackController.isPlaying
     set(value) { playbackController.isPlaying = value }
 
+var AppViewModel.isZoomed: Boolean
+    get() = playbackController.isZoomed
+    set(value) { playbackController.isZoomed = value }
+
 var AppViewModel.isBuffering: Boolean
     get() = playbackController.isBuffering
     set(value) { playbackController.isBuffering = value }
@@ -266,6 +270,9 @@ fun AppViewModel.loadHome(isLoadMore: Boolean) = contentFeedController.loadHome(
 fun AppViewModel.loadSubscriptions(isLoadMore: Boolean) = contentFeedController.loadSubscriptions(isLoadMore)
 @UnstableApi
 fun AppViewModel.loadAuthorVideos(author: Author, isLoadMore: Boolean) {
+    if (!isLoadMore) {
+        overlayOrder = overlayOrder.filter { it != OverlayState.AUTHOR } + OverlayState.AUTHOR
+    }
     contentFeedController.loadAuthorVideos(author, isLoadMore) { selected ->
         selectedAuthor = selected
     }

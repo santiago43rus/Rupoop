@@ -99,7 +99,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         registryManager = registryManager,
         mainFeedRecommender = mainFeedRecommender,
         filterHiddenAndDisliked = { filterHiddenAndDisliked(it) },
-        onAuthorVisibleChanged = { navigationController.isAuthorVisible = it },
+        onAuthorVisibleChanged = { visible ->
+            navigationController.isAuthorVisible = visible
+            if (visible) {
+                navigationController.overlayOrder = navigationController.overlayOrder.filter { it != OverlayState.AUTHOR } + OverlayState.AUTHOR
+            }
+        },
         getPlayerState = { playbackController.playerState },
         setPlayerState = { playbackController.playerState = it },
         getAuthorSortOrder = { authorSortOrder }

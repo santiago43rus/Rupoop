@@ -432,9 +432,10 @@ fun Modifier.playerDragGestures(
     onToggleFullscreen: () -> Unit,
     isFastForwarding: Boolean = false,
     isTablet: Boolean = false,
-    isLandscape: Boolean = false
-): Modifier = pointerInput(isFullscreen, isFastForwarding, isTablet, isLandscape) {
-    if (!isFullscreen || isFastForwarding) return@pointerInput
+    isLandscape: Boolean = false,
+    isZoomed: Boolean = false
+): Modifier = pointerInput(isFullscreen, isFastForwarding, isTablet, isLandscape, isZoomed) {
+    if (!isFullscreen || isFastForwarding || isZoomed) return@pointerInput
     var totalDragY = 0f
     var totalDragX = 0f
     var committedDirection = 0 // 0: uncommitted, 1: down, -1: up

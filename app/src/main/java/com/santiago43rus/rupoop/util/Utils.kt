@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.PackageManager
+import android.os.Build
+import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -50,6 +52,15 @@ fun formatTimeAgo(dateString: String?): String {
 }
 
 fun hideSystemBars(activity: Activity) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        val params = activity.window.attributes
+        params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        activity.window.attributes = params
+    } else {
+        val params = activity.window.attributes
+        params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        activity.window.attributes = params
+    }
     WindowInsetsControllerCompat(activity.window, activity.window.decorView).apply {
         hide(WindowInsetsCompat.Type.systemBars())
         systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

@@ -278,6 +278,7 @@ class UserRegistryManager(private val context: Context) {
             kidsContentEnabled = local.appSettings.kidsContentEnabled || remote.appSettings.kidsContentEnabled,
             downloadQuality = if (local.appSettings.downloadQuality != "1080") local.appSettings.downloadQuality else remote.appSettings.downloadQuality,
             syncFrequencyHours = local.appSettings.syncFrequencyHours,
+            maxConcurrentDownloads = local.appSettings.maxConcurrentDownloads,
             enabledGenres = (local.appSettings.enabledGenres + remote.appSettings.enabledGenres).distinct(),
             autoPlayNext = local.appSettings.autoPlayNext,
             doubleTapSeekDuration = local.appSettings.doubleTapSeekDuration,

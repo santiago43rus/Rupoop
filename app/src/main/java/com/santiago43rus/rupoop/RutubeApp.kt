@@ -304,25 +304,22 @@ fun RutubeApp(
                                 NavItem.LIBRARY -> LibraryContent(vm = vm, listState = libListState)
                             }
                         }
-                    }
 
-                    SearchSuggestionsOverlay(
-                        isSearchExpanded = vm.isSearchExpanded,
-                        searchQuery = vm.searchQuery,
-                        onSearchQueryChange = { vm.searchQuery = it },
-                        searchSuggestions = vm.searchSuggestions,
-                        searchHistory = vm.userRegistry.searchHistory,
-                        onPerformSearch = {
-                            focusManager.clearFocus()
-                            vm.performSearch(it)
-                            scope.launch { homeListState.scrollToItem(0) }
-                        },
-                        onRemoveSearchQuery = { query, fromGist -> vm.removeSearchQuery(query, fromGist) },
-                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
-                        isGitHubAuthenticated = vm.isAuthenticated
-                    )
+                        SearchSuggestionsOverlay(
+                            isSearchExpanded = vm.isSearchExpanded,
+                            searchQuery = vm.searchQuery,
+                            onSearchQueryChange = { vm.searchQuery = it },
+                            searchSuggestions = vm.searchSuggestions,
+                            searchHistory = vm.userRegistry.searchHistory,
+                            onPerformSearch = {
+                                focusManager.clearFocus()
+                                vm.performSearch(it)
+                                scope.launch { homeListState.scrollToItem(0) }
+                            },
+                            onRemoveSearchQuery = { query, fromGist -> vm.removeSearchQuery(query, fromGist) },
+                            isGitHubAuthenticated = vm.isAuthenticated
+                        )
 
-                    Box(modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
                         RutubeAppOverlays(
                             vm = vm,
                             onThemeToggle = onThemeToggle,

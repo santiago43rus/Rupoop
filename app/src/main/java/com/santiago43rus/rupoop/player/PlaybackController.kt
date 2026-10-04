@@ -59,6 +59,7 @@ class PlaybackController(
     var isBuffering by mutableStateOf(false)
     var isBackgroundPlaybackEnabled by mutableStateOf(false)
     var isFastForwarding by mutableStateOf(false)
+    var isZoomed by mutableStateOf(false)
 
     var relatedVideos by mutableStateOf<List<SearchResult>>(emptyList())
 
@@ -79,7 +80,10 @@ class PlaybackController(
     }.also { player ->
         player.playWhenReady = true
         player.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(playing: Boolean) { this@PlaybackController.isPlaying = playing }
+            override fun onIsPlayingChanged(playing: Boolean) {
+                this@PlaybackController.isPlaying = playing
+                com.santiago43rus.rupoop.service.DownloadService.onPlaybackStateChanged(context, playing)
+            }
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 Log.e("Rupoop", "ExoPlayer error", error)
                 scope.launch {
@@ -351,6 +355,7 @@ class PlaybackController(
     fun closePlayer() {
         playerState = PlayerState.CLOSED
         exoPlayer.stop()
+        com.santiago43rus.rupoop.service.DownloadService.onPlaybackStateChanged(context, false)
         syncPlaybackService()
         pushToGitHub()
     }

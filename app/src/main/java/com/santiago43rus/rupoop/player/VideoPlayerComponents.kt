@@ -76,7 +76,8 @@ fun CustomVideoPlayer(
     onFastForwardingChange: (Boolean) -> Unit = {},
     showMoreVideosState: MutableState<Boolean> = remember { mutableStateOf(false) },
     moreVideosDragOffsetState: MutableState<Float> = remember { mutableStateOf(0f) },
-    isExpandingToFullscreen: Boolean = false
+    isExpandingToFullscreen: Boolean = false,
+    onZoomedChange: (Boolean) -> Unit = {}
 ) {
     val showControlsState = remember { mutableStateOf(true) }
     var showControls by showControlsState
@@ -293,6 +294,21 @@ fun CustomVideoPlayer(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val shouldFillMax = isFullscreen || (isLandscape && !isTablet && !isTransitioning)
 
+    val isZoomed = remember(zoomScale, videoAspectRatio, shouldFillMax, configuration.screenWidthDp, configuration.screenHeightDp) {
+        val containerAspect = if (shouldFillMax) {
+            val w = configuration.screenWidthDp.toFloat()
+            val h = configuration.screenHeightDp.toFloat()
+            if (h > 0f) w / h else 16f / 9f
+        } else {
+            16f / 9f
+        }
+        val fillScale = if (videoAspectRatio > containerAspect) videoAspectRatio / containerAspect else containerAspect / videoAspectRatio
+        zoomScale > fillScale * 1.03f
+    }
+    LaunchedEffect(isZoomed) {
+        onZoomedChange(isZoomed)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -317,56 +333,62 @@ fun CustomVideoPlayer(
                 onToggleFullscreen = onToggleFullscreen,
                 isFastForwarding = isFastForwarding || showSpeedUnlockHint || showSpeedLockHint,
                 isTablet = isTablet,
-                isLandscape = isLandscape
+                isLandscape = isLandscape,
+                isZoomed = isZoomed
             )
-            // Pinch-to-zoom + pan. Deliberately hand-rolled instead of detectTransformGestures: that
-            // helper can start consuming pointer events on a single finger once touch-slop is crossed,
-            // which was stealing taps from the gesture detector below and made 2x fire on any tap.
-            // This version never consumes anything until a genuine second finger is down.
+            // Pinch-to-zoom + pan (moves like on maps when zoomed).
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = false)
                     var isPinching = false
+                    var didPinch = false
+                    var wasTwoFingerGesture = false
                     var prevDistance = 0f
                     var prevCenter = Offset.Zero
                     var basePinchScale = 1f
                     var hasBrokenFreeFromFillScale = false
+                    var prevSinglePos = down.position
+                    var totalDragDistance = 0f
+
                     while (true) {
                         val event = awaitPointerEvent()
                         val pressed = event.changes.filter { it.pressed }
                         if (pressed.size >= 2) {
+                            wasTwoFingerGesture = true
+                            didPinch = true
                             val p1 = pressed[0].position
                             val p2 = pressed[1].position
                             val distance = (p1 - p2).getDistance().coerceAtLeast(1f)
                             val center = Offset((p1.x + p2.x) / 2f, (p1.y + p2.y) / 2f)
+
                             if (!isPinching) {
                                 isPinching = true
                                 basePinchScale = zoomScale
-                                hasBrokenFreeFromFillScale = false
+                                val containerAspect = size.width.toFloat() / size.height.toFloat()
+                                val fillScale = if (videoAspectRatio > containerAspect) videoAspectRatio / containerAspect else containerAspect / videoAspectRatio
+                                hasBrokenFreeFromFillScale = basePinchScale >= fillScale * 0.98f
                             } else if (prevDistance > 0f) {
                                 val zoomDelta = distance / prevDistance
                                 val panDelta = center - prevCenter
-                                val rawScale = (zoomScale * zoomDelta).coerceIn(1f, 3f)
 
                                 val containerAspect = size.width.toFloat() / size.height.toFloat()
                                 val fillScale = if (videoAspectRatio > containerAspect) videoAspectRatio / containerAspect else containerAspect / videoAspectRatio
                                 val hasBars = abs(fillScale - 1f) > 0.03f
+                                val maxScale = (fillScale * 8f).coerceAtLeast(8f)
+                                val rawScale = (zoomScale * zoomDelta).coerceIn(1f, maxScale)
 
                                 val newScale = if (hasBars) {
-                                    if (basePinchScale < fillScale) {
-                                        if (rawScale >= fillScale) {
-                                            if (hasBrokenFreeFromFillScale) {
-                                                rawScale
-                                            } else if (rawScale > fillScale * 1.22f) {
-                                                hasBrokenFreeFromFillScale = true
-                                                rawScale
-                                            } else {
-                                                fillScale
-                                            }
+                                    if (basePinchScale < fillScale * 0.98f) {
+                                        if (rawScale >= fillScale && rawScale <= fillScale * 1.15f && !hasBrokenFreeFromFillScale) {
+                                            fillScale
                                         } else {
+                                            if (rawScale > fillScale * 1.15f) {
+                                                hasBrokenFreeFromFillScale = true
+                                            }
                                             rawScale
                                         }
                                     } else {
+                                        hasBrokenFreeFromFillScale = true
                                         rawScale
                                     }
                                 } else {
@@ -381,13 +403,45 @@ fun CustomVideoPlayer(
 
                                 showZoomToastMessage = when {
                                     newScale <= 1.02f -> null
-                                    hasBars && (!hasBrokenFreeFromFillScale || abs(newScale - fillScale) < 0.02f) -> "Без полей"
-                                    else -> "${(newScale * 100).toInt()}%"
+                                    hasBars && (abs(newScale - fillScale) / fillScale <= 0.03f || (!hasBrokenFreeFromFillScale && newScale <= fillScale * 1.03f)) -> "Без полей"
+                                    newScale > fillScale * 1.03f -> {
+                                        val percent = ((newScale / fillScale) * 100).toInt()
+                                        "$percent%"
+                                    }
+                                    else -> null
                                 }
                                 pressed.forEach { it.consume() }
                             }
                             prevDistance = distance
                             prevCenter = center
+                            prevSinglePos = pressed[0].position
+                        } else if (pressed.size == 1) {
+                            if (!wasTwoFingerGesture) {
+                                val containerAspect = size.width.toFloat() / size.height.toFloat()
+                                val fillScale = if (videoAspectRatio > containerAspect) videoAspectRatio / containerAspect else containerAspect / videoAspectRatio
+                                val isCurrentlyZoomed = zoomScale > fillScale * 1.03f
+
+                                if (isCurrentlyZoomed) {
+                                    val change = pressed[0]
+                                    val dragDelta = change.position - prevSinglePos
+                                    totalDragDistance += dragDelta.getDistance()
+                                    prevSinglePos = change.position
+
+                                    val maxOffsetX = (size.width * (zoomScale - 1f) / 2f).coerceAtLeast(0f)
+                                    val maxOffsetY = (size.height * (zoomScale - 1f) / 2f).coerceAtLeast(0f)
+
+                                    if (maxOffsetX > 0f || maxOffsetY > 0f) {
+                                        zoomOffsetX = (zoomOffsetX + dragDelta.x).coerceIn(-maxOffsetX, maxOffsetX)
+                                        zoomOffsetY = (zoomOffsetY + dragDelta.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                    }
+                                    change.consume()
+                                }
+                            } else {
+                                // Transitioning release from two fingers: do not drag with the last remaining finger!
+                                pressed[0].consume()
+                            }
+                            isPinching = false
+                            prevDistance = 0f
                         } else {
                             isPinching = false
                             prevDistance = 0f
@@ -395,37 +449,49 @@ fun CustomVideoPlayer(
                         if (pressed.isEmpty()) break
                     }
 
-                    // Gesture fully ended: snap to a natural resting point — original (no zoom), the
-                    // "crop to fill" step (removes black bars exactly), or leave it at a custom zoom.
                     val containerAspect = size.width.toFloat() / size.height.toFloat()
                     val fillScale = if (videoAspectRatio > containerAspect) videoAspectRatio / containerAspect else containerAspect / videoAspectRatio
-                    val hasBars = abs(fillScale - 1f) > 0.03f
-                    val snapTarget = when {
-                        zoomScale < 1.05f -> 1f
-                        hasBars && (!hasBrokenFreeFromFillScale || zoomScale in (fillScale * 0.85f)..(fillScale * 1.15f)) -> fillScale
-                        else -> null
+                    val isCurrentlyZoomed = zoomScale > fillScale * 1.03f
+
+                    if (!wasTwoFingerGesture && isCurrentlyZoomed && totalDragDistance < 15f) {
+                        showControls = !showControls
                     }
-                    if (snapTarget != null && abs(zoomScale - snapTarget) > 0.001f) {
-                        val startScale = zoomScale
-                        val startOffsetX = zoomOffsetX
-                        val startOffsetY = zoomOffsetY
-                        val containerW = size.width
-                        val containerH = size.height
-                        zoomAnimScope.launch {
-                            animate(0f, 1f, animationSpec = tween(200)) { value, _ ->
-                                zoomScale = startScale + (snapTarget - startScale) * value
-                                val maxOX = (containerW * (zoomScale - 1f) / 2f).coerceAtLeast(0f)
-                                val maxOY = (containerH * (zoomScale - 1f) / 2f).coerceAtLeast(0f)
-                                zoomOffsetX = (startOffsetX * (1f - value)).coerceIn(-maxOX, maxOX)
-                                zoomOffsetY = (startOffsetY * (1f - value)).coerceIn(-maxOY, maxOY)
-                            }
+
+                    // Only snap zoom scale when the user was actively pinching to zoom/unzoom.
+                    // Single finger panning or tapping must NEVER snap or reset the zoom!
+                    if (didPinch) {
+                        val hasBars = abs(fillScale - 1f) > 0.03f
+                        val snapTarget = when {
+                            zoomScale < 1.05f -> 1f
+                            hasBars && !hasBrokenFreeFromFillScale -> fillScale
+                            hasBars && (abs(zoomScale - fillScale) / fillScale < 0.08f) -> fillScale
+                            else -> null
                         }
-                        showZoomToastMessage = if (snapTarget == 1f) null else "Без полей"
+                        if (snapTarget != null && abs(zoomScale - snapTarget) > 0.001f) {
+                            val startScale = zoomScale
+                            val startOffsetX = zoomOffsetX
+                            val startOffsetY = zoomOffsetY
+                            val containerW = size.width
+                            val containerH = size.height
+                            zoomAnimScope.launch {
+                                animate(0f, 1f, animationSpec = tween(200)) { value, _ ->
+                                    zoomScale = startScale + (snapTarget - startScale) * value
+                                    val maxOX = (containerW * (zoomScale - 1f) / 2f).coerceAtLeast(0f)
+                                    val maxOY = (containerH * (zoomScale - 1f) / 2f).coerceAtLeast(0f)
+                                    zoomOffsetX = (startOffsetX * (1f - value)).coerceIn(-maxOX, maxOX)
+                                    zoomOffsetY = (startOffsetY * (1f - value)).coerceIn(-maxOY, maxOY)
+                                }
+                            }
+                            showZoomToastMessage = if (snapTarget == 1f) null else "Без полей"
+                        } else if (zoomScale > fillScale * 1.03f) {
+                            val percent = ((zoomScale / fillScale) * 100).toInt()
+                            showZoomToastMessage = "$percent%"
+                        }
                     }
                 }
             }
-            .pointerInput(showUpNext) {
-                if (showUpNext) return@pointerInput
+            .pointerInput(showUpNext, isZoomed) {
+                if (showUpNext || isZoomed) return@pointerInput
 
                 val doubleTapTimeoutMs = 260L
                 val longPressTimeoutMs = 480L
@@ -463,7 +529,10 @@ fun CustomVideoPlayer(
                 }
 
                 suspend fun AwaitPointerEventScope.trackLongPressHold(down: PointerInputChange, downPos: Offset) {
-                    if (!isSpeedLocked) {
+                    val initiallyLocked = isSpeedLocked
+                    var pendingLockState = initiallyLocked
+
+                    if (!initiallyLocked) {
                         originalSpeed = exoPlayer.playbackParameters.speed
                         showControls = false // Popups/controls automatically disappear when holding 2x!
                         isFastForwarding = true
@@ -480,8 +549,8 @@ fun CustomVideoPlayer(
                         onFastForwardingChange(true)
                     }
 
-                    var hasToggledLock = false
-                    val swipeDownThreshold = 80f
+                    val swipeDownThreshold = 75f
+                    val cancelThreshold = 35f
 
                     try {
                         while (true) {
@@ -493,16 +562,29 @@ fun CustomVideoPlayer(
                             if (currentDragY > 15f) {
                                 change.consume()
                             }
-                            if (!hasToggledLock && currentDragY > swipeDownThreshold) {
-                                change.consume()
-                                hasToggledLock = true
-                                if (!isSpeedLocked) {
+
+                            if (!initiallyLocked) {
+                                if (!pendingLockState && currentDragY > swipeDownThreshold) {
+                                    pendingLockState = true
                                     isSpeedLocked = true
                                     showSpeedLockHint = false
-                                } else {
+                                } else if (pendingLockState && currentDragY < cancelThreshold) {
+                                    // User changed mind and moved finger back up before releasing
+                                    pendingLockState = false
+                                    isSpeedLocked = false
+                                    showSpeedLockHint = true
+                                }
+                            } else {
+                                if (pendingLockState && currentDragY > swipeDownThreshold) {
+                                    // Moving down to unlock
+                                    pendingLockState = false
                                     isSpeedLocked = false
                                     showSpeedUnlockHint = false
-                                    exoPlayer.playbackParameters = PlaybackParameters(originalSpeed)
+                                } else if (!pendingLockState && currentDragY < cancelThreshold) {
+                                    // Moving back up cancels unlocking
+                                    pendingLockState = true
+                                    isSpeedLocked = true
+                                    showSpeedUnlockHint = true
                                 }
                             }
                         }
@@ -510,6 +592,7 @@ fun CustomVideoPlayer(
 
                     isFastForwarding = false
                     onFastForwardingChange(false)
+                    isSpeedLocked = pendingLockState
                     if (!isSpeedLocked) {
                         exoPlayer.playbackParameters = PlaybackParameters(originalSpeed)
                     }

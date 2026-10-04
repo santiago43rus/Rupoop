@@ -40,6 +40,7 @@ fun SettingsScreen(
     val registryManager = vm.registryManager
 
     var downloadQuality by remember { mutableStateOf(settingsManager.downloadQuality) }
+    var concurrentDownloads by remember { mutableIntStateOf(settingsManager.maxConcurrentDownloads.coerceIn(1, 4)) }
     var syncFreq by remember { mutableStateOf(settingsManager.syncFrequencyHours.toString()) }
     var cacheSize by remember { mutableStateOf(getCacheSize(context)) }
     var themeMode by remember { mutableStateOf(settingsManager.themeMode) }
@@ -234,6 +235,65 @@ fun SettingsScreen(
                         registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(downloadQuality = q)))
                         vm.onRegistryUpdate(registryManager.registry)
                     }, label = { Text(q + "p") })
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text("Количество одновременных загрузок", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = {
+                        if (concurrentDownloads > 1) {
+                            val next = concurrentDownloads - 1
+                            concurrentDownloads = next
+                            settingsManager.maxConcurrentDownloads = next
+                            registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)))
+                            vm.onRegistryUpdate(registryManager.registry)
+                            com.santiago43rus.rupoop.service.DownloadService.updateConcurrency(context)
+                        }
+                    },
+                    enabled = concurrentDownloads > 1
+                ) {
+                    Icon(Icons.Default.KeyboardArrowDown, "Меньше")
+                }
+
+                Text(
+                    text = "$concurrentDownloads",
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+
+                IconButton(
+                    onClick = {
+                        if (concurrentDownloads < 4) {
+                            val next = concurrentDownloads + 1
+                            concurrentDownloads = next
+                            settingsManager.maxConcurrentDownloads = next
+                            registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)))
+                            vm.onRegistryUpdate(registryManager.registry)
+                            com.santiago43rus.rupoop.service.DownloadService.updateConcurrency(context)
+                        }
+                    },
+                    enabled = concurrentDownloads < 4
+                ) {
+                    Icon(Icons.Default.KeyboardArrowUp, "Больше")
+                }
+
+                Spacer(Modifier.width(4.dp))
+
+                TextButton(
+                    onClick = {
+                        val next = 1
+                        concurrentDownloads = next
+                        settingsManager.maxConcurrentDownloads = next
+                        registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)))
+                        vm.onRegistryUpdate(registryManager.registry)
+                        com.santiago43rus.rupoop.service.DownloadService.updateConcurrency(context)
+                    }
+                ) {
+                    Text("Сбросить", color = MaterialTheme.colorScheme.primary)
                 }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))

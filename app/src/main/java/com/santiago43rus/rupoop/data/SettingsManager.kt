@@ -38,6 +38,10 @@ class SettingsManager(context: Context) {
         get() = prefs.getInt("sync_frequency", 24)
         set(value) = prefs.edit { putInt("sync_frequency", value) }
 
+    var maxConcurrentDownloads: Int
+        get() = prefs.getInt("max_concurrent_downloads", 1)
+        set(value) = prefs.edit { putInt("max_concurrent_downloads", value) }
+
     var lastSyncTime: Long
         get() = prefs.getLong("last_sync_time", 0)
         set(value) = prefs.edit { putLong("last_sync_time", value) }

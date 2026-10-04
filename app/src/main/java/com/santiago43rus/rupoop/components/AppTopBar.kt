@@ -28,9 +28,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +45,7 @@ import com.santiago43rus.rupoop.*
 import com.santiago43rus.rupoop.util.LibrarySubScreen
 import com.santiago43rus.rupoop.util.NavItem
 import com.santiago43rus.rupoop.util.OverlayState
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 @androidx.media3.common.util.UnstableApi
@@ -110,9 +114,20 @@ fun AppTopBar(
         if (granted) startVoiceInput()
     }
 
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(vm.isSearchExpanded) {
+        if (vm.isSearchExpanded) {
+            delay(100)
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     val topVisible = vm.overlayOrder.lastOrNull {
         (it == OverlayState.SEARCH && vm.isSearchVisible) ||
-        (it == OverlayState.AUTHOR && vm.isAuthorVisible && vm.currentNav == NavItem.HOME)
+        (it == OverlayState.AUTHOR && vm.isAuthorVisible)
     }
 
     Surface(
@@ -120,14 +135,14 @@ fun AppTopBar(
             .fillMaxWidth()
             .statusBarsPadding()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-            .height(48.dp),
+            .height(56.dp),
         color = MaterialTheme.colorScheme.background,
         tonalElevation = 1.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 4.dp),
+                .padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (!vm.isSearchExpanded && topVisible != OverlayState.SEARCH) {
@@ -260,6 +275,7 @@ fun AppTopBar(
                         modifier = Modifier
                             .weight(1f)
                             .padding(end = 4.dp)
+                            .focusRequester(focusRequester)
                             .onFocusChanged { focusState ->
                                 if (focusState.isFocused) {
                                     vm.isSearchExpanded = true

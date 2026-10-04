@@ -29,6 +29,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class DownloadService : Service() {
     internal val CHANNEL_ID = "download_channel"
     internal val CHANNEL_COMPLETE_ID = "download_complete_channel"
@@ -49,10 +50,44 @@ class DownloadService : Service() {
         const val ACTION_DOWNLOAD_CANCELLED = "com.santiago43rus.rupoop.DOWNLOAD_CANCELLED"
         const val ACTION_DOWNLOAD_PAUSED = "com.santiago43rus.rupoop.DOWNLOAD_PAUSED"
         const val ACTION_DOWNLOAD_RESUMED = "com.santiago43rus.rupoop.DOWNLOAD_RESUMED"
+        const val ACTION_UPDATE_CONCURRENCY = "com.santiago43rus.rupoop.UPDATE_CONCURRENCY"
+        const val ACTION_PLAYBACK_STATE_CHANGED = "com.santiago43rus.rupoop.PLAYBACK_STATE_CHANGED"
+
+        var isVideoPlaying: Boolean = false
+        var activeInstance: DownloadService? = null
+
+        fun updateConcurrency(context: android.content.Context) {
+            val inst = activeInstance
+            if (inst != null) {
+                inst.serviceScope.launch { inst.processQueue() }
+            } else {
+                try {
+                    context.startService(Intent(context, DownloadService::class.java).apply {
+                        action = ACTION_UPDATE_CONCURRENCY
+                    })
+                } catch (_: Exception) {}
+            }
+        }
+
+        fun onPlaybackStateChanged(context: android.content.Context, isPlaying: Boolean) {
+            isVideoPlaying = isPlaying
+            val inst = activeInstance
+            if (inst != null) {
+                inst.serviceScope.launch { inst.processQueue() }
+            } else {
+                try {
+                    context.startService(Intent(context, DownloadService::class.java).apply {
+                        action = ACTION_PLAYBACK_STATE_CHANGED
+                        putExtra("IS_PLAYING", isPlaying)
+                    })
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
+        activeInstance = this
         createNotificationChannel()
         downloadTracker = DownloadTracker(applicationContext)
 
@@ -71,6 +106,16 @@ class DownloadService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         Log.d("DownloadService", "onStartCommand action: $action")
+
+        if (action == ACTION_UPDATE_CONCURRENCY) {
+            processQueue()
+            return START_NOT_STICKY
+        }
+        if (action == ACTION_PLAYBACK_STATE_CHANGED) {
+            isVideoPlaying = intent.getBooleanExtra("IS_PLAYING", false)
+            processQueue()
+            return START_NOT_STICKY
+        }
 
         val actionVideoId = intent?.getStringExtra("VIDEO_ID") ?: ""
         
@@ -98,21 +143,13 @@ class DownloadService : Service() {
                     val manager = getSystemService(NotificationManager::class.java)
                     val notifId = getOrCreateNotifId(actionVideoId)
                     if (foregroundVideoId == actionVideoId) {
-                        // This notification id is the one currently bound via startForeground().
-                        // NotificationManager.cancel() alone cannot remove a notification still
-                        // pinned as the service's foreground notification - the system just keeps
-                        // it showing. Detach (and actually remove it) first. This is exactly like
-                        // the PAUSE branch above, which already does this correctly; CANCEL was
-                        // missing it, which is why cancelling the currently-foreground download
-                        // (most reliably reproduced with audio, since the extra extraction step
-                        // makes it far more likely to still be foreground when you tap cancel)
-                        // left its notification stuck on screen.
                         foregroundVideoId = null
                         isServiceForeground = false
                         stopForegroundSafely(STOP_FOREGROUND_REMOVE)
                     }
                     manager?.cancel(notifId)
                     checkAndStopService()
+                    processQueue()
                 }
                 return START_NOT_STICKY
             }
@@ -121,7 +158,9 @@ class DownloadService : Service() {
                     bumpGeneration(actionVideoId)
                     val task = activeTasks[actionVideoId]
                     if (task != null) {
+                        task.isPausedByUser = true
                         task.isPaused = true
+                        task.isSuspended = false
                         downloadTracker.updateStatus(actionVideoId, DownloadStatus.PAUSED)
                         sendBroadcast(Intent(ACTION_DOWNLOAD_PAUSED).putExtra("video_id", actionVideoId))
                         if (foregroundVideoId == actionVideoId) {
@@ -131,9 +170,9 @@ class DownloadService : Service() {
                         }
                         updateNotification(task.videoId, task.title, if (task.totalSegments > 0) (task.downloadedSegments * 100) / task.totalSegments else 0, task.isAudio, true, "Приостановлено")
                         task.job?.cancel()
-                        activeTasks.remove(actionVideoId)
                         Log.d("DownloadService", "Paused active task: $actionVideoId")
                         checkAndStopService()
+                        processQueue()
                     } else {
                         val tracked = downloadTracker.downloads.value.find { it.videoId == actionVideoId }
                         if (tracked != null) {
@@ -155,13 +194,13 @@ class DownloadService : Service() {
                 if (actionVideoId.isNotEmpty()) {
                     bumpGeneration(actionVideoId)
                     val activeTask = activeTasks[actionVideoId]
-                    if (activeTask != null && activeTask.isPaused) {
+                    if (activeTask != null) {
+                        activeTask.isPausedByUser = false
                         activeTask.isPaused = false
-                        downloadTracker.updateStatus(actionVideoId, DownloadStatus.DOWNLOADING)
-                        updateNotification(actionVideoId, activeTask.title, activeTask.downloadedSegments.coerceAtLeast(0) * 100 / (activeTask.totalSegments.takeIf { it > 0 } ?: 1), activeTask.isAudio, false)
+                        downloadTracker.updateStatus(actionVideoId, DownloadStatus.PENDING)
                         sendBroadcast(Intent(ACTION_DOWNLOAD_RESUMED).putExtra("video_id", actionVideoId))
-                        Log.d("DownloadService", "Resuming paused active task: $actionVideoId")
-                        activeTask.start()
+                        Log.d("DownloadService", "Resuming task: $actionVideoId")
+                        processQueue()
                     } else if (!activeTasks.containsKey(actionVideoId)) {
                         val tracked = downloadTracker.downloads.value.find { it.videoId == actionVideoId }
                         if (tracked != null) {
@@ -174,10 +213,9 @@ class DownloadService : Service() {
                                         val isAudioTrack = tracked.filePath?.endsWith(".m4a") == true || tracked.filePath?.endsWith(".mp3") == true
                                         val task = DownloadTask(this@DownloadService, actionVideoId, m3u8Url, tracked.title, "1080", isAudioTrack, tracked.thumbnailUrl)
                                         activeTasks[actionVideoId] = task
-                                        downloadTracker.updateStatus(actionVideoId, DownloadStatus.DOWNLOADING)
-                                        updateNotification(actionVideoId, tracked.title, tracked.progress, isAudioTrack, false)
+                                        downloadTracker.updateStatus(actionVideoId, DownloadStatus.PENDING)
                                         sendBroadcast(Intent(ACTION_DOWNLOAD_RESUMED).putExtra("video_id", actionVideoId))
-                                        task.start()
+                                        processQueue()
                                     } else {
                                         downloadTracker.updateStatus(actionVideoId, DownloadStatus.ERROR, "Не удалось получить ссылку на поток")
                                     }
@@ -201,15 +239,6 @@ class DownloadService : Service() {
         val thumbnailUrl = intent.getStringExtra("THUMBNAIL_URL")
 
         if (requestedVideoId.isNotEmpty()) {
-            // Every download request gets its own unique upload id, built from the real video id
-            // plus a type + random/time suffix ("realId___video_172..._483"). This is what
-            // activeTasks, the notification id map, the tracker, and the output filename are all
-            // keyed on from here down. Without this, downloading the same video twice - or
-            // downloading it as both video and audio - reused the exact same id and filename and
-            // one download would silently clobber the other (blocked from even starting, or
-            // overwriting the other's file/notification). RESUME already expected this
-            // "realId___..." shape (see actionVideoId.substringBefore("___") above), so this just
-            // makes the id actually get created that way.
             val uploadId = generateUploadId(requestedVideoId, isAudioTrack)
 
             val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
@@ -228,7 +257,7 @@ class DownloadService : Service() {
                 title = title,
                 thumbnailUrl = thumbnailUrl,
                 filePath = path,
-                status = DownloadStatus.DOWNLOADING
+                status = DownloadStatus.PENDING
             ))
 
             val task = DownloadTask(this, uploadId, url, title, quality, isAudioTrack, thumbnailUrl)
@@ -236,13 +265,43 @@ class DownloadService : Service() {
 
             val showNotif = com.santiago43rus.rupoop.data.SettingsManager(this).showDownloadNotifications
             if (showNotif) {
-                updateNotification(uploadId, title, 0, isAudioTrack, false)
+                updateNotification(uploadId, title, 0, isAudioTrack, false, "В очереди...")
             }
 
-            task.start()
+            processQueue()
         }
 
         return START_NOT_STICKY
+    }
+
+    @Synchronized
+    internal fun processQueue() {
+        val settingsManager = com.santiago43rus.rupoop.data.SettingsManager(this)
+        val maxAllowed = settingsManager.maxConcurrentDownloads.coerceIn(1, 4)
+        val isWatching = isVideoPlaying || (com.santiago43rus.rupoop.AppViewModel.instance?.playbackController?.let {
+            it.playerState != com.santiago43rus.rupoop.util.PlayerState.CLOSED && it.isPlaying
+        } == true)
+        val effectiveMax = if (isWatching && maxAllowed > 1) 1 else maxAllowed
+
+        val orderedTasks = activeTasks.values.sortedBy { it.orderTimestamp }
+        val eligibleTasks = orderedTasks.filter { !it.isCancelled && !it.isPausedByUser }
+
+        val runningTasks = eligibleTasks.filter { it.isRunning }
+        val pendingTasks = eligibleTasks.filter { !it.isRunning }
+
+        if (runningTasks.size > effectiveMax) {
+            val toSuspend = runningTasks.drop(effectiveMax)
+            for (task in toSuspend) {
+                task.suspendTask()
+            }
+        } else if (runningTasks.size < effectiveMax) {
+            val availableSlots = effectiveMax - runningTasks.size
+            val toStart = pendingTasks.take(availableSlots)
+            for (task in toStart) {
+                task.startOrResume()
+            }
+        }
+        checkAndStopService()
     }
 
     /**
@@ -258,13 +317,13 @@ class DownloadService : Service() {
     }
 
     internal fun checkAndStopService() {
-        val nextTask = activeTasks.values.firstOrNull { !it.isPaused }
+        val nextTask = activeTasks.values.firstOrNull { it.isRunning }
 
         if (nextTask == null) {
             foregroundVideoId = null
             isServiceForeground = false
             stopForegroundSafely(STOP_FOREGROUND_DETACH)
-            if (activeTasks.isEmpty()) {
+            if (activeTasks.isEmpty() || activeTasks.values.none { it.isRunning || (!it.isCancelled && !it.isPausedByUser) }) {
                 stopSelf()
             }
             return
@@ -284,6 +343,9 @@ class DownloadService : Service() {
     }
 
     override fun onDestroy() {
+        if (activeInstance == this) {
+            activeInstance = null
+        }
         serviceJob.cancel()
         super.onDestroy()
     }

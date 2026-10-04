@@ -143,6 +143,7 @@ class GistSyncManager(
         settingsManager.themeMode = appSettings.theme
         settingsManager.downloadQuality = appSettings.downloadQuality
         settingsManager.syncFrequencyHours = appSettings.syncFrequencyHours
+        settingsManager.maxConcurrentDownloads = appSettings.maxConcurrentDownloads
         settingsManager.adultContentEnabled = appSettings.adultContentEnabled
         settingsManager.kidsContentEnabled = appSettings.kidsContentEnabled
         settingsManager.enabledGenres = appSettings.enabledGenres.toSet()
@@ -159,6 +160,7 @@ class GistSyncManager(
             theme = settingsManager.themeMode,
             downloadQuality = settingsManager.downloadQuality,
             syncFrequencyHours = settingsManager.syncFrequencyHours,
+            maxConcurrentDownloads = settingsManager.maxConcurrentDownloads,
             adultContentEnabled = settingsManager.adultContentEnabled,
             kidsContentEnabled = settingsManager.kidsContentEnabled,
             enabledGenres = settingsManager.enabledGenres.toList(),
