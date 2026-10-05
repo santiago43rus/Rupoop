@@ -58,6 +58,11 @@ fun ContentSelectionDialog(
                                 enabledGenres = if (selected) enabledGenres - genre else enabledGenres + genre
                             },
                             label = { Text(genre.replaceFirstChar { it.uppercase() }) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color.White,
+                                selectedLabelColor = Color.Black,
+                                selectedLeadingIconColor = Color.Black
+                            ),
                             leadingIcon = if (selected) {
                                 {
                                     Icon(
@@ -80,9 +85,11 @@ fun ContentSelectionDialog(
                     settingsManager.enabledGenres = enabledGenres
                     settingsManager.isFirstLaunch = false
                     onDismiss()
-                }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                shape = RoundedCornerShape(50)
             ) {
-                Text("Сохранить")
+                Text("Сохранить", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
             }
         }
     )
@@ -146,8 +153,25 @@ fun PlaylistSelectionDialog(
                 }
             }
         },
-        confirmButton = { if (isCreating) Button(onClick = { if (newName.isNotBlank()) onCreateNew(newName) }) { Text("Создать") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        confirmButton = {
+            if (isCreating) {
+                Button(
+                    onClick = { if (newName.isNotBlank()) onCreateNew(newName) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                    shape = RoundedCornerShape(50)
+                ) {
+                    Text("Создать", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+            ) {
+                Text("Отмена")
+            }
+        }
     )
 }
 
@@ -191,12 +215,19 @@ fun DeleteConfirmationDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(if (showGistCheckbox) deleteFromGist else false) }) {
-                Text(confirmButtonText)
+            Button(
+                onClick = { onConfirm(if (showGistCheckbox) deleteFromGist else false) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                shape = RoundedCornerShape(50)
+            ) {
+                Text(confirmButtonText, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+            ) {
                 Text("Отмена")
             }
         }
@@ -273,13 +304,18 @@ fun OpenUrlDialog(
                         onDismiss()
                     }
                 },
-                enabled = urlText.isNotBlank()
+                enabled = urlText.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                shape = RoundedCornerShape(50)
             ) {
-                Text("Воспроизвести")
+                Text("Воспроизвести", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+            ) {
                 Text("Отмена")
             }
         }

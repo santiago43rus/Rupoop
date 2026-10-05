@@ -11,9 +11,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = RupoopRed,
-    onPrimary = Color.White,
-    secondary = RupoopRedDark,
+    primary = Color.White,
+    onPrimary = Color.Black,
+    secondary = Color.White,
+    onSecondary = Color.Black,
+    primaryContainer = Color.White,
+    onPrimaryContainer = Color.Black,
+    secondaryContainer = Color.White,
+    onSecondaryContainer = Color.Black,
     tertiary = Color(0xFF66BB6A),
     background = DarkBackground,
     surface = DarkSurface,
@@ -25,9 +30,14 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = RupoopRed,
+    primary = Color(0xFF0F0F0F),
     onPrimary = Color.White,
-    secondary = RupoopRedDark,
+    secondary = Color(0xFF0F0F0F),
+    onSecondary = Color.White,
+    primaryContainer = Color(0xFF0F0F0F),
+    onPrimaryContainer = Color.White,
+    secondaryContainer = Color(0xFF0F0F0F),
+    onSecondaryContainer = Color.White,
     tertiary = Color(0xFF388E3C),
     background = LightBackground,
     surface = LightSurface,

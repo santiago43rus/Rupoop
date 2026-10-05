@@ -4,8 +4,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -37,7 +40,8 @@ fun RelatedVideosList(
     isBackgroundEnabled: Boolean = false,
     onBackgroundPlayToggle: () -> Unit = {},
     showVideoDetails: Boolean = true,
-    useTwoColumns: Boolean = false
+    useTwoColumns: Boolean = false,
+    isLoading: Boolean = false
 ) {
     val isLocalFile = currentVideo?.videoUrl != null && !currentVideo.videoUrl.startsWith("http")
 
@@ -72,7 +76,7 @@ fun RelatedVideosList(
             }
         }
         if (!isLocalFile) {
-            if (relatedVideos.isEmpty()) {
+            if (isLoading) {
                 if (useTwoColumns) {
                     items(3) {
                         Row(
@@ -88,6 +92,35 @@ fun RelatedVideosList(
                 } else {
                     items(6) {
                         com.santiago43rus.rupoop.components.VideoCardShimmer()
+                    }
+                }
+            } else if (relatedVideos.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp, horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VideoLibrary,
+                            contentDescription = null,
+                            modifier = Modifier.size(56.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Нет похожих видео",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Для этого видео пока нет рекомендаций",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             } else if (useTwoColumns) {

@@ -14,7 +14,7 @@ val localProperties = Properties().apply {
 }
 
 base {
-    archivesName.set("Rupoop-v1.0.4")
+    archivesName.set("Rupoop-v1.1.0")
 }
 
 android {
@@ -25,8 +25,8 @@ android {
         applicationId = "com.santiago43rus.rupoop"
         minSdk = 29
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 6
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

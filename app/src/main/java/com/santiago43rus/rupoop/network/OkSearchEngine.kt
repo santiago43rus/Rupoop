@@ -142,7 +142,7 @@ object OkSearchEngine {
                                         videoUrl = videoUrl,
                                         title = title,
                                         thumbnailUrl = thumb,
-                                        author = Author(name = authorName, avatarUrl = authorAvatar),
+                                        author = Author(name = authorName, avatarUrl = authorAvatar, platform = "OK"),
                                         duration = durSec,
                                         hits = totalViews,
                                         createdTs = createdTs,
@@ -200,7 +200,7 @@ object OkSearchEngine {
                         videoUrl = videoUrl,
                         title = title,
                         thumbnailUrl = poster,
-                        author = Author(name = "Одноклассники"),
+                        author = Author(name = "Одноклассники", platform = "OK"),
                         duration = durationSec
                     )
                 )

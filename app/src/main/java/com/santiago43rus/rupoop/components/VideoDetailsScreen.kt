@@ -26,6 +26,8 @@ import coil.compose.AsyncImage
 import com.santiago43rus.rupoop.data.Author
 import com.santiago43rus.rupoop.data.SearchResult
 import com.santiago43rus.rupoop.data.UserRegistry
+import com.santiago43rus.rupoop.network.PlatformSearchEngineResolver
+import com.santiago43rus.rupoop.parser.UniversalVideoParser
 import com.santiago43rus.rupoop.util.formatViewCount
 import com.santiago43rus.rupoop.util.formatTimeAgo
 import com.santiago43rus.rupoop.util.extractId
@@ -81,6 +83,16 @@ fun VideoDetails(
 
         val isLocalFile = video?.videoUrl?.startsWith("/") == true || video?.videoUrl?.startsWith("file://") == true || (video?.videoUrl != null && !video.videoUrl.startsWith("http"))
         if (!isLocalFile) {
+            val isRutube = video?.videoUrl?.let { UniversalVideoParser.isRutubeUrl(it) } == true
+            val platformName = video?.videoUrl?.let { PlatformSearchEngineResolver.getPlatformDisplayName(it) } ?: "Rutube"
+
+            val isLordfilm = video?.videoUrl?.lowercase()?.let { it.contains("lordfilm") || it.contains("lordserials") } == true
+            val authorToNavigate = if (isLordfilm) {
+                Author(name = "Lordfilm", platform = "LORDFILM")
+            } else {
+                video?.author ?: Author(name = platformName, platform = platformName)
+            }
+
             // Author / Channel and Subscribe Row
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -88,23 +100,32 @@ fun VideoDetails(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
             ) {
-                AsyncImage(
-                    model = video?.author?.avatarUrl ?: "",
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color.Gray.copy(0.3f))
-                        .clickable { video?.author?.let { onAuthorClick(it) } }
-                )
+                if (isLordfilm) {
+                    LordfilmAvatarBadge(
+                        size = 36.dp,
+                        modifier = Modifier.clickable { onAuthorClick(authorToNavigate) }
+                    )
+                } else {
+                    val fallbackAvatar = if (platformName == "Одноклассники") "https://ok.ru/favicon.ico"
+                        else "https://rutube.ru/static/img/default-avatar.png"
+                    AsyncImage(
+                        model = video?.author?.avatarUrl?.takeIf { it.isNotBlank() } ?: fallbackAvatar,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.Gray.copy(0.3f))
+                            .clickable { onAuthorClick(authorToNavigate) }
+                    )
+                }
                 Spacer(Modifier.width(10.dp))
                 Column(
                     Modifier
                         .weight(1f)
-                        .clickable { video?.author?.let { onAuthorClick(it) } }
+                        .clickable { onAuthorClick(authorToNavigate) }
                 ) {
                     Text(
-                        text = video?.author?.name ?: "Автор",
+                        text = if (isLordfilm) "Lordfilm" else (video?.author?.name ?: "Автор"),
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
@@ -112,7 +133,7 @@ fun VideoDetails(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Rutube • 1.2 млн подписчиков",
+                        text = if (isLordfilm) "Новинки кино и сериалов" else if (isRutube) "Rutube • 1.2 млн подписчиков" else platformName,
                         fontSize = 11.sp,
                         color = Color.LightGray.copy(0.6f)
                     )

@@ -140,36 +140,10 @@ class GistSyncManager(
     }
 
     private fun applySettingsToPreferences(appSettings: AppSettings) {
-        settingsManager.themeMode = appSettings.theme
-        settingsManager.downloadQuality = appSettings.downloadQuality
-        settingsManager.syncFrequencyHours = appSettings.syncFrequencyHours
-        settingsManager.maxConcurrentDownloads = appSettings.maxConcurrentDownloads
-        settingsManager.adultContentEnabled = appSettings.adultContentEnabled
-        settingsManager.kidsContentEnabled = appSettings.kidsContentEnabled
-        settingsManager.enabledGenres = appSettings.enabledGenres.toSet()
-        settingsManager.autoPlayNext = appSettings.autoPlayNext
-        settingsManager.doubleTapSeekDuration = appSettings.doubleTapSeekDuration
-        settingsManager.appIcon = appSettings.appIcon
-        settingsManager.showDownloadNotifications = appSettings.showDownloadNotifications
-        settingsManager.showBackgroundNotifications = appSettings.showBackgroundNotifications
-        settingsManager.isEasterEggUnlocked = appSettings.isEasterEggUnlocked || settingsManager.isEasterEggUnlocked
+        settingsManager.applyAppSettings(appSettings)
     }
 
     private fun buildAppSettingsFromPreferences(): AppSettings {
-        return AppSettings(
-            theme = settingsManager.themeMode,
-            downloadQuality = settingsManager.downloadQuality,
-            syncFrequencyHours = settingsManager.syncFrequencyHours,
-            maxConcurrentDownloads = settingsManager.maxConcurrentDownloads,
-            adultContentEnabled = settingsManager.adultContentEnabled,
-            kidsContentEnabled = settingsManager.kidsContentEnabled,
-            enabledGenres = settingsManager.enabledGenres.toList(),
-            autoPlayNext = settingsManager.autoPlayNext,
-            doubleTapSeekDuration = settingsManager.doubleTapSeekDuration,
-            appIcon = settingsManager.appIcon,
-            showDownloadNotifications = settingsManager.showDownloadNotifications,
-            showBackgroundNotifications = settingsManager.showBackgroundNotifications,
-            isEasterEggUnlocked = settingsManager.isEasterEggUnlocked
-        )
+        return settingsManager.toAppSettings()
     }
 }

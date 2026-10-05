@@ -40,9 +40,9 @@ fun VideoListScreen(
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+            contentPadding = if (columns == 1) androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp) else androidx.compose.foundation.layout.PaddingValues(12.dp),
+            horizontalArrangement = if (columns == 1) androidx.compose.foundation.layout.Arrangement.spacedBy(0.dp) else androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+            verticalArrangement = if (columns == 1) androidx.compose.foundation.layout.Arrangement.spacedBy(0.dp) else androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
         ) {
             items(videos) { video ->
                 VideoCardItem(

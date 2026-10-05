@@ -5,6 +5,7 @@ import androidx.annotation.OptIn
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -77,6 +78,7 @@ fun CustomVideoPlayer(
     showMoreVideosState: MutableState<Boolean> = remember { mutableStateOf(false) },
     moreVideosDragOffsetState: MutableState<Float> = remember { mutableStateOf(0f) },
     isExpandingToFullscreen: Boolean = false,
+    onRequestPip: (() -> Unit)? = null,
     onZoomedChange: (Boolean) -> Unit = {}
 ) {
     val showControlsState = remember { mutableStateOf(true) }
@@ -292,7 +294,15 @@ fun CustomVideoPlayer(
     val configuration = LocalConfiguration.current
     val isTablet = configuration.smallestScreenWidthDp >= 600
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val shouldFillMax = isFullscreen || (isLandscape && !isTablet && !isTransitioning)
+    val shouldFillMax = (isFullscreen && (isLandscape || isTablet)) || (isLandscape && !isTablet && !isTransitioning)
+
+    LaunchedEffect(shouldFillMax) {
+        if (!shouldFillMax) {
+            zoomScale = 1f
+            zoomOffsetX = 0f
+            zoomOffsetY = 0f
+        }
+    }
 
     val isZoomed = remember(zoomScale, videoAspectRatio, shouldFillMax, configuration.screenWidthDp, configuration.screenHeightDp) {
         val containerAspect = if (shouldFillMax) {
@@ -334,7 +344,8 @@ fun CustomVideoPlayer(
                 isFastForwarding = isFastForwarding || showSpeedUnlockHint || showSpeedLockHint,
                 isTablet = isTablet,
                 isLandscape = isLandscape,
-                isZoomed = isZoomed
+                isZoomed = isZoomed,
+                hasRelatedVideos = relatedVideos.isNotEmpty()
             )
             // Pinch-to-zoom + pan (moves like on maps when zoomed).
             .pointerInput(Unit) {
@@ -732,6 +743,7 @@ fun CustomVideoPlayer(
             onNext = onNext,
             onPrevious = onPrevious,
             onShowSettings = { showSettings = true },
+            onRequestPip = onRequestPip,
             onSeekStart = {
                 isSeeking = true
                 // Frame-accurate seeking while actively scrubbing, so the main video view shows the

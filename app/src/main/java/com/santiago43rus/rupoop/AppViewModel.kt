@@ -2,7 +2,9 @@ package com.santiago43rus.rupoop
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -47,6 +49,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val relatedVideoRecommender = RelatedVideoRecommendationStrategy(registryManager)
     val authManager = GitHubAuthManager(context)
     val syncManager = GistSyncManager(RetrofitClient.gistApi, registryManager, settingsManager)
+    val backupManager = BackupManager(registryManager, settingsManager)
     val downloadTracker = DownloadTracker(context)
 
     var userRegistry by mutableStateOf(registryManager.registry)
@@ -57,6 +60,54 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun showSnackbar(message: String) {
         viewModelScope.launch {
             _snackbarMessage.emit(message)
+        }
+    }
+
+    fun exportBackupShare(ctx: Context) {
+        try {
+            val intent = backupManager.createShareIntent(ctx)
+            ctx.startActivity(Intent.createChooser(intent, "Экспорт резервной копии"))
+        } catch (e: Exception) {
+            showSnackbar("Ошибка экспорта: ${e.localizedMessage}")
+        }
+    }
+
+    fun exportBackupToUri(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val os = context.contentResolver.openOutputStream(uri)
+                if (os != null && backupManager.writeBackupToStream(os)) {
+                    showSnackbar("Резервная копия успешно сохранена")
+                } else {
+                    showSnackbar("Не удалось записать файл")
+                }
+            } catch (e: Exception) {
+                showSnackbar("Ошибка экспорта: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun importBackupFromUri(uri: Uri, onComplete: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                if (inputStream != null) {
+                    val result = backupManager.importBackupFromStream(inputStream)
+                    result.onSuccess { registry ->
+                        userRegistry = registry
+                        showSnackbar("Данные успешно импортированы!")
+                        withContext(Dispatchers.Main) {
+                            onComplete()
+                        }
+                    }.onFailure {
+                        showSnackbar("Ошибка импорта: неверный формат файла")
+                    }
+                } else {
+                    showSnackbar("Не удалось открыть выбранный файл")
+                }
+            } catch (e: Exception) {
+                showSnackbar("Ошибка импорта: ${e.localizedMessage}")
+            }
         }
     }
 
@@ -149,6 +200,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loadHome = { contentFeedController.loadHome(it) },
         getRegistry = { registryManager.registry }
     )
+
+    var isInPipMode by mutableStateOf(false)
+    var onRequestPip: (() -> Unit)? = null
+    val isLoadingRelated: Boolean get() = playbackController.isLoadingRelated
 
     var showDownloadNotifications by mutableStateOf(settingsManager.showDownloadNotifications)
     var showBackgroundNotifications by mutableStateOf(settingsManager.showBackgroundNotifications)

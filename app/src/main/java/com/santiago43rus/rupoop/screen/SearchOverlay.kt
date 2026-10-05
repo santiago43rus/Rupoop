@@ -51,6 +51,10 @@ fun SearchOverlay(vm: AppViewModel) {
                     FilterChip(
                         selected = isSelected,
                         onClick = { vm.selectSearchSource(source) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = androidx.compose.ui.graphics.Color.White,
+                            selectedLabelColor = androidx.compose.ui.graphics.Color.Black
+                        ),
                         label = {
                             Text(
                                 text = source.displayName,
@@ -65,9 +69,9 @@ fun SearchOverlay(vm: AppViewModel) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(columns),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = if (columns == 1) PaddingValues(bottom = 16.dp) else PaddingValues(12.dp),
+                    horizontalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(16.dp),
+                    verticalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(12.dp)
                 ) {
                     val shimmerCount = if (columns > 1) columns * 4 else 6
                     items(shimmerCount) {
@@ -97,9 +101,9 @@ fun SearchOverlay(vm: AppViewModel) {
                     columns = GridCells.Fixed(columns),
                     modifier = Modifier.fillMaxSize(),
                     state = listState,
-                    contentPadding = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = if (columns == 1) PaddingValues(bottom = 16.dp) else PaddingValues(12.dp),
+                    horizontalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(16.dp),
+                    verticalArrangement = if (columns == 1) Arrangement.spacedBy(0.dp) else Arrangement.spacedBy(12.dp)
                 ) {
                     items(vm.searchResults) { video ->
                         val history =

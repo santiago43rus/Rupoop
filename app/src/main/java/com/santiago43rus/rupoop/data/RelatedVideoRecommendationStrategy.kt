@@ -36,7 +36,7 @@ data class SequenceInfo(
     val year: Int?
 )
 
-class RelatedVideoRecommendationStrategy(private val registryManager: UserRegistryManager) {
+class RelatedVideoRecommendationStrategy(private val registryManager: UserRegistryManager? = null) {
 
     fun parseSequenceInfo(title: String): SequenceInfo {
         // Remove quotes like «...» first from the whole title to avoid splitting on slashes inside quotes
@@ -172,119 +172,143 @@ class RelatedVideoRecommendationStrategy(private val registryManager: UserRegist
         val emDashIndex = base.indexOf('—')
         if (emDashIndex != -1) base = base.substring(0, emDashIndex)
 
-        base = base.replace(Regex("сериал|мультфильм|фильм|серия", RegexOption.IGNORE_CASE), "")
+        base = base.replace(Regex("сериал|мультфильм|мультсериал|фильм|серия|аниме|шоу|hd|fullhd|озвучка", RegexOption.IGNORE_CASE), "")
         base = base.replace(Regex("[^a-zA-Zа-яА-Я0-9]"), "").lowercase(Locale.getDefault())
 
         return SequenceInfo(base, season, episode, part, year)
     }
 
-    private fun isStrictSequel(current: SequenceInfo, candidate: SequenceInfo): Boolean {
-        if (current.baseName != candidate.baseName) return false
-        
+    fun isBaseNameMatching(base1: String, base2: String): Boolean {
+        if (base1.isEmpty() || base2.isEmpty()) return false
+        if (base1 == base2) return true
+        if (base1.length >= 3 && base2.length >= 3) {
+            if (base1.contains(base2) || base2.contains(base1)) return true
+        }
+        return false
+    }
+
+    fun isStrictSequel(current: SequenceInfo, candidate: SequenceInfo): Boolean {
+        if (!isBaseNameMatching(current.baseName, candidate.baseName)) return false
+
         // Episodic
         if (current.episode != null || candidate.episode != null) {
             val cSeason = current.season ?: 1
             val candSeason = candidate.season ?: 1
-            
+
             if (cSeason == candSeason) {
                 val cEp = current.episode ?: 1
                 val candEp = candidate.episode ?: 1
                 return candEp == cEp + 1
             } else if (candSeason == cSeason + 1) {
-                return candidate.episode == 1
+                return candidate.episode == null || candidate.episode == 1
             }
             return false
         }
-        
+
         // Parts / Movies - prioritize part if available
         if (current.part != null || candidate.part != null) {
             val cPart = current.part ?: 1
             val candPart = candidate.part ?: 1
             return candPart == cPart + 1
         }
-        
+
         // Fallback to year if no parts or episodes are specified
         if (current.year != null && candidate.year != null) {
             return candidate.year > current.year
         }
-        
+
         return false
     }
 
     fun recommendRelated(video: SearchResult, pool: List<SearchResult>): List<SearchResult> {
-        val registry = registryManager.registry
+        val registry = registryManager?.registry ?: UserRegistry()
         val currentInfo = parseSequenceInfo(video.title)
-        
+
         var strictSequel: SearchResult? = null
         val others = mutableListOf<SearchResult>()
-        
+
         for (candidate in pool) {
             if (candidate.videoUrl == video.videoUrl) continue
             if (candidate.title.contains("мультик", ignoreCase = true)) continue
-            
+
             val candInfo = parseSequenceInfo(candidate.title)
-            
-            // Strict Sequel Logic
-            if (candidate.author?.name == video.author?.name &&
-                isStrictSequel(currentInfo, candInfo)) {
-                // If we rely on year, pick the closest future year
-                if (currentInfo.part == null && currentInfo.episode == null && candInfo.part == null && candInfo.episode == null && currentInfo.year != null && candInfo.year != null) {
-                    if (strictSequel == null) {
+
+            // Strict Sequel Logic (works across Rutube, VK, OK, Lordfilm)
+            if (isStrictSequel(currentInfo, candInfo)) {
+                if (strictSequel == null) {
+                    strictSequel = candidate
+                } else {
+                    val currentStrictInfo = parseSequenceInfo(strictSequel.title)
+                    val currentAuthorMatch = strictSequel.author?.name?.equals(video.author?.name, ignoreCase = true) == true
+                    val candAuthorMatch = candidate.author?.name?.equals(video.author?.name, ignoreCase = true) == true
+
+                    if (!currentAuthorMatch && candAuthorMatch) {
+                        others.add(strictSequel)
                         strictSequel = candidate
-                    } else {
-                        val currentStrictInfo = parseSequenceInfo(strictSequel!!.title)
-                        if (currentStrictInfo.year != null && candInfo.year < currentStrictInfo.year) {
-                            others.add(strictSequel!!)
+                    } else if (currentInfo.part == null && currentInfo.episode == null && currentStrictInfo.year != null && candInfo.year != null) {
+                        if (candInfo.year < currentStrictInfo.year) {
+                            others.add(strictSequel)
                             strictSequel = candidate
                         } else {
                             others.add(candidate)
                         }
+                    } else {
+                        others.add(candidate)
                     }
-                    continue
-                } else if (strictSequel == null) {
-                    strictSequel = candidate
-                    continue
                 }
+                continue
             }
-            
+
             others.add(candidate)
         }
-        
+
         others.sortByDescending { candidate ->
             var score = RecommendationUtils.calculateScore(candidate, registry)
-            if (candidate.author?.name == video.author?.name) score += 50.0f
-            
+            if (candidate.author?.name?.equals(video.author?.name, ignoreCase = true) == true) score += 50.0f
+
             val cInfo = parseSequenceInfo(candidate.title)
-            if (cInfo.baseName == currentInfo.baseName) {
+            if (isBaseNameMatching(cInfo.baseName, currentInfo.baseName)) {
                 score += 200.0f // Give similar named ones a boost
             }
-            
+
             score
         }
-        
+
         val result = mutableListOf<SearchResult>()
         if (strictSequel != null) {
             result.add(strictSequel)
         }
         result.addAll(others)
-        
+
         return result
     }
 
     fun getSearchQueries(video: SearchResult): List<String> {
-        val parsed = RecommendationUtils.parseTitle(video.title)
-        val queries = mutableListOf<String>()
-        val base = parsed.base.take(50).trim()
+        val parsed = parseSequenceInfo(video.title)
+        val rawParsed = RecommendationUtils.parseTitle(video.title)
+        val rawBase = rawParsed.base.take(50).trim()
 
-        if (parsed.season != null && parsed.episode != null) {
-            queries.add("$base сезон ${parsed.season} серия ${parsed.episode + 1}")
-            queries.add("$base сезон ${parsed.season + 1} серия 1")
-        } else if (parsed.episode != null) {
-            queries.add("$base серия ${parsed.episode + 1}")
-        } else if (parsed.part != null) {
-            queries.add("$base часть ${parsed.part + 1}")
+        val season = parsed.season ?: rawParsed.season
+        val episode = parsed.episode ?: rawParsed.episode
+        val part = parsed.part ?: rawParsed.part
+
+        val queries = mutableListOf<String>()
+        if (season != null && episode != null) {
+            queries.add("$rawBase сезон $season серия ${episode + 1}")
+            queries.add("$rawBase s${season}e${episode + 1}")
+            queries.add("$rawBase $season сезон ${episode + 1} серия")
+            queries.add("$rawBase сезон ${season + 1} серия 1")
+        } else if (episode != null) {
+            queries.add("$rawBase серия ${episode + 1}")
+            queries.add("$rawBase ${episode + 1} серия")
+        } else if (part != null) {
+            queries.add("$rawBase часть ${part + 1}")
+            queries.add("$rawBase ${part + 1}")
+        } else {
+            queries.add("$rawBase 2")
+            queries.add("$rawBase часть 2")
         }
-        queries.add(base)
-        return queries
+        queries.add(rawBase)
+        return queries.distinct().filter { it.isNotBlank() }
     }
 }

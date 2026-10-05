@@ -1,214 +1,129 @@
 package com.santiago43rus.rupoop
 
-import org.junit.Test
+import com.santiago43rus.rupoop.data.Author
+import com.santiago43rus.rupoop.data.RelatedVideoRecommendationStrategy
+import com.santiago43rus.rupoop.data.SearchResult
 import org.junit.Assert.*
-import java.util.Locale
-
-fun parseRomanOrInt(str: String): Int? {
-    str.toIntOrNull()?.let { return it }
-    val roman = str.uppercase(Locale.getDefault())
-    if (roman.isEmpty() || !roman.matches(Regex("^[IVXLCDM]+$"))) return null
-    var result = 0
-    var i = 0
-    val map = mapOf('I' to 1, 'V' to 5, 'X' to 10, 'L' to 50, 'C' to 100, 'D' to 500, 'M' to 1000)
-    while (i < roman.length) {
-        val s1 = map[roman[i]] ?: return null
-        if (i + 1 < roman.length) {
-            val s2 = map[roman[i + 1]]
-            if (s2 != null && s1 < s2) {
-                result += s2 - s1
-                i += 2
-                continue
-            }
-        }
-        result += s1
-        i += 1
-    }
-    return if (result > 0) result else null
-}
-
-data class SequenceInfo(
-    val baseName: String,
-    val season: Int? = null,
-    val episode: Int? = null,
-    val part: Int? = null,
-    val year: Int? = null
-)
+import org.junit.Test
 
 class SequelTests {
-    fun parseSequenceInfo(title: String): SequenceInfo {
-        // Remove quotes like «...» first from the whole title to avoid splitting on slashes inside quotes
-        val cleanedTitle = title.replace(Regex("«[^»]*»?"), "")
-        val splitBySlash = cleanedTitle.split("/")
 
-        // Parse the first part to get the baseName and initial sequence info
-        val firstPartInfo = parseSinglePart(splitBySlash[0])
+    private val strategy = RelatedVideoRecommendationStrategy()
 
-        var season = firstPartInfo.season
-        var episode = firstPartInfo.episode
-        var part = firstPartInfo.part
-        var year = firstPartInfo.year
+    @Test
+    fun testParseSequenceInfoCases() {
+        assertEquals(1, strategy.parseSequenceInfo("Звёздные войны: Эпизод I").episode)
+        assertEquals(6, strategy.parseSequenceInfo("Звёздные войны: Эпизод VI").episode)
+        assertEquals(4, strategy.parseSequenceInfo("Рокки IV").part)
+        assertEquals(2, strategy.parseSequenceInfo("Путь II часть").part)
 
-        // If some information is missing, try to find it in subsequent parts
-        for (i in 1 until splitBySlash.size) {
-            val otherInfo = parseSinglePart(splitBySlash[i])
-            if (year == null) year = otherInfo.year
-            if (season == null) season = otherInfo.season
-            if (episode == null) episode = otherInfo.episode
-            if (part == null) part = otherInfo.part
-        }
+        val pluribus = strategy.parseSequenceInfo("Одна из многих / Pluribus 1 сезон 4 серия LE-Production")
+        assertEquals(1, pluribus.season)
+        assertEquals(4, pluribus.episode)
 
-        return SequenceInfo(firstPartInfo.baseName, season, episode, part, year)
-    }
+        val boys = strategy.parseSequenceInfo("Пацаны 4 сезон 2 серия / The Boys")
+        assertEquals(4, boys.season)
+        assertEquals(2, boys.episode)
 
-    private fun parseSinglePart(partStr: String): SequenceInfo {
-        var base = partStr
-
-        // Year
-        val yearRegex = Regex("\\((\\d{4})\\)")
-        var year: Int? = null
-        yearRegex.find(base)?.let { match ->
-            year = match.groupValues[1].toIntOrNull()
-        }
-
-        // Remove stuff in brackets
-        val bracketRegex = Regex("\\[.*?\\]|\\(.*?\\)")
-        base = base.replace(bracketRegex, "")
-
-        // Season and Episode multiple formats
-        var season: Int? = null
-        var episode: Int? = null
-
-        // Formats:
-        val numPattern = "(\\d+|[IVXLCDM]+)"
-
-        // Format: с01э05
-        val seRegex1 = Regex("с(\\d{1,2})э(\\d{1,2})", RegexOption.IGNORE_CASE)
-        // Format: 1 сезон 5 серия
-        val seRegex2 = Regex("$numPattern\\s*-?я?\\s*(?:сезон|season).*?$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep)", RegexOption.IGNORE_CASE)
-        // Format: сезон 1 серия 5
-        val seRegex3 = Regex("(?:сезон|season|s)\\s*$numPattern.*?(?:серия|эпизод|episode|ep|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
-        // Format: 5 серия (without season)
-        val eRegexOnly = Regex("$numPattern\\s*-?я?\\s*(?:серия|эпизод|episode|ep|выпуск)", RegexOption.IGNORE_CASE)
-        val eRegexOnly2 = Regex("(?:серия|эпизод|episode|ep|выпуск|e)\\s*$numPattern", RegexOption.IGNORE_CASE)
-        // Format: s01e05 or s1e5
-        val seRegexUniversal = Regex("s(\\d{1,2})\\s*e(\\d{1,3})", RegexOption.IGNORE_CASE)
-        // Format: 01x05
-        val seRegexXFormat = Regex("(\\d{1,2})x(\\d{1,3})", RegexOption.IGNORE_CASE)
-
-        when {
-            seRegex1.containsMatchIn(base) -> {
-                val match = seRegex1.find(base)!!
-                season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
-                base = base.replace(match.value, "")
-            }
-            seRegexUniversal.containsMatchIn(base) -> {
-                val match = seRegexUniversal.find(base)!!
-                season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
-                base = base.replace(match.value, "")
-            }
-            seRegexXFormat.containsMatchIn(base) -> {
-                val match = seRegexXFormat.find(base)!!
-                season = match.groupValues[1].toIntOrNull()
-                episode = match.groupValues[2].toIntOrNull()
-                base = base.replace(match.value, "")
-            }
-            seRegex2.containsMatchIn(base) -> {
-                val match = seRegex2.find(base)!!
-                season = parseRomanOrInt(match.groupValues[1])
-                episode = parseRomanOrInt(match.groupValues[2])
-                base = base.replace(match.value, "")
-            }
-            seRegex3.containsMatchIn(base) -> {
-                val match = seRegex3.find(base)!!
-                season = parseRomanOrInt(match.groupValues[1])
-                episode = parseRomanOrInt(match.groupValues[2])
-                base = base.replace(match.value, "")
-            }
-            eRegexOnly.containsMatchIn(base) -> {
-                val match = eRegexOnly.find(base)!!
-                episode = parseRomanOrInt(match.groupValues[1])
-                base = base.replace(match.value, "")
-            }
-            eRegexOnly2.containsMatchIn(base) -> {
-                val match = eRegexOnly2.find(base)!!
-                episode = parseRomanOrInt(match.groupValues[1])
-                base = base.replace(match.value, "")
-            }
-        }
-
-        var part: Int? = null
-        val pRegex1 = Regex("(?:часть|part|ч|p|фильм)\\s*$numPattern\\b", RegexOption.IGNORE_CASE)
-        val pRegex2 = Regex("$numPattern\\s*-?я?\\s*(?:часть|part)", RegexOption.IGNORE_CASE)
-        val pRegex3 = Regex("\\s+(\\d+|(?![iI]\\b)[IVXLCDM]+)\\s*$")
-
-        if (season == null && episode == null) {
-            when {
-                pRegex1.containsMatchIn(base) -> {
-                    val match = pRegex1.find(base)!!
-                    part = parseRomanOrInt(match.groupValues[1])
-                    base = base.replace(match.value, "")
-                }
-                pRegex2.containsMatchIn(base) -> {
-                    val match = pRegex2.find(base)!!
-                    part = parseRomanOrInt(match.groupValues[1])
-                    base = base.replace(match.value, "")
-                }
-                pRegex3.containsMatchIn(base) -> {
-                    val match = pRegex3.find(base)!!
-                    part = parseRomanOrInt(match.groupValues[1])
-                    base = base.replace(match.value, "")
-                }
-            }
-        }
-
-        // Cut off subtitles to make base names match for series with subtitles (e.g., Star Wars, Minions)
-        val colonIndex = base.indexOf(':')
-        if (colonIndex != -1) base = base.substring(0, colonIndex)
-        val emDashIndex = base.indexOf('—')
-        if (emDashIndex != -1) base = base.substring(0, emDashIndex)
-
-        base = base.replace(Regex("сериал|мультфильм|фильм|серия", RegexOption.IGNORE_CASE), "")
-        base = base.replace(Regex("[^a-zA-Zа-яА-Я0-9]"), "").lowercase(Locale.getDefault())
-
-        return SequenceInfo(base, season, episode, part, year)
+        val breakingBad = strategy.parseSequenceInfo("Во все тяжкие s05e14")
+        assertEquals(5, breakingBad.season)
+        assertEquals(14, breakingBad.episode)
     }
 
     @Test
-    fun testRegexes() {
-        val cases = listOf(
-            "Гадкий я (2010)",
-            "Гадкий я 2 (2013) / Despicable Me",
-            "История игрушек (1995) / Toy Story",
-            "История игрушек 2 (1999) / Toy Story 2",
-            "С приветом по планетам - 1 сезон 1 серия «Покоритель / Яй...",
-            "С приветом по планетам 2 сезон 4 серия «Тут-и-Тамы / Уволен» (му...",
-            "Сериал Пацаны - 5 сезон 4 серия / The Boys Dragon Money Studio",
-            "Звёздные войны: Эпизод 2 — Атака клонов (2002) / Star Wars: ...",
-            "Звёздные войны: Эпизод 4 — Новая надежда (1977) / Star Wars: ...",
-            "Миньоны (2015) / Minions",
-            "Миньоны: Грювитация (2022) / Minions: The Rise of Gru",
-            "Звёздные войны: Эпизод I — Скрытая угроза",
-            "Звёздные войны: Эпизод VI",
-            "Рокки IV",
-            "Путь II часть",
-            "часть VII",
-            "Одна из многих / Pluribus 1 сезон 4 серия LE-Production"
+    fun testRutubeNextEpisodeSequel() {
+        val current = SearchResult(
+            videoUrl = "https://rutube.ru/video/111/",
+            title = "Универ. 13 лет спустя 1 сезон 5 серия",
+            author = Author(name = "ТНТ")
         )
-        for (c in cases) {
-            val res = parseSequenceInfo(c)
-            println("${c} -> ${res}")
-        }
+        val candidates = listOf(
+            SearchResult(videoUrl = "https://rutube.ru/video/222/", title = "Универ. 13 лет спустя 1 сезон 7 серия", author = Author(name = "ТНТ")),
+            SearchResult(videoUrl = "https://rutube.ru/video/333/", title = "Универ. 13 лет спустя 1 сезон 6 серия", author = Author(name = "ТНТ")),
+            SearchResult(videoUrl = "https://rutube.ru/video/444/", title = "Интерны 2 сезон 1 серия", author = Author(name = "ТНТ"))
+        )
 
-        assertEquals(1, parseSequenceInfo("Звёздные войны: Эпизод I").episode)
-        assertEquals(6, parseSequenceInfo("Звёздные войны: Эпизод VI").episode)
-        assertEquals(4, parseSequenceInfo("Рокки IV").part)
-        assertEquals(2, parseSequenceInfo("Путь II часть").part)
+        val recommended = strategy.recommendRelated(current, candidates)
+        assertFalse(recommended.isEmpty())
+        // Next episode (6) MUST be at index 0
+        assertEquals("https://rutube.ru/video/333/", recommended.first().videoUrl)
+        assertEquals("Универ. 13 лет спустя 1 сезон 6 серия", recommended.first().title)
+    }
 
-        val pluribus = parseSequenceInfo("Одна из многих / Pluribus 1 сезон 4 серия LE-Production")
-        assertEquals(1, pluribus.season)
-        assertEquals(4, pluribus.episode)
+    @Test
+    fun testVkNextEpisodeWithDifferentUploaders() {
+        val current = SearchResult(
+            videoUrl = "https://vk.com/video-123_456",
+            title = "Пацаны 4 сезон 1 серия [Кубик в Кубе]",
+            author = Author(name = "SerialHub")
+        )
+        val candidates = listOf(
+            SearchResult(videoUrl = "https://vk.com/video-999_100", title = "Случайный ролик про кино", author = Author(name = "MovieReview")),
+            SearchResult(videoUrl = "https://vk.com/video-888_200", title = "Пацаны 4 сезон 2 серия [Кубик в Кубе]", author = Author(name = "AnotherUploader")),
+            SearchResult(videoUrl = "https://vk.com/video-777_300", title = "Пацаны 4 сезон 4 серия", author = Author(name = "CinemaWorld"))
+        )
+
+        val recommended = strategy.recommendRelated(current, candidates)
+        assertFalse(recommended.isEmpty())
+        // Next episode (2) MUST be at index 0 even if uploaded by different author on VK!
+        assertEquals("https://vk.com/video-888_200", recommended.first().videoUrl)
+        assertEquals("Пацаны 4 сезон 2 серия [Кубик в Кубе]", recommended.first().title)
+    }
+
+    @Test
+    fun testOkNextEpisodeSeries() {
+        val current = SearchResult(
+            videoUrl = "https://ok.ru/video/12345678",
+            title = "Сваты 7 сезон 3 серия",
+            author = Author(name = "Кино ОК")
+        )
+        val candidates = listOf(
+            SearchResult(videoUrl = "https://ok.ru/video/888888", title = "Сваты 7 сезон 5 серия", author = Author(name = "Кино ОК")),
+            SearchResult(videoUrl = "https://ok.ru/video/999999", title = "Сваты 7 сезон 4 серия", author = Author(name = "Пользователь 123")),
+            SearchResult(videoUrl = "https://ok.ru/video/777777", title = "Кухня 1 сезон 1 серия", author = Author(name = "Сериалы"))
+        )
+
+        val recommended = strategy.recommendRelated(current, candidates)
+        assertFalse(recommended.isEmpty())
+        // Next episode (4) MUST be first
+        assertEquals("https://ok.ru/video/999999", recommended.first().videoUrl)
+        assertEquals("Сваты 7 сезон 4 серия", recommended.first().title)
+    }
+
+    @Test
+    fun testLordfilmMovieSequel() {
+        val current = SearchResult(
+            videoUrl = "https://lordfilm.top/123-dune-2021.html",
+            title = "Дюна (2021)",
+            author = Author(name = "Lordfilm")
+        )
+        val candidates = listOf(
+            SearchResult(videoUrl = "https://lordfilm.top/456-other-film.html", title = "Бегущий по лезвию 2049", author = Author(name = "Lordfilm")),
+            SearchResult(videoUrl = "https://lordfilm.top/789-dune-part-2-2024.html", title = "Дюна: Часть вторая (2024)", author = Author(name = "Lordfilm")),
+            SearchResult(videoUrl = "https://lordfilm.top/111-dune-1984.html", title = "Дюна (1984)", author = Author(name = "Lordfilm"))
+        )
+
+        val recommended = strategy.recommendRelated(current, candidates)
+        assertFalse(recommended.isEmpty())
+        // Sequel (Part 2) MUST be first
+        assertEquals("https://lordfilm.top/789-dune-part-2-2024.html", recommended.first().videoUrl)
+        assertEquals("Дюна: Часть вторая (2024)", recommended.first().title)
+    }
+
+    @Test
+    fun testNextSeasonFirstEpisode() {
+        val current = SearchResult(
+            videoUrl = "https://rutube.ru/video/s1e8/",
+            title = "Рик и Морти 1 сезон 8 серия",
+            author = null
+        )
+        val candidates = listOf(
+            SearchResult(videoUrl = "https://rutube.ru/video/s2e1/", title = "Рик и Морти 2 сезон 1 серия", author = null),
+            SearchResult(videoUrl = "https://rutube.ru/video/s3e5/", title = "Рик и Морти 3 сезон 5 серия", author = null)
+        )
+
+        val recommended = strategy.recommendRelated(current, candidates)
+        assertFalse(recommended.isEmpty())
+        assertEquals("https://rutube.ru/video/s2e1/", recommended.first().videoUrl)
     }
 }

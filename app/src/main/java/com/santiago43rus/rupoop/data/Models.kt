@@ -37,7 +37,8 @@ data class SearchResult(
 data class Author(
     val id: Long? = null,
     val name: String,
-    @SerialName("avatar_url") val avatarUrl: String? = null
+    @SerialName("avatar_url") val avatarUrl: String? = null,
+    val platform: String? = null
 )
 
 @Serializable
@@ -100,7 +101,8 @@ data class AppSettings(
     val appIcon: String = "system",
     val showDownloadNotifications: Boolean = true,
     val showBackgroundNotifications: Boolean = true,
-    val isEasterEggUnlocked: Boolean = false
+    val isEasterEggUnlocked: Boolean = false,
+    val pipEnabled: Boolean = true
 )
 
 @Serializable

@@ -103,17 +103,39 @@ fun LibraryScreen(
                             }
                         }
                         Spacer(Modifier.height(6.dp))
+                        val isLordfilm = item.videoUrl.lowercase().let { it.contains("lordfilm") || it.contains("lordserials") }
+                        val authorToNavigate = if (isLordfilm) {
+                            Author(name = "Lordfilm", platform = "LORDFILM")
+                        } else {
+                            val platform = when {
+                                item.videoUrl.contains("ok.ru") -> "OK"
+                                item.videoUrl.contains("vk.com") || item.videoUrl.contains("vkvideo.ru") || item.videoUrl.contains("vk.ru") -> "VK"
+                                else -> "RUTUBE"
+                            }
+                            Author(id = item.authorId, name = item.authorName ?: platform, avatarUrl = item.authorAvatarUrl, platform = platform)
+                        }
                         Row(verticalAlignment = Alignment.Top) {
-                            AsyncImage(
-                                model = item.authorAvatarUrl ?: "https://rutube.ru/static/img/default-avatar.png",
-                                contentDescription = null,
-                                modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.Gray).clickable {
-                                    onAuthorClick(Author(id = item.authorId, name = item.authorName ?: "", avatarUrl = item.authorAvatarUrl))
-                                },
-                                contentScale = ContentScale.Crop,
-                                fallback = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
-                                error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details)
-                            )
+                            if (isLordfilm) {
+                                LordfilmAvatarBadge(
+                                    size = 24.dp,
+                                    modifier = Modifier.clickable { onAuthorClick(authorToNavigate) }
+                                )
+                            } else {
+                                val fallbackAvatar = if (item.videoUrl.contains("ok.ru")) "https://ok.ru/favicon.ico"
+                                    else "https://rutube.ru/static/img/default-avatar.png"
+                                AsyncImage(
+                                    model = item.authorAvatarUrl ?: fallbackAvatar,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Gray)
+                                        .clickable { onAuthorClick(authorToNavigate) },
+                                    contentScale = ContentScale.Crop,
+                                    fallback = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
+                                    error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details)
+                                )
+                            }
                             Spacer(Modifier.width(8.dp))
                             Column(Modifier.weight(1f).clickable { onVideoClick(item) }) {
                                 Text(
@@ -121,7 +143,7 @@ fun LibraryScreen(
                                     overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    item.authorName ?: "",
+                                    if (isLordfilm) "Lordfilm" else (item.authorName ?: ""),
                                     style = MaterialTheme.typography.labelSmall, color = Color.Gray,
                                     overflow = TextOverflow.Ellipsis
                                 )

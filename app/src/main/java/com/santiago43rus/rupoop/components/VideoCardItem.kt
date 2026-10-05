@@ -132,38 +132,13 @@ fun VideoCardItem(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
+            val authorToNavigate = video.author ?: Author(name = platformName, platform = platformName)
             if (isLordfilm) {
-                // Lordfilm Logo Avatar
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF1E1E1E))
-                        .border(1.dp, Color(0xFFE50914).copy(alpha = 0.85f), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "LORD",
-                            color = Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 7.sp,
-                            lineHeight = 8.sp,
-                            letterSpacing = 0.5.sp
-                        )
-                        Text(
-                            text = "FILM",
-                            color = Color(0xFFE50914),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 7.sp,
-                            lineHeight = 8.sp,
-                            letterSpacing = 0.5.sp
-                        )
-                    }
-                }
+                val lordAuthor = Author(name = "Lordfilm", platform = "LORDFILM")
+                LordfilmAvatarBadge(
+                    size = 36.dp,
+                    modifier = Modifier.clickable { onAuthorClick(lordAuthor) }
+                )
             } else {
                 val fallbackAvatar = if (platformName == "Одноклассники") "https://ok.ru/favicon.ico"
                     else "https://rutube.ru/static/img/default-avatar.png"
@@ -174,7 +149,7 @@ fun VideoCardItem(
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(Color.Gray)
-                        .clickable { video.author?.let { onAuthorClick(it) } },
+                        .clickable { onAuthorClick(authorToNavigate) },
                     contentScale = ContentScale.Crop,
                     fallback = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
                     error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details)
@@ -194,10 +169,12 @@ fun VideoCardItem(
                 )
                 Spacer(Modifier.height(2.dp))
                 if (isLordfilm) {
+                    val lordAuthor = Author(name = "Lordfilm", platform = "LORDFILM")
                     Text(
                         platformName,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { onAuthorClick(lordAuthor) }
                     )
                 } else {
                     val viewsText = formatViewCount(video.hits)
@@ -208,7 +185,7 @@ fun VideoCardItem(
                         "${video.author?.name ?: "Автор"} • $platformName$sep1$viewsText$sep2$timeAgoText",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable { video.author?.let { onAuthorClick(it) } },
+                        modifier = Modifier.clickable { onAuthorClick(authorToNavigate) },
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -318,6 +295,46 @@ fun VideoCardShimmer() {
                         .background(shimmerColor)
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun LordfilmAvatarBadge(
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 36.dp
+) {
+    val cornerRadius = size * (8f / 36f)
+    val fontSize = (size.value * 7f / 36f).sp
+    val lineHeight = (size.value * 8f / 36f).sp
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(cornerRadius))
+            .background(Color(0xFF1E1E1E))
+            .border(1.dp, Color(0xFFE50914).copy(alpha = 0.85f), RoundedCornerShape(cornerRadius)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "LORD",
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = fontSize,
+                lineHeight = lineHeight,
+                letterSpacing = 0.5.sp
+            )
+            Text(
+                text = "FILM",
+                color = Color(0xFFE50914),
+                fontWeight = FontWeight.Black,
+                fontSize = fontSize,
+                lineHeight = lineHeight,
+                letterSpacing = 0.5.sp
+            )
         }
     }
 }

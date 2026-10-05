@@ -126,7 +126,7 @@ object VkSearchEngine {
                                 videoUrl = videoUrl,
                                 title = title,
                                 thumbnailUrl = thumb,
-                                author = Author(name = authorName, avatarUrl = avatarUrl),
+                                author = Author(name = authorName, avatarUrl = avatarUrl, platform = "VK"),
                                 duration = durationSec,
                                 hits = viewsCount,
                                 createdTs = createdTs,

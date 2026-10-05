@@ -120,11 +120,12 @@ fun DownloadsScreen(
                                     )
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E88E5)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                            shape = RoundedCornerShape(50),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Text("Включить", fontSize = 12.sp)
+                            Text("Включить", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

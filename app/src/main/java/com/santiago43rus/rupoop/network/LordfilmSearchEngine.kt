@@ -48,6 +48,37 @@ object LordfilmSearchEngine {
         return@withContext results.distinctBy { it.videoUrl }
     }
 
+    suspend fun getNovinki(): List<SearchResult> = withContext(Dispatchers.IO) {
+        val novinkiUrls = listOf(
+            "https://lordfilm.top/films/",
+            "https://lordfilm.top/",
+            "https://lordserials.fan/"
+        )
+        val results = mutableListOf<SearchResult>()
+        for (url in novinkiUrls) {
+            try {
+                val hostDomain = if (url.contains("lordserials")) "https://lordserials.fan" else "https://lordfilm.top"
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", USER_AGENT)
+                    .get()
+                    .build()
+                val response = httpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val html = response.body.string()
+                    val parsed = parseCardsFromHtml(html, hostDomain)
+                    if (parsed.isNotEmpty()) {
+                        results.addAll(parsed)
+                        if (results.size >= 20) break
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Lordfilm novinki fetch failed for $url", e)
+            }
+        }
+        return@withContext results.distinctBy { it.videoUrl }
+    }
+
     private fun searchDleMirror(endpoint: String, query: String): List<SearchResult> {
         val formBody = FormBody.Builder()
             .add("do", "search")
@@ -70,6 +101,10 @@ object LordfilmSearchEngine {
         if (!response.isSuccessful) return emptyList()
         val html = response.body.string()
 
+        return parseCardsFromHtml(html, hostDomain)
+    }
+
+    private fun parseCardsFromHtml(html: String, hostDomain: String): List<SearchResult> {
         if (html.contains("По вашему запросу ничего не найдено") ||
             (html.contains("не найдено", ignoreCase = true) && !html.contains("item expand-link") && !html.contains("th-item"))
         ) {
@@ -105,7 +140,7 @@ object LordfilmSearchEngine {
                     videoUrl = fullUrl,
                     title = title,
                     thumbnailUrl = poster,
-                    author = Author(name = "Lordfilm"),
+                    author = Author(name = "Lordfilm", platform = "LORDFILM"),
                     duration = null
                 )
             )
@@ -137,7 +172,7 @@ object LordfilmSearchEngine {
                     videoUrl = fullUrl,
                     title = title,
                     thumbnailUrl = poster,
-                    author = Author(name = "Lordfilm"),
+                    author = Author(name = "Lordfilm", platform = "LORDFILM"),
                     duration = null
                 )
             )

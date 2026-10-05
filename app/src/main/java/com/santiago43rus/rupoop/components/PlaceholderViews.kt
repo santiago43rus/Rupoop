@@ -62,7 +62,7 @@ fun ErrorPlaceholderView(
             Button(
                 onClick = onRetry,
                 shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,

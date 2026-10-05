@@ -78,6 +78,10 @@ class SettingsManager(context: Context) {
         get() = prefs.getInt("double_tap_seek", 10)
         set(value) = prefs.edit { putInt("double_tap_seek", value) }
 
+    var pipEnabled: Boolean
+        get() = prefs.getBoolean("pip_enabled", true)
+        set(value) = prefs.edit { putBoolean("pip_enabled", value) }
+
     // Sub-genre categories stored as comma-separated string
     var enabledGenres: Set<String>
         get() = prefs.getStringSet("enabled_genres", null) ?: setOf(
@@ -85,6 +89,42 @@ class SettingsManager(context: Context) {
             "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы"
         )
         set(value) = prefs.edit { putStringSet("enabled_genres", value) }
+
+    fun toAppSettings(): AppSettings {
+        return AppSettings(
+            theme = themeMode,
+            downloadQuality = downloadQuality,
+            syncFrequencyHours = syncFrequencyHours,
+            maxConcurrentDownloads = maxConcurrentDownloads,
+            adultContentEnabled = adultContentEnabled,
+            kidsContentEnabled = kidsContentEnabled,
+            enabledGenres = enabledGenres.toList(),
+            autoPlayNext = autoPlayNext,
+            doubleTapSeekDuration = doubleTapSeekDuration,
+            appIcon = appIcon,
+            showDownloadNotifications = showDownloadNotifications,
+            showBackgroundNotifications = showBackgroundNotifications,
+            isEasterEggUnlocked = isEasterEggUnlocked,
+            pipEnabled = pipEnabled
+        )
+    }
+
+    fun applyAppSettings(appSettings: AppSettings) {
+        themeMode = appSettings.theme
+        downloadQuality = appSettings.downloadQuality
+        syncFrequencyHours = appSettings.syncFrequencyHours
+        maxConcurrentDownloads = appSettings.maxConcurrentDownloads
+        adultContentEnabled = appSettings.adultContentEnabled
+        kidsContentEnabled = appSettings.kidsContentEnabled
+        enabledGenres = appSettings.enabledGenres.toSet()
+        autoPlayNext = appSettings.autoPlayNext
+        doubleTapSeekDuration = appSettings.doubleTapSeekDuration
+        appIcon = appSettings.appIcon
+        showDownloadNotifications = appSettings.showDownloadNotifications
+        showBackgroundNotifications = appSettings.showBackgroundNotifications
+        isEasterEggUnlocked = appSettings.isEasterEggUnlocked || isEasterEggUnlocked
+        pipEnabled = appSettings.pipEnabled
+    }
 
     fun clearAuth() {
         prefs.edit {

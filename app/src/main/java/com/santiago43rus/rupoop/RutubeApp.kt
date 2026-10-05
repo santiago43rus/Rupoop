@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -228,6 +229,13 @@ fun RutubeApp(
         )
     }
 
+    if (vm.isInPipMode) {
+        Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
+            RutubePlayerContainer(vm = vm, padding = PaddingValues(0.dp))
+        }
+        return
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         val sharedUiProgress = when (vm.playerState) {
             PlayerState.CLOSED, PlayerState.MINI -> 1f
@@ -305,6 +313,12 @@ fun RutubeApp(
                             }
                         }
 
+                        RutubeAppOverlays(
+                            vm = vm,
+                            onThemeToggle = onThemeToggle,
+                            context = context
+                        )
+
                         SearchSuggestionsOverlay(
                             isSearchExpanded = vm.isSearchExpanded,
                             searchQuery = vm.searchQuery,
@@ -318,12 +332,6 @@ fun RutubeApp(
                             },
                             onRemoveSearchQuery = { query, fromGist -> vm.removeSearchQuery(query, fromGist) },
                             isGitHubAuthenticated = vm.isAuthenticated
-                        )
-
-                        RutubeAppOverlays(
-                            vm = vm,
-                            onThemeToggle = onThemeToggle,
-                            context = context
                         )
                     }
                 }

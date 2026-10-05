@@ -433,8 +433,9 @@ fun Modifier.playerDragGestures(
     isFastForwarding: Boolean = false,
     isTablet: Boolean = false,
     isLandscape: Boolean = false,
-    isZoomed: Boolean = false
-): Modifier = pointerInput(isFullscreen, isFastForwarding, isTablet, isLandscape, isZoomed) {
+    isZoomed: Boolean = false,
+    hasRelatedVideos: Boolean = true
+): Modifier = pointerInput(isFullscreen, isFastForwarding, isTablet, isLandscape, isZoomed, hasRelatedVideos) {
     if (!isFullscreen || isFastForwarding || isZoomed) return@pointerInput
     var totalDragY = 0f
     var totalDragX = 0f
@@ -481,7 +482,7 @@ fun Modifier.playerDragGestures(
                     }
                 } else {
                     committedDirection = -1
-                    if (isFullscreen && !showMoreVideos.value && !isLocalFile && !isTabletLandscape) {
+                    if (isFullscreen && !showMoreVideos.value && !isLocalFile && !isTabletLandscape && hasRelatedVideos) {
                         isMoreVideosGesture = true
                     } else if (isFullscreen && isTabletLandscape) {
                         isScreenTransitionGesture = true

@@ -66,6 +66,7 @@ fun ControlsOverlay(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onShowSettings: () -> Unit,
+    onRequestPip: (() -> Unit)? = null,
     onSeekStart: () -> Unit,
     onSeekChange: (Long) -> Unit,
     onSeekEnd: () -> Unit,
@@ -146,6 +147,12 @@ fun ControlsOverlay(
                         }
                     } else {
                         Spacer(Modifier.weight(1f))
+                    }
+
+                    if (onRequestPip != null) {
+                        IconButton(onClick = onRequestPip) {
+                            Icon(Icons.Default.PictureInPictureAlt, "Картинка в картинке", tint = Color.White)
+                        }
                     }
 
                     IconButton(onClick = onShowSettings) {

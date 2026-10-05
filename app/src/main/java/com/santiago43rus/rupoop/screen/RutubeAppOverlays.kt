@@ -15,6 +15,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import com.santiago43rus.rupoop.*
 import com.santiago43rus.rupoop.components.PlaylistSelectionDialog
 import com.santiago43rus.rupoop.util.OverlayState
@@ -180,11 +181,12 @@ fun RutubeAppOverlays(
                         vm.showDownloadDialog = null
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
                 ) {
-                    Text("Видео (MP4)")
+                    Text("Видео (MP4)", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                 }
             },
             dismissButton = {
@@ -194,11 +196,12 @@ fun RutubeAppOverlays(
                         vm.showDownloadDialog = null
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
                 ) {
-                    Text("Аудио (M4A)")
+                    Text("Аудио (M4A)", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                 }
             }
         )

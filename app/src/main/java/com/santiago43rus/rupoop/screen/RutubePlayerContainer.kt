@@ -57,6 +57,20 @@ fun lerp(start: Dp, stop: Dp, fraction: Float): Dp = start + (stop - start) * fr
 fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     if (vm.playerState == PlayerState.CLOSED || vm.isSettingsVisible) return
 
+    if (vm.isInPipMode) {
+        val isAudio = vm.currentVideo?.tags?.any { it.equals("audio", ignoreCase = true) } == true || vm.currentVideo?.videoUrl?.endsWith(".m4a") == true
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            AudioOrVideoPlayerView(
+                isAudio = isAudio,
+                currentVideo = vm.currentVideo,
+                exoPlayer = vm.exoPlayer,
+                isBuffering = vm.isBuffering,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+        return
+    }
+
     val config = LocalConfiguration.current
     val density = LocalDensity.current
     val context = LocalContext.current
@@ -179,9 +193,11 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
         screenWidth * 9f / 16f
     }
 
+    val isActuallyFullscreen = vm.isFullscreenVideo && (isLandscape || isTablet)
+
     val targetWidth = if (realProgress > 0f) {
         lerp(startWidth, miniWidthDp, realProgress)
-    } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
+    } else if (isActuallyFullscreen && vm.playerState == PlayerState.FULL) {
         screenWidth
     } else {
         startWidth
@@ -189,13 +205,13 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
 
     val targetHeight = if (realProgress > 0f) {
         lerp(startHeight, miniHeightDp, realProgress)
-    } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
+    } else if (isActuallyFullscreen && vm.playerState == PlayerState.FULL) {
         screenHeight
     } else {
         startHeight
     }
 
-    val startY = if (isWideScreen || (!vm.isFullscreenVideo && !isLandscape)) {
+    val startY = if (isWideScreen || (!isActuallyFullscreen && !isLandscape)) {
         statusBarsTopPadding
     } else {
         0.dp
@@ -206,7 +222,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     val targetY = if (realProgress > 0f) {
         val startYPx = with(density) { startY.toPx() }
         with(density) { (startYPx + (floatingY.value - startYPx) * realProgress).toDp() }
-    } else if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL) {
+    } else if (isActuallyFullscreen && vm.playerState == PlayerState.FULL) {
         0.dp
     } else {
         startY
@@ -417,7 +433,8 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                                 alphaProgress = realProgress,
                                 isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
                                 onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() },
-                                showVideoDetails = false
+                                showVideoDetails = false,
+                                isLoading = vm.isLoadingRelated
                             )
                         }
                     }
@@ -443,7 +460,8 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                             isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
                             onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() },
                             showVideoDetails = true,
-                            useTwoColumns = isTablet
+                            useTwoColumns = isTablet,
+                            isLoading = vm.isLoadingRelated
                         )
                     }
                 }
@@ -456,7 +474,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
             elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
             border = if (realProgress > 0.4f) BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f * realProgress)) else null,
             colors = CardDefaults.cardColors(containerColor = Color.Black),
-            modifier = (if (vm.isFullscreenVideo && vm.playerState == PlayerState.FULL && realProgress == 0f) {
+            modifier = (if (isActuallyFullscreen && vm.playerState == PlayerState.FULL && realProgress == 0f) {
                 Modifier.fillMaxSize()
             } else {
                 Modifier.offset(x = currentX, y = currentY).width(currentWidth).height(currentHeight)
@@ -496,6 +514,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                         showMoreVideosState = showMoreVideosState,
                         moreVideosDragOffsetState = moreVideosDragOffsetState,
                         isExpandingToFullscreen = fullscreenDragOffsetY.value > 0f,
+                        onRequestPip = if (vm.settingsManager.pipEnabled) vm.onRequestPip else null,
                         onZoomedChange = { vm.isZoomed = it }
                     )
                 }
@@ -558,7 +577,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
 
         val currVideo = vm.currentVideo
         val isLocalFile = currVideo?.videoUrl != null && !currVideo.videoUrl.startsWith("http")
-        if ((showMoreVideosState.value || moreVideosDragOffsetState.value != 0f) && (isLandscape || vm.isFullscreenVideo)) {
+        if ((showMoreVideosState.value || moreVideosDragOffsetState.value != 0f) && (isLandscape || vm.isFullscreenVideo) && vm.relatedVideos.isNotEmpty()) {
             com.santiago43rus.rupoop.player.MoreVideosOverlay(
                 showMoreVideos = showMoreVideosState.value,
                 onClose = { showMoreVideosState.value = false },

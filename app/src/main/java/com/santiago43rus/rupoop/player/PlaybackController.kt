@@ -21,6 +21,7 @@ import com.santiago43rus.rupoop.data.UserRegistry
 import com.santiago43rus.rupoop.data.UserRegistryManager
 import com.santiago43rus.rupoop.data.WatchHistoryItem
 import com.santiago43rus.rupoop.data.RelatedVideoRecommendationStrategy
+import com.santiago43rus.rupoop.network.PlatformSearchEngineResolver
 import com.santiago43rus.rupoop.parser.UniversalVideoParser
 import com.santiago43rus.rupoop.util.PlayerState
 import com.santiago43rus.rupoop.util.extractId
@@ -62,6 +63,7 @@ class PlaybackController(
     var isZoomed by mutableStateOf(false)
 
     var relatedVideos by mutableStateOf<List<SearchResult>>(emptyList())
+    var isLoadingRelated by mutableStateOf(false)
 
     // ── ExoPlayer ──
     val exoPlayer: ExoPlayer = run {
@@ -257,7 +259,7 @@ class PlaybackController(
 
                         exoPlayer.play()
                         playerState = PlayerState.FULL
-                        relatedVideos = emptyList()
+                        loadRelatedVideosFor(updatedVideo)
                     } else {
                         snackbarMessage.emit("Не удалось загрузить видео по ссылке")
                         playerState = PlayerState.CLOSED
@@ -298,35 +300,46 @@ class PlaybackController(
                     
                     exoPlayer.play()
                     playerState = PlayerState.FULL
+                    loadRelatedVideosFor(video)
                 } else {
                     snackbarMessage.emit("Видео не найдено")
                     playerState = PlayerState.CLOSED
-                }
-
-                val relatedResults = withContext(Dispatchers.IO) {
-                    val queries = relatedVideoRecommender.getSearchQueries(video)
-                    val allResults = mutableListOf<SearchResult>()
-                    for (q in queries) {
-                        try {
-                            val res = RetrofitClient.api.searchVideos(q).results
-                            allResults.addAll(res)
-                            if (allResults.size > 20) break
-                        } catch (_: Exception) {}
-                    }
-                    allResults.distinctBy { it.videoUrl }
-                }
-                val filteredRelated = relatedVideoRecommender.recommendRelated(video, relatedResults)
-                val finalRelated = filterHiddenAndDisliked(filteredRelated)
-                relatedVideos = finalRelated
-
-                if (!isPlaylistMode) {
-                    currentVideoList = currentVideoList.take(currentVideoIndex + 1) + finalRelated
                 }
             } catch (e: Exception) {
                 Log.e("Rupoop", "Play error", e)
                 snackbarMessage.emit("Видео не найдено")
                 playerState = PlayerState.CLOSED
             }
+        }
+    }
+
+    private suspend fun loadRelatedVideosFor(videoToRecommend: SearchResult) {
+        isLoadingRelated = true
+        try {
+            val searchEngine = PlatformSearchEngineResolver.resolve(videoToRecommend.videoUrl)
+            val relatedResults = withContext(Dispatchers.IO) {
+                val queries = relatedVideoRecommender.getSearchQueries(videoToRecommend)
+                val allResults = mutableListOf<SearchResult>()
+                for (q in queries) {
+                    try {
+                        val res = searchEngine.search(q)
+                        allResults.addAll(res)
+                        if (allResults.size > 20) break
+                    } catch (_: Exception) {}
+                }
+                allResults.distinctBy { it.videoUrl }
+            }
+            val filteredRelated = relatedVideoRecommender.recommendRelated(videoToRecommend, relatedResults)
+            val finalRelated = filterHiddenAndDisliked(filteredRelated)
+            relatedVideos = finalRelated
+
+            if (!isPlaylistMode) {
+                currentVideoList = currentVideoList.take(currentVideoIndex + 1) + finalRelated
+            }
+        } catch (e: Exception) {
+            Log.e("Rupoop", "Error loading related videos", e)
+        } finally {
+            isLoadingRelated = false
         }
     }
 

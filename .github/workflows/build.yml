@@ -50,6 +50,9 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 --decode > app/keystore.jks
           fi
 
+      - name: Run Unit Tests
+        run: ./gradlew test
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 

@@ -6,6 +6,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.santiago43rus.rupoop.network.RetrofitClient
+import com.santiago43rus.rupoop.network.LordfilmSearchEngine
+import com.santiago43rus.rupoop.network.VkSearchEngine
+import com.santiago43rus.rupoop.network.OkSearchEngine
 import com.santiago43rus.rupoop.util.PlayerState
 import kotlinx.coroutines.*
 
@@ -161,16 +164,43 @@ class ContentFeedController(
                     if (getPlayerState() == PlayerState.FULL) setPlayerState(PlayerState.MINI)
                 }
                 try {
-                    val resp = if (author.id != null) {
-                        withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), ordering = getAuthorSortOrder(), page = authorPage) }
-                    } else {
-                        withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, page = authorPage) }
+                    val platform = author.platform?.uppercase() ?: when {
+                        author.name.equals("Lordfilm", ignoreCase = true) || author.avatarUrl?.contains("lordfilm") == true -> "LORDFILM"
+                        author.avatarUrl?.contains("ok.ru") == true -> "OK"
+                        author.avatarUrl?.contains("vk.com") == true || author.avatarUrl?.contains("userapi") == true -> "VK"
+                        else -> "RUTUBE"
                     }
 
-                    if (resp.results.isEmpty()) {
+                    val rawResults: List<SearchResult> = when (platform) {
+                        "LORDFILM" -> {
+                            hasMoreAuthorVideos = false
+                            LordfilmSearchEngine.getNovinki()
+                        }
+                        "VK" -> {
+                            hasMoreAuthorVideos = false
+                            VkSearchEngine.search(author.name)
+                        }
+                        "OK" -> {
+                            hasMoreAuthorVideos = false
+                            OkSearchEngine.search(author.name)
+                        }
+                        else -> {
+                            val resp = if (author.id != null) {
+                                withContext(Dispatchers.IO) { RetrofitClient.api.getAuthorVideos(author.id.toString(), ordering = getAuthorSortOrder(), page = authorPage) }
+                            } else {
+                                withContext(Dispatchers.IO) { RetrofitClient.api.searchVideos(author.name, page = authorPage) }
+                            }
+                            if (resp.results.isEmpty()) {
+                                hasMoreAuthorVideos = false
+                            }
+                            resp.results
+                        }
+                    }
+
+                    if (rawResults.isEmpty()) {
                         hasMoreAuthorVideos = false
                     } else {
-                        val filteredNewVideos = filterHiddenAndDisliked(resp.results)
+                        val filteredNewVideos = filterHiddenAndDisliked(rawResults)
                         val combined = if (isLoadMore) (authorVideos + filteredNewVideos) else filteredNewVideos
                         authorVideos = combined.sortedWith(
                             compareByDescending<SearchResult> { it.publicationTs ?: "" }
