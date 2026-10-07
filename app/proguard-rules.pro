@@ -10,7 +10,13 @@
 -keepclassmembers class com.santiago43rus.rupoop.data.** { *; }
 -keep class com.santiago43rus.rupoop.parser.** { *; }
 -keepclassmembers class com.santiago43rus.rupoop.parser.** { *; }
+-keep class com.santiago43rus.rupoop.network.** { *; }
+-keepclassmembers class com.santiago43rus.rupoop.network.** { *; }
 -keep class com.santiago43rus.rupoop.service.** { *; }
+
+# ── Compose Animation / Graphics ────────────────────────────────────────────
+-keep class androidx.compose.animation.** { *; }
+-keep class androidx.compose.material3.** { *; }
 
 # ── Kotlin Serialization ────────────────────────────────────────────────────
 -keepclassmembers class * {

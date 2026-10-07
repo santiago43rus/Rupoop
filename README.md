@@ -1,4 +1,4 @@
-# 🎬 Rupoop — Альтернативный клиент Rutube
+# 🎬 Rupoop — Мультиплатформенный видеоклиент без рекламы (Rutube, VK, OK, Lordfilm)
 
 <p align="center">
   <img src="app/src/main/ic_launcher-playstore.png" width="128" alt="Rupoop Logo"/>
@@ -10,7 +10,7 @@
   <a href="https://github.com/santiago43rus/Rupoop/releases"><img src="https://img.shields.io/github/v/release/santiago43rus/Rupoop?include_prereleases" alt="Release"/></a>
 </p>
 
-Современный Android-клиент для [Rutube](https://rutube.ru), вдохновлённый дизайном YouTube. Написан на Kotlin с использованием Jetpack Compose и Material 3.
+Быстрый, современный Android-клиент для бесплатного просмотра видео и фильмов **без рекламы** из **Rutube (рутуб/rutub/utube)**, **ВКонтакте (VK Видео/вк/vk)**, **Одноклассников (OK.ru/ок)** и **Lordfilm (лордфильм/lordfilm/сериалы)** с интерфейсом в стиле YouTube. Написан на Kotlin с использованием Jetpack Compose и Material 3. Поддерживает режим «Картинка в картинке» (PiP), фоновое воспроизведение и скачивание.
 
 ---
 
