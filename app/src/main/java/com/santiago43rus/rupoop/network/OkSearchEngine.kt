@@ -43,6 +43,15 @@ object OkSearchEngine {
         return@withContext results.distinctBy { it.videoUrl }
     }
 
+    suspend fun getAuthorVideos(authorName: String): List<SearchResult> = withContext(Dispatchers.IO) {
+        val all = search(authorName)
+        val matched = all.filter {
+            it.author?.name?.contains(authorName, ignoreCase = true) == true ||
+            authorName.contains(it.author?.name ?: "", ignoreCase = true)
+        }
+        return@withContext if (matched.isNotEmpty()) matched else all
+    }
+
     private fun searchViaOkVideoSearch(query: String): List<SearchResult> {
         val encodedQuery = URLEncoder.encode(query, "UTF-8")
         val url = "https://ok.ru/video/search?st.v.sq=$encodedQuery"
@@ -98,9 +107,16 @@ object OkSearchEngine {
 
                                 if (title.isBlank()) continue
 
-                                val thumb = movie?.get("thumbnail")?.jsonObject?.get("big")?.jsonPrimitive?.contentOrNull
+                                val rawThumb = movie?.get("thumbnail")?.jsonObject?.get("big")?.jsonPrimitive?.contentOrNull
                                     ?: movie?.get("thumbnail")?.jsonObject?.get("small")?.jsonPrimitive?.contentOrNull
                                     ?: item["imageUrl"]?.jsonPrimitive?.contentOrNull
+
+                                val thumb = when {
+                                    rawThumb.isNullOrBlank() -> null
+                                    rawThumb.startsWith("//") -> "https:$rawThumb"
+                                    !rawThumb.startsWith("http") -> "https://$rawThumb"
+                                    else -> rawThumb
+                                }
 
                                 val durMs = movie?.get("duration")?.jsonPrimitive?.longOrNull
                                 val durSec = durMs?.div(1000)?.toInt()
@@ -126,14 +142,26 @@ object OkSearchEngine {
                                     ?: groupObj?.get("name")?.jsonPrimitive?.contentOrNull
                                     ?: "Одноклассники"
 
-                                val authorAvatar = userObj?.get("picAvatar")?.jsonPrimitive?.contentOrNull
+                                val rawAvatar = userObj?.get("picAvatar")?.jsonPrimitive?.contentOrNull
                                     ?: userObj?.get("picUrl")?.jsonPrimitive?.contentOrNull
                                     ?: userObj?.get("avatar")?.jsonPrimitive?.contentOrNull
+                                    ?: userObj?.get("photo")?.jsonPrimitive?.contentOrNull
+                                    ?: userObj?.get("pic128x128")?.jsonPrimitive?.contentOrNull
+                                    ?: userObj?.get("pic640x640")?.jsonPrimitive?.contentOrNull
                                     ?: groupObj?.get("picAvatar")?.jsonPrimitive?.contentOrNull
                                     ?: groupObj?.get("picUrl")?.jsonPrimitive?.contentOrNull
                                     ?: groupObj?.get("iconUrl")?.jsonPrimitive?.contentOrNull
                                     ?: groupObj?.get("avatar")?.jsonPrimitive?.contentOrNull
-                                    ?: "https://ok.ru/favicon.ico"
+                                    ?: groupObj?.get("photo")?.jsonPrimitive?.contentOrNull
+                                    ?: groupObj?.get("pic128x128")?.jsonPrimitive?.contentOrNull
+                                    ?: groupObj?.get("pic640x640")?.jsonPrimitive?.contentOrNull
+
+                                val authorAvatar = when {
+                                    rawAvatar.isNullOrBlank() -> "https://ok.ru/favicon.ico"
+                                    rawAvatar.startsWith("//") -> "https:$rawAvatar"
+                                    !rawAvatar.startsWith("http") -> "https://$rawAvatar"
+                                    else -> rawAvatar
+                                }
 
                                 val videoUrl = "https://ok.ru/video/$id"
 

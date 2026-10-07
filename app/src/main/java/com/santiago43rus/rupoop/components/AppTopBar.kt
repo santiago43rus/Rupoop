@@ -181,7 +181,6 @@ fun AppTopBar(
                                 NavItem.HOME -> "Rupoop"
                                 NavItem.SUBSCRIPTIONS -> "Rupoop"
                                 NavItem.LIBRARY -> "Rupoop"
-                                else -> "Rupoop"
                             }
                         },
                         fontWeight = FontWeight.Bold,

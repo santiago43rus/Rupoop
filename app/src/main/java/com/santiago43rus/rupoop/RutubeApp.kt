@@ -26,7 +26,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -273,7 +273,7 @@ fun RutubeApp(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer { alpha = if (vm.isFullscreenVideo) 0f else sharedUiProgress }
-                        .padding(bottom = if (vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) 0.dp else padding.calculateBottomPadding())
+                        .padding(bottom = if ((vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) || vm.isSearchExpanded) 0.dp else padding.calculateBottomPadding())
                 ) {
                     if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible && !vm.isNotificationSettingsVisible) {
                         AppTopBar(vm = vm, searchState = searchState, focusManager = focusManager, authLauncher = authLauncher, onSearch = {

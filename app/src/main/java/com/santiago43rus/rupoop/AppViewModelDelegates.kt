@@ -1,4 +1,3 @@
-@file:OptIn(androidx.media3.common.util.UnstableApi::class)
 package com.santiago43rus.rupoop
 
 import android.content.Intent

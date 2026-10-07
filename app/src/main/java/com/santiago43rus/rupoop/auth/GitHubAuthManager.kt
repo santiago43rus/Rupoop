@@ -71,14 +71,14 @@ class GitHubAuthManager(context: Context) {
                 if (!continuation.isActive) return
 
                 if (!response.isSuccessful) {
-                    val ex = Exception("Proxy returned HTTP ${response.code}: ${response.body?.string()}")
+                    val ex = Exception("Proxy returned HTTP ${response.code}: ${response.body.string()}")
                     Log.e("RupoopAuth", "Token exchange HTTP Error", ex)
                     continuation.resumeWithException(ex)
                     return
                 }
 
                 try {
-                    val respBody = response.body?.string() ?: ""
+                    val respBody = response.body.string()
                     var token = ""
                     
                     if (respBody.trim().startsWith("{")) {

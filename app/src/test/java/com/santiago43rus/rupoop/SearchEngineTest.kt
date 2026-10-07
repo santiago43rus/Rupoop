@@ -95,4 +95,32 @@ class SearchEngineTest {
         assertNotNull(first.publicationTs)
         assertNotNull(first.author?.avatarUrl)
     }
+
+    @Test
+    fun testAuthorVideosFilteringVk() = runBlocking {
+        val testAuthor = "Kuplinov"
+        val videos = VkSearchEngine.getAuthorVideos(testAuthor)
+        println("VK Author '$testAuthor' videos: ${videos.size}")
+        assertTrue("VK Author search should return results", videos.isNotEmpty())
+        videos.take(5).forEach {
+            println("VK item: [${it.author?.name}] ${it.title}")
+            val match = it.author?.name?.contains(testAuthor, ignoreCase = true) == true ||
+                    testAuthor.contains(it.author?.name ?: "", ignoreCase = true)
+            assertTrue("Video should match requested author", match)
+        }
+    }
+
+    @Test
+    fun testAuthorVideosFilteringOk() = runBlocking {
+        val testAuthor = "Фильмы"
+        val videos = OkSearchEngine.getAuthorVideos(testAuthor)
+        println("OK Author '$testAuthor' videos: ${videos.size}")
+        assertTrue("OK Author search should return results", videos.isNotEmpty())
+        videos.take(5).forEach {
+            println("OK item: [${it.author?.name}] ${it.title} | Avatar: ${it.author?.avatarUrl}")
+            val match = it.author?.name?.contains(testAuthor, ignoreCase = true) == true ||
+                    testAuthor.contains(it.author?.name ?: "", ignoreCase = true)
+            assertTrue("Video should match requested author", match)
+        }
+    }
 }

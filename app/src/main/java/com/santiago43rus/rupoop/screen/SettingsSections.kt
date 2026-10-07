@@ -1,6 +1,7 @@
 package com.santiago43rus.rupoop.screen
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -36,7 +37,11 @@ fun CacheAndHistorySection(
             trailingContent = {
                 Button(
                     onClick = onClearCache,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onBackground,
+                        contentColor = MaterialTheme.colorScheme.background
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
                 ) {
                     Text("Очистить", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
@@ -53,14 +58,22 @@ fun CacheAndHistorySection(
     Button(
         onClick = onClearWatchHistory,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.onBackground,
+            contentColor = MaterialTheme.colorScheme.background
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
     ) { Text("Очистить историю просмотра", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium) }
     Spacer(Modifier.height(8.dp))
     Button(
         onClick = onClearSearchHistory,
         modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.onBackground,
+            contentColor = MaterialTheme.colorScheme.background
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
     ) { Text("Очистить историю поиска", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium) }
 }

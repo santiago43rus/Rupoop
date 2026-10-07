@@ -134,7 +134,7 @@ fun UpNextOverlay(
                         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.35f)))
                     }
                     CircularProgressIndicator(
-                        progress = if (totalSeconds > 0) countdownSeconds.toFloat() / totalSeconds else 0f,
+                        progress = { if (totalSeconds > 0) countdownSeconds.toFloat() / totalSeconds else 0f },
                         modifier = Modifier.size(52.dp),
                         color = Color.White,
                         strokeWidth = 3.dp

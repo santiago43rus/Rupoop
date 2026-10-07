@@ -178,11 +178,11 @@ class ContentFeedController(
                         }
                         "VK" -> {
                             hasMoreAuthorVideos = false
-                            VkSearchEngine.search(author.name)
+                            VkSearchEngine.getAuthorVideos(author.name)
                         }
                         "OK" -> {
                             hasMoreAuthorVideos = false
-                            OkSearchEngine.search(author.name)
+                            OkSearchEngine.getAuthorVideos(author.name)
                         }
                         else -> {
                             val resp = if (author.id != null) {

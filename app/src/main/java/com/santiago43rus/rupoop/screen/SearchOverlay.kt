@@ -52,8 +52,8 @@ fun SearchOverlay(vm: AppViewModel) {
                         selected = isSelected,
                         onClick = { vm.selectSearchSource(source) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = androidx.compose.ui.graphics.Color.White,
-                            selectedLabelColor = androidx.compose.ui.graphics.Color.Black
+                            selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                            selectedLabelColor = MaterialTheme.colorScheme.background
                         ),
                         label = {
                             Text(

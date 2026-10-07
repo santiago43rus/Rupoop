@@ -1,5 +1,6 @@
 package com.santiago43rus.rupoop.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -75,10 +76,15 @@ fun AuthorScreen(
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                AsyncImage(
-                                    model = a.avatarUrl ?: "", contentDescription = null,
-                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray)
-                                )
+                                val isLordfilm = a.name.equals("Lordfilm", ignoreCase = true) || a.platform.equals("LORDFILM", ignoreCase = true)
+                                if (isLordfilm) {
+                                    com.santiago43rus.rupoop.components.LordfilmAvatarBadge(size = 48.dp)
+                                } else {
+                                    AsyncImage(
+                                        model = a.avatarUrl ?: "", contentDescription = null,
+                                        modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray)
+                                    )
+                                }
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     a.name, style = MaterialTheme.typography.titleMedium,
@@ -93,11 +99,20 @@ fun AuthorScreen(
                                             onToggleSubscription(a, false)
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(32.dp)
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSubbed) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onBackground,
+                                        contentColor = if (isSubbed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.background
+                                    ),
+                                    border = if (!isSubbed) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(34.dp)
                                 ) {
-                                    Text(if (isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
+                                    Text(
+                                        text = if (isSubbed) "Вы подписаны" else "Подписаться",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                             HorizontalDivider()
@@ -133,10 +148,15 @@ fun AuthorScreen(
                                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                AsyncImage(
-                                    model = a.avatarUrl ?: "", contentDescription = null,
-                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray)
-                                )
+                                val isLordfilm = a.name.equals("Lordfilm", ignoreCase = true) || a.platform.equals("LORDFILM", ignoreCase = true)
+                                if (isLordfilm) {
+                                    com.santiago43rus.rupoop.components.LordfilmAvatarBadge(size = 48.dp)
+                                } else {
+                                    AsyncImage(
+                                        model = a.avatarUrl ?: "", contentDescription = null,
+                                        modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray)
+                                    )
+                                }
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     a.name, style = MaterialTheme.typography.titleMedium,
@@ -151,11 +171,20 @@ fun AuthorScreen(
                                             onToggleSubscription(a, false)
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = if (isSubbed) Color.Gray else Color.Red),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-                                    modifier = Modifier.height(32.dp)
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSubbed) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onBackground,
+                                        contentColor = if (isSubbed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.background
+                                    ),
+                                    border = if (!isSubbed) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(34.dp)
                                 ) {
-                                    Text(if (isSubbed) "Вы подписаны" else "Подписаться", fontSize = 12.sp)
+                                    Text(
+                                        text = if (isSubbed) "Вы подписаны" else "Подписаться",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                             HorizontalDivider()

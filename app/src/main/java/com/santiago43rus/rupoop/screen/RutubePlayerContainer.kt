@@ -370,6 +370,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
                     .graphicsLayer {
                         alpha = relatedListAlpha
                         translationY = relatedListTranslationY
@@ -402,7 +403,10 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                                     onAddToPlaylist = { vm.showPlaylistDialog = it },
                                     onDownload = { vm.showDownloadDialog = it },
                                     isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
-                                    onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() }
+                                    onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() },
+                                    episodes = vm.currentEpisodes,
+                                    selectedEpisodeIndex = vm.currentEpisodeIndex,
+                                    onEpisodeClick = { vm.playEpisode(it) }
                                 )
                             }
                         }
@@ -461,7 +465,10 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                             onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() },
                             showVideoDetails = true,
                             useTwoColumns = isTablet,
-                            isLoading = vm.isLoadingRelated
+                            isLoading = vm.isLoadingRelated,
+                            episodes = vm.currentEpisodes,
+                            selectedEpisodeIndex = vm.currentEpisodeIndex,
+                            onEpisodeClick = { vm.playEpisode(it) }
                         )
                     }
                 }

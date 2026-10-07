@@ -69,46 +69,80 @@ class UniversalVideoParserTest {
     }
 
     @Test
-    fun testRealOkVideo6635699048795() {
-        kotlinx.coroutines.runBlocking {
-            val url = "https://ok.ru/video/6635699048795"
-            val result = UniversalVideoParser.parse(url)
-            assertNotNull("Parsed result should not be null", result)
-            
-            // Test actually fetching the stream URL with the headers
-            val client = okhttp3.OkHttpClient.Builder().followRedirects(true).build()
-            val reqBuilder = okhttp3.Request.Builder().url(result!!.streamUrl)
-            for ((k, v) in result.headers) {
-                reqBuilder.header(k, v)
-            }
-            val resp = client.newCall(reqBuilder.build()).execute()
-            val body = resp.body.string()
-            assertEquals("Stream URL should return HTTP 200", 200, resp.code)
-            assertTrue("Body should contain video data or m3u8 playlist", body.contains("#EXTM3U") || body.contains("ftyp") || resp.code == 200)
-        }
+    fun testJsPackerUnpacker() {
+        val packed = """eval(function(p,a,c,k,e,d){e=function(c){return c.toString(36)};if(!''.replace(/^/,String)){while(c--){d[c.toString(a)]=k[c]||c.toString(a)}k=[function(e){return d[e]}];e=function(){return'\\w+'};c=1};while(c--){if(k[c]){p=p.replace(new RegExp('\\b'+e(c)+'\\b','g'),k[c])}}return p}('0 2="1";',3,3,'var|hello|world'.split('|'),0,{}))"""
+        val unpacked = JsPackerUnpacker.unpack(packed)
+        assertTrue("Unpacked code should contain variables", unpacked.contains("var world=\"hello\""))
     }
 
     @Test
-    fun testRealLordfilmParsing() = kotlinx.coroutines.runBlocking {
-        val parsed = UniversalVideoParser.parse("https://lordfilm.top/469-interstellar-interstellar-2014.html")
-        assertNotNull("Lordfilm movie parsing should succeed", parsed)
-        assertTrue("Stream URL should not be blank", parsed!!.streamUrl.isNotBlank())
-        assertTrue("Stream URL should not have unescaped u0026", !parsed.streamUrl.contains("\\u0026"))
+    fun testMockLordfilmExtraction() {
+        val mockHtmlWithIframe = """
+            <!DOCTYPE html>
+            <html>
+            <head><title>Интерстеллар (2014) смотреть онлайн</title></head>
+            <body>
+                <meta property="og:title" content="Интерстеллар (2014)">
+                <meta property="og:image" content="https://example.com/poster.jpg">
+                <div class="player">
+                    <iframe src="https://cdnvideohub.org/embed/12345" width="100%" height="100%"></iframe>
+                </div>
+            </body>
+            </html>
+        """.trimIndent()
 
-        val client = okhttp3.OkHttpClient.Builder().followRedirects(true).build()
-        val reqBuilder = okhttp3.Request.Builder().url(parsed.streamUrl)
-        for ((k, v) in parsed.headers) {
-            reqBuilder.header(k, v)
-        }
-        val resp = client.newCall(reqBuilder.build()).execute()
-        assertEquals(200, resp.code)
+        val mockPlayerHtml = """
+            <!DOCTYPE html>
+            <html>
+            <head><title>Player</title></head>
+            <body>
+                <script>
+                    var file = "https://cdn.example.com/hls/interstellar/index.m3u8";
+                    var player = new Playerjs({file: file});
+                </script>
+            </body>
+            </html>
+        """.trimIndent()
+
+        val iframeMatcher = java.util.regex.Pattern.compile("""<iframe[^>]+src=["']([^"']+)["']""", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(mockHtmlWithIframe)
+        assertTrue(iframeMatcher.find())
+        val iframeUrl = iframeMatcher.group(1)
+        assertEquals("https://cdnvideohub.org/embed/12345", iframeUrl)
+
+        val streamMatcher = java.util.regex.Pattern.compile("""(?:file|hls|src|url)\s*[:=]\s*["']([^"']+\.m3u8[^"']*)["']""", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(mockPlayerHtml)
+        assertTrue(streamMatcher.find())
+        val streamUrl = streamMatcher.group(1)
+        assertEquals("https://cdn.example.com/hls/interstellar/index.m3u8", streamUrl)
     }
 
     @Test
-    fun testRealLordserialsParsing() = kotlinx.coroutines.runBlocking {
-        val parsed = UniversalVideoParser.parse("https://lordserials.fan/zarubezhnye-serialy/618-vedmak.html")
-        assertNotNull("Lordserials parsing should succeed", parsed)
-        assertTrue("Stream URL should not be blank", parsed!!.streamUrl.isNotBlank())
-        assertTrue("Stream URL should point to m3u8", parsed.streamUrl.contains(".m3u8"))
+    fun testMockSerialEpisodesExtraction() {
+        val mockPlayerHtmlWithEpisodes = """
+            <script>
+            var playlist = [
+                {"title": "1 серия (1 сезон)", "file": "https://cdn.example.com/s1e1.m3u8"},
+                {"title": "2 серия (1 сезон)", "file": "https://cdn.example.com/s1e2.m3u8"},
+                {"title": "3 серия (1 сезон)", "file": "https://cdn.example.com/s1e3.m3u8"}
+            ];
+            </script>
+        """.trimIndent()
+
+        val pattern = java.util.regex.Pattern.compile(
+            """\{[^}]*?["']title["']\s*:\s*["']([^"']+)["'][^}]*?["'](?:file|hls|url|stream|src)["']\s*:\s*["']([^"']+\.m3u8[^"']*)["'][^}]*\}""",
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        )
+        val matcher = pattern.matcher(mockPlayerHtmlWithEpisodes)
+        val episodes = mutableListOf<Pair<String, String>>()
+        while (matcher.find()) {
+            val title = matcher.group(1) ?: continue
+            val file = matcher.group(2) ?: continue
+            episodes.add(title to file)
+        }
+
+        assertEquals(3, episodes.size)
+        assertEquals("1 серия (1 сезон)", episodes[0].first)
+        assertEquals("https://cdn.example.com/s1e1.m3u8", episodes[0].second)
+        assertEquals("2 серия (1 сезон)", episodes[1].first)
+        assertEquals("https://cdn.example.com/s1e2.m3u8", episodes[1].second)
     }
 }

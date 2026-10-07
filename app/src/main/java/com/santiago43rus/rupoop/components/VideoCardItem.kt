@@ -133,11 +133,12 @@ fun VideoCardItem(
             verticalAlignment = Alignment.Top
         ) {
             val authorToNavigate = video.author ?: Author(name = platformName, platform = platformName)
+            val isClickableAuthor = !isLordfilm && platformName != "Одноклассники" && platformName != "VK Видео"
             if (isLordfilm) {
                 val lordAuthor = Author(name = "Lordfilm", platform = "LORDFILM")
                 LordfilmAvatarBadge(
                     size = 36.dp,
-                    modifier = Modifier.clickable { onAuthorClick(lordAuthor) }
+                    modifier = Modifier.clickable(enabled = false) { onAuthorClick(lordAuthor) }
                 )
             } else {
                 val fallbackAvatar = if (platformName == "Одноклассники") "https://ok.ru/favicon.ico"
@@ -149,7 +150,7 @@ fun VideoCardItem(
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(Color.Gray)
-                        .clickable { onAuthorClick(authorToNavigate) },
+                        .clickable(enabled = isClickableAuthor) { onAuthorClick(authorToNavigate) },
                     contentScale = ContentScale.Crop,
                     fallback = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details),
                     error = androidx.compose.ui.res.painterResource(id = android.R.drawable.ic_menu_info_details)
@@ -174,7 +175,7 @@ fun VideoCardItem(
                         platformName,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable { onAuthorClick(lordAuthor) }
+                        modifier = Modifier.clickable(enabled = false) { onAuthorClick(lordAuthor) }
                     )
                 } else {
                     val viewsText = formatViewCount(video.hits)
@@ -185,7 +186,7 @@ fun VideoCardItem(
                         "${video.author?.name ?: "Автор"} • $platformName$sep1$viewsText$sep2$timeAgoText",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable { onAuthorClick(authorToNavigate) },
+                        modifier = Modifier.clickable(enabled = isClickableAuthor) { onAuthorClick(authorToNavigate) },
                         overflow = TextOverflow.Ellipsis
                     )
                 }

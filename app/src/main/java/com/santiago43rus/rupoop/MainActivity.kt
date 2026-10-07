@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             val prevAction = RemoteAction(
-                Icon.createWithResource(this, android.R.drawable.ic_media_previous),
+                Icon.createWithResource(this, R.drawable.ic_pip_prev),
                 "Предыдущее",
                 "Предыдущее",
                 prevIntent
@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
                 this, 102, Intent(ACTION_PIP_PLAY_PAUSE).apply { `package` = packageName },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            val iconRes = if (vm.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+            val iconRes = if (vm.isPlaying) R.drawable.ic_pip_pause else R.drawable.ic_pip_play
             val title = if (vm.isPlaying) "Пауза" else "Воспроизведение"
             val playPauseAction = RemoteAction(
                 Icon.createWithResource(this, iconRes),
@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             val nextAction = RemoteAction(
-                Icon.createWithResource(this, android.R.drawable.ic_media_next),
+                Icon.createWithResource(this, R.drawable.ic_pip_next),
                 "Следующее",
                 "Следующее",
                 nextIntent

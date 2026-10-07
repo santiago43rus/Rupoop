@@ -41,7 +41,10 @@ fun RelatedVideosList(
     onBackgroundPlayToggle: () -> Unit = {},
     showVideoDetails: Boolean = true,
     useTwoColumns: Boolean = false,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    episodes: List<com.santiago43rus.rupoop.parser.Episode> = emptyList(),
+    selectedEpisodeIndex: Int = 0,
+    onEpisodeClick: (Int) -> Unit = {}
 ) {
     val isLocalFile = currentVideo?.videoUrl != null && !currentVideo.videoUrl.startsWith("http")
 
@@ -63,7 +66,10 @@ fun RelatedVideosList(
                     onAddToPlaylist = onAddToPlaylist,
                     onDownload = onDownload,
                     isBackgroundEnabled = isBackgroundEnabled,
-                    onBackgroundPlayToggle = onBackgroundPlayToggle
+                    onBackgroundPlayToggle = onBackgroundPlayToggle,
+                    episodes = episodes,
+                    selectedEpisodeIndex = selectedEpisodeIndex,
+                    onEpisodeClick = onEpisodeClick
                 )
                 if (!isLocalFile) {
                     HorizontalDivider()

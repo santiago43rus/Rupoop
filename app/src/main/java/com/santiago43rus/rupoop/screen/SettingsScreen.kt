@@ -1,5 +1,6 @@
 package com.santiago43rus.rupoop.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -119,9 +120,9 @@ fun SettingsScreen(
                             vm.onRegistryUpdate(registryManager.registry)
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color.White,
-                            selectedLabelColor = Color.Black,
-                            selectedLeadingIconColor = Color.Black
+                            selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                            selectedLabelColor = MaterialTheme.colorScheme.background,
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.background
                         ),
                         label = { Text(label) },
                         leadingIcon = {
@@ -160,9 +161,9 @@ fun SettingsScreen(
                             vm.onRegistryUpdate(registryManager.registry)
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color.White,
-                            selectedLabelColor = Color.Black,
-                            selectedLeadingIconColor = Color.Black
+                            selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                            selectedLabelColor = MaterialTheme.colorScheme.background,
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.background
                         ),
                         label = { Text(label) },
                         leadingIcon = {
@@ -215,8 +216,8 @@ fun SettingsScreen(
                             settingsManager.doubleTapSeekDuration = seconds
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color.White,
-                            selectedLabelColor = Color.Black
+                            selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                            selectedLabelColor = MaterialTheme.colorScheme.background
                         ),
                         label = { Text("${seconds}с") }
                     )
@@ -283,9 +284,9 @@ fun SettingsScreen(
                             vm.onRegistryUpdate(registryManager.registry)
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color.White,
-                            selectedLabelColor = Color.Black,
-                            selectedLeadingIconColor = Color.Black
+                            selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                            selectedLabelColor = MaterialTheme.colorScheme.background,
+                            selectedLeadingIconColor = MaterialTheme.colorScheme.background
                         ),
                         label = { Text(genre.replaceFirstChar { it.uppercase() }) },
                         leadingIcon = if (selected) {
@@ -326,8 +327,8 @@ fun SettingsScreen(
                                     vm.onRegistryUpdate(registryManager.registry)
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Color.White,
-                                    selectedLabelColor = Color.Black
+                                    selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                                    selectedLabelColor = MaterialTheme.colorScheme.background
                                 ),
                                 label = { Text(q + "p") }
                             )
@@ -455,22 +456,30 @@ fun SettingsScreen(
                     Button(
                         onClick = { vm.pullFromGist() },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                        Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.background)
                         Spacer(Modifier.width(4.dp))
-                        Text("Загрузить", color = Color.Black, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                        Text("Загрузить", color = MaterialTheme.colorScheme.background, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                     }
                     Button(
                         onClick = { vm.pushToGist() },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Upload, null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                        Icon(Icons.Default.Upload, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.background)
                         Spacer(Modifier.width(4.dp))
-                        Text("Выгрузить", color = Color.Black, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                        Text("Выгрузить", color = MaterialTheme.colorScheme.background, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                     }
                 }
             }
@@ -535,12 +544,16 @@ fun SettingsScreen(
                                         registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)))
                                         vm.onRegistryUpdate(registryManager.registry)
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.onBackground,
+                                        contentColor = MaterialTheme.colorScheme.background
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
-                                    Text("Сбросить", color = Color.Black, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                                    Text("Сбросить", color = MaterialTheme.colorScheme.background, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                                 }
                             }
                         }
@@ -565,24 +578,32 @@ fun SettingsScreen(
                         vm.exportBackupShare(context)
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onBackground,
+                        contentColor = MaterialTheme.colorScheme.background
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                    Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.background)
                     Spacer(Modifier.width(6.dp))
-                    Text("Поделиться", color = Color.Black, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                    Text("Поделиться", color = MaterialTheme.colorScheme.background, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                 }
                 Button(
                     onClick = {
                         createFileLauncher.launch("rupoop_backup.json")
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.onBackground,
+                        contentColor = MaterialTheme.colorScheme.background
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                 ) {
-                    Icon(Icons.Default.Save, null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                    Icon(Icons.Default.Save, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.background)
                     Spacer(Modifier.width(6.dp))
-                    Text("В файл", color = Color.Black, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                    Text("В файл", color = MaterialTheme.colorScheme.background, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
                 }
             }
             Button(
@@ -590,12 +611,16 @@ fun SettingsScreen(
                     importFileLauncher.launch(arrayOf("application/json", "*/*"))
                 },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.onBackground,
+                    contentColor = MaterialTheme.colorScheme.background
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
             ) {
-                Icon(Icons.Default.FileOpen, null, modifier = Modifier.size(18.dp), tint = Color.Black)
+                Icon(Icons.Default.FileOpen, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.background)
                 Spacer(Modifier.width(6.dp))
-                Text("Импортировать из файла", color = Color.Black, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                Text("Импортировать из файла", color = MaterialTheme.colorScheme.background, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
             }
 
             HorizontalDivider(Modifier.padding(vertical = 12.dp))

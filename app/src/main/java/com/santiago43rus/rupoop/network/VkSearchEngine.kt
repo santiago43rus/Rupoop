@@ -42,6 +42,15 @@ object VkSearchEngine {
         return@withContext results.distinctBy { it.videoUrl }
     }
 
+    suspend fun getAuthorVideos(authorName: String): List<SearchResult> = withContext(Dispatchers.IO) {
+        val all = search(authorName)
+        val matched = all.filter {
+            it.author?.name?.contains(authorName, ignoreCase = true) == true ||
+            authorName.contains(it.author?.name ?: "", ignoreCase = true)
+        }
+        return@withContext if (matched.isNotEmpty()) matched else all
+    }
+
     private fun searchViaAlVideo(query: String): List<SearchResult> {
         val formBody = FormBody.Builder()
             .add("act", "search_video")

@@ -44,7 +44,10 @@ fun VideoDetails(
     onAddToPlaylist: (SearchResult) -> Unit,
     onDownload: (SearchResult) -> Unit,
     onBackgroundPlayToggle: () -> Unit = {},
-    isBackgroundEnabled: Boolean = false
+    isBackgroundEnabled: Boolean = false,
+    episodes: List<com.santiago43rus.rupoop.parser.Episode> = emptyList(),
+    selectedEpisodeIndex: Int = 0,
+    onEpisodeClick: (Int) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -54,14 +57,16 @@ fun VideoDetails(
             text = video?.title ?: "",
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             maxLines = if (expanded) Int.MAX_VALUE else 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.clickable { expanded = !expanded }
         )
         
+        val isLordfilm = video?.videoUrl?.lowercase()?.let { it.contains("lordfilm") || it.contains("lordserials") } == true
+
         // Video Metadata (Views and publish time)
-        val viewsText = video?.let { formatViewCount(it.hits) } ?: ""
+        val viewsText = if (!isLordfilm) (video?.let { formatViewCount(it.hits) } ?: "") else ""
         val timeAgoText = video?.let { formatTimeAgo(it.publicationTs ?: it.createdTs) } ?: ""
         val metaText = buildString {
             if (viewsText.isNotEmpty()) append(viewsText)
@@ -73,7 +78,7 @@ fun VideoDetails(
         if (metaText.isNotEmpty()) {
             Text(
                 text = metaText,
-                color = Color.LightGray.copy(0.6f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
             )
@@ -103,7 +108,7 @@ fun VideoDetails(
                 if (isLordfilm) {
                     LordfilmAvatarBadge(
                         size = 36.dp,
-                        modifier = Modifier.clickable { onAuthorClick(authorToNavigate) }
+                        modifier = Modifier.clickable(enabled = false) { onAuthorClick(authorToNavigate) }
                     )
                 } else {
                     val fallbackAvatar = if (platformName == "Одноклассники") "https://ok.ru/favicon.ico"
@@ -115,18 +120,18 @@ fun VideoDetails(
                             .size(36.dp)
                             .clip(CircleShape)
                             .background(Color.Gray.copy(0.3f))
-                            .clickable { onAuthorClick(authorToNavigate) }
+                            .clickable(enabled = isRutube) { onAuthorClick(authorToNavigate) }
                     )
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(
                     Modifier
                         .weight(1f)
-                        .clickable { onAuthorClick(authorToNavigate) }
+                        .clickable(enabled = isRutube) { onAuthorClick(authorToNavigate) }
                 ) {
                     Text(
                         text = if (isLordfilm) "Lordfilm" else (video?.author?.name ?: "Автор"),
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         maxLines = 1,
@@ -135,7 +140,7 @@ fun VideoDetails(
                     Text(
                         text = if (isLordfilm) "Новинки кино и сериалов" else if (isRutube) "Rutube • 1.2 млн подписчиков" else platformName,
                         fontSize = 11.sp,
-                        color = Color.LightGray.copy(0.6f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 val isSubbed = registry.subscriptions.any { it.name.equals(video?.author?.name, ignoreCase = true) }
@@ -144,9 +149,10 @@ fun VideoDetails(
                 Button(
                     onClick = { video?.author?.let { onToggleSub(it) } },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSubbed) Color.White.copy(0.15f) else Color.White,
-                        contentColor = if (isSubbed) Color.White else Color.Black
+                        containerColor = if (isSubbed) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onBackground,
+                        contentColor = if (isSubbed) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.background
                     ),
+                    border = if (!isSubbed) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
                     shape = RoundedCornerShape(50),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                     modifier = Modifier.height(32.dp)
@@ -214,7 +220,7 @@ fun VideoDetails(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(0.12f))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
                     // Like button
@@ -227,13 +233,13 @@ fun VideoDetails(
                         Icon(
                             imageVector = if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
                             contentDescription = null,
-                            tint = if (isLiked) Color(0xFFE53935) else Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = if (isLiked) "1" else "Лайк",
-                            color = Color.White,
+                            text = "Лайк",
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -244,7 +250,7 @@ fun VideoDetails(
                         modifier = Modifier
                             .width(1.dp)
                             .height(16.dp)
-                            .background(Color.White.copy(0.2f))
+                            .background(MaterialTheme.colorScheme.outlineVariant)
                     )
 
                     // Dislike button
@@ -256,7 +262,7 @@ fun VideoDetails(
                         Icon(
                             imageVector = if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
                             contentDescription = null,
-                            tint = if (isDisliked) Color(0xFFE53935) else Color.White,
+                            tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -287,9 +293,45 @@ fun VideoDetails(
                 CapsuleAction(
                     icon = Icons.Default.Headphones,
                     label = "Фон",
-                    iconColor = if (isBackgroundEnabled) Color(0xFFE53935) else Color.White,
+                    iconColor = if (isBackgroundEnabled) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface,
                     onClick = onBackgroundPlayToggle
                 )
+            }
+
+            if (episodes.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Серии (${episodes.size})",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    episodes.forEachIndexed { idx, ep ->
+                        val isSelected = idx == selectedEpisodeIndex
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onEpisodeClick(idx) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                                selectedLabelColor = MaterialTheme.colorScheme.background
+                            ),
+                            label = {
+                                Text(
+                                    ep.title,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -299,14 +341,14 @@ fun VideoDetails(
 fun CapsuleAction(
     icon: ImageVector,
     label: String,
-    iconColor: Color = Color.White,
+    iconColor: Color = MaterialTheme.colorScheme.onSurface,
     onClick: () -> Unit
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(0.12f))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
@@ -319,7 +361,7 @@ fun CapsuleAction(
         Spacer(Modifier.width(6.dp))
         Text(
             text = label,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold
         )

@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.santiago43rus.rupoop.auth.AuthController
 import com.santiago43rus.rupoop.auth.GistSyncManager
@@ -32,7 +31,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@UnstableApi
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -207,6 +205,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     var showDownloadNotifications by mutableStateOf(settingsManager.showDownloadNotifications)
     var showBackgroundNotifications by mutableStateOf(settingsManager.showBackgroundNotifications)
+
+    val currentEpisodes: List<com.santiago43rus.rupoop.parser.Episode> get() = playbackController.currentEpisodes
+    val currentEpisodeIndex: Int get() = playbackController.currentEpisodeIndex
+    fun playEpisode(index: Int) = playbackController.playEpisode(index)
 
     fun syncPlaybackService() {
         playbackController.syncPlaybackService()

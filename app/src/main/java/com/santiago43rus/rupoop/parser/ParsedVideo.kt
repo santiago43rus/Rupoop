@@ -5,6 +5,14 @@ import com.santiago43rus.rupoop.data.SearchResult
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class Episode(
+    val title: String,
+    val seasonNumber: Int = 1,
+    val episodeNumber: Int = 1,
+    val streamUrl: String
+)
+
+@Serializable
 data class ParsedVideo(
     val videoUrl: String,
     val streamUrl: String,
@@ -14,7 +22,8 @@ data class ParsedVideo(
     val authorAvatarUrl: String? = null,
     val durationSeconds: Long? = null,
     val headers: Map<String, String> = emptyMap(),
-    val sourceName: String = "Web"
+    val sourceName: String = "Web",
+    val episodes: List<Episode> = emptyList()
 ) {
     fun toSearchResult(): SearchResult {
         return SearchResult(

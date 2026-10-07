@@ -182,8 +182,14 @@ object UnifiedWebVideoParser {
                 }
 
                 // Generic web player iframe (Collaps, Lumex, VideoCDN, Kodik, Alloha, Voidboost, Aniboom, Ashdi, Bazon, Vibix, etc.)
-                val playerVideo = parsePlayerIframe(iframeUrl, normalizedUrl, title, thumbnail, hostName)
+                var playerVideo = parsePlayerIframe(iframeUrl, normalizedUrl, title, thumbnail, hostName)
                 if (playerVideo != null) {
+                    if (playerVideo.episodes.isEmpty()) {
+                        val pageEpisodes = extractEpisodesFromHtml(html, normalizedUrl)
+                        if (pageEpisodes.isNotEmpty()) {
+                            playerVideo = playerVideo.copy(episodes = pageEpisodes)
+                        }
+                    }
                     return@withContext playerVideo.copy(videoUrl = url)
                 }
             }
@@ -236,6 +242,7 @@ object UnifiedWebVideoParser {
             val streamUrl = extractStreamFromPlayerHtml(html, iframeUrl)
             if (streamUrl != null) {
                 val resolvedStream = resolveUrl(iframeUrl, streamUrl)
+                val episodes = extractEpisodesFromHtml(html, iframeUrl)
                 return@withContext ParsedVideo(
                     videoUrl = referrerUrl,
                     streamUrl = resolvedStream,
@@ -243,7 +250,8 @@ object UnifiedWebVideoParser {
                     thumbnailUrl = fallbackThumbnail,
                     authorName = sourceName,
                     headers = buildHeaders(iframeUrl),
-                    sourceName = sourceName
+                    sourceName = sourceName,
+                    episodes = episodes
                 )
             }
 
@@ -261,6 +269,69 @@ object UnifiedWebVideoParser {
             Log.w(TAG, "Error parsing player iframe: $iframeUrl", e)
             null
         }
+    }
+
+    private fun extractEpisodesFromHtml(html: String, baseUrl: String): List<Episode> {
+        val list = mutableListOf<Episode>()
+        val seen = mutableSetOf<String>()
+
+        // 1. JSON folder / playlist / episodes pattern: { ... "title": "1 серия", ... "file": "...m3u8" ... }
+        val p1 = Pattern.compile(
+            """\{[^}]*?["']title["']\s*:\s*["']([^"']+)["'][^}]*?["'](?:file|hls|url|stream|src)["']\s*:\s*["']([^"']+\.m3u8[^"']*)["'][^}]*\}""",
+            Pattern.CASE_INSENSITIVE
+        )
+        val m1 = p1.matcher(html)
+        while (m1.find()) {
+            val title = m1.group(1)?.trim() ?: continue
+            val rawFile = m1.group(2)?.trim() ?: continue
+            val streamUrl = resolveUrl(baseUrl, rawFile.replace("\\/", "/").replace("\\u0026", "&"))
+            if (seen.add(streamUrl)) {
+                val epNum = Regex("""\d+""").find(title)?.value?.toIntOrNull() ?: (list.size + 1)
+                val seasonNum = if (title.contains("сезон", ignoreCase = true)) {
+                    Regex("""(\d+)\s*сезон""").find(title.lowercase())?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                } else 1
+                list.add(Episode(title = title, seasonNumber = seasonNum, episodeNumber = epNum, streamUrl = streamUrl))
+            }
+        }
+
+        // 2. Reverse JSON pattern: { ... "file": "...m3u8", ... "title": "1 серия" ... }
+        val p2 = Pattern.compile(
+            """\{[^}]*?["'](?:file|hls|url|stream|src)["']\s*:\s*["']([^"']+\.m3u8[^"']*)["'][^}]*?["']title["']\s*:\s*["']([^"']+)["'][^}]*\}""",
+            Pattern.CASE_INSENSITIVE
+        )
+        val m2 = p2.matcher(html)
+        while (m2.find()) {
+            val rawFile = m2.group(1)?.trim() ?: continue
+            val title = m2.group(2)?.trim() ?: continue
+            val streamUrl = resolveUrl(baseUrl, rawFile.replace("\\/", "/").replace("\\u0026", "&"))
+            if (seen.add(streamUrl)) {
+                val epNum = Regex("""\d+""").find(title)?.value?.toIntOrNull() ?: (list.size + 1)
+                val seasonNum = if (title.contains("сезон", ignoreCase = true)) {
+                    Regex("""(\d+)\s*сезон""").find(title.lowercase())?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                } else 1
+                list.add(Episode(title = title, seasonNumber = seasonNum, episodeNumber = epNum, streamUrl = streamUrl))
+            }
+        }
+
+        // 3. Kodik or Collaps format: "1": "https://...m3u8", "2": "https://...m3u8"
+        if (list.isEmpty()) {
+            val p3 = Pattern.compile(
+                """["'](\d+)["']\s*:\s*["'](https?:\/\/[^"'\s<>\\]+?\.m3u8[^"'\s<>\\]*)["']""",
+                Pattern.CASE_INSENSITIVE
+            )
+            val m3 = p3.matcher(html)
+            while (m3.find()) {
+                val epStr = m3.group(1) ?: continue
+                val rawFile = m3.group(2) ?: continue
+                val streamUrl = resolveUrl(baseUrl, rawFile.replace("\\/", "/").replace("\\u0026", "&"))
+                if (seen.add(streamUrl)) {
+                    val epNum = epStr.toIntOrNull() ?: (list.size + 1)
+                    list.add(Episode(title = "$epNum серия", seasonNumber = 1, episodeNumber = epNum, streamUrl = streamUrl))
+                }
+            }
+        }
+
+        return list.sortedWith(compareBy({ it.seasonNumber }, { it.episodeNumber }))
     }
 
     private fun extractStreamFromPlayerHtml(html: String, baseUrl: String): String? {

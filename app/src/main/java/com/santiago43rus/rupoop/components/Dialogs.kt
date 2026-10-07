@@ -59,9 +59,9 @@ fun ContentSelectionDialog(
                             },
                             label = { Text(genre.replaceFirstChar { it.uppercase() }) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color.White,
-                                selectedLabelColor = Color.Black,
-                                selectedLeadingIconColor = Color.Black
+                                selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                                selectedLabelColor = MaterialTheme.colorScheme.background,
+                                selectedLeadingIconColor = MaterialTheme.colorScheme.background
                             ),
                             leadingIcon = if (selected) {
                                 {
