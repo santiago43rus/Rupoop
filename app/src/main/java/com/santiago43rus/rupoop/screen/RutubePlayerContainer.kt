@@ -353,27 +353,17 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     } else Modifier
 
     Box(modifier = Modifier.fillMaxSize()) {
-        val baseRelatedAlpha = if (vm.isFullscreenVideo) 0f else (1f - realProgress * 1.5f).coerceIn(0f, 1f)
-        val relatedListAlpha by animateFloatAsState(
-            targetValue = baseRelatedAlpha,
-            animationSpec = if (isTabletTransition) tween(durationMillis = 250) else snap(),
-            label = "relatedListAlpha"
-        )
-        val baseRelatedTranslationY = if (vm.isFullscreenVideo) with(density) { 60.dp.toPx() } else with(density) { realProgress * 250.dp.toPx() }
-        val relatedListTranslationY by animateFloatAsState(
-            targetValue = baseRelatedTranslationY,
-            animationSpec = if (isTabletTransition) tween(durationMillis = 250) else snap(),
-            label = "relatedListTranslationY"
-        )
+        val baseRelatedAlpha = if (vm.isFullscreenVideo) 0f else (1f - realProgress * 1.2f).coerceIn(0f, 1f)
+        val baseRelatedTranslationY = if (vm.isFullscreenVideo) with(density) { 60.dp.toPx() } else with(density) { realProgress * 150.dp.toPx() }
 
-        if (relatedListAlpha > 0f) {
+        if (baseRelatedAlpha > 0f) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = baseRelatedAlpha))
                     .graphicsLayer {
-                        alpha = relatedListAlpha
-                        translationY = relatedListTranslationY
+                        alpha = baseRelatedAlpha
+                        translationY = baseRelatedTranslationY
                     }
             ) {
                 if (isWideScreen) {

@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,21 +40,29 @@ fun RutubeBottomBar(
 ) {
     if (isFullscreenVideo || isSettingsVisible) return
 
+    val navBarInsets = WindowInsets.navigationBars.asPaddingValues()
+
     Surface(
         color = MaterialTheme.colorScheme.background,
         tonalElevation = 3.dp,
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer { translationY = size.height * (1f - progress.coerceIn(0f, 1f)) }
-            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .padding(
+                        start = navBarInsets.calculateStartPadding(LocalLayoutDirection.current),
+                        end = navBarInsets.calculateEndPadding(LocalLayoutDirection.current)
+                    ),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             // Home
             val isHome = currentNav == NavItem.HOME
             Box(
@@ -180,5 +189,7 @@ fun RutubeBottomBar(
                 }
             }
         }
+        Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
     }
+}
 }

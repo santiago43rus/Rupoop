@@ -272,7 +272,6 @@ fun RutubeApp(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer { alpha = if (vm.isFullscreenVideo) 0f else sharedUiProgress }
                         .padding(bottom = if ((vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) || vm.isSearchExpanded) 0.dp else padding.calculateBottomPadding())
                 ) {
                     if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible && !vm.isNotificationSettingsVisible) {

@@ -19,9 +19,18 @@ object VkSearchEngine {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
         .followRedirects(true)
+        .cookieJar(object : okhttp3.CookieJar {
+            private val cookieStore = mutableMapOf<String, List<okhttp3.Cookie>>()
+            override fun saveFromResponse(url: okhttp3.HttpUrl, cookies: List<okhttp3.Cookie>) {
+                cookieStore[url.host] = cookies
+            }
+            override fun loadForRequest(url: okhttp3.HttpUrl): List<okhttp3.Cookie> {
+                return cookieStore[url.host] ?: emptyList()
+            }
+        })
         .build()
 
     suspend fun search(query: String): List<SearchResult> = withContext(Dispatchers.IO) {

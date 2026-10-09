@@ -16,10 +16,19 @@ object VkVideoParser {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .cookieJar(object : okhttp3.CookieJar {
+            private val cookieStore = mutableMapOf<String, List<okhttp3.Cookie>>()
+            override fun saveFromResponse(url: okhttp3.HttpUrl, cookies: List<okhttp3.Cookie>) {
+                cookieStore[url.host] = cookies
+            }
+            override fun loadForRequest(url: okhttp3.HttpUrl): List<okhttp3.Cookie> {
+                return cookieStore[url.host] ?: emptyList()
+            }
+        })
         .build()
 
     fun isVkUrl(url: String): Boolean {
@@ -197,11 +206,18 @@ object VkVideoParser {
     }
 
     private fun extractStreamUrl(htmlOrJson: String): String? {
-        // Priority 1: HLS
-        val hlsRegex = """(?:["']hls["']|hls)\s*:\s*["']([^"']+)["']"""
-        val hlsMatch = extractRegex(htmlOrJson, hlsRegex)
-        if (!hlsMatch.isNullOrBlank()) {
-            return unescapeJson(hlsMatch)
+        // Priority 1: HLS in params or json
+        val hlsRegexes = listOf(
+            """(?:["']hls["']|hls)\s*:\s*["']([^"']+)["']""",
+            """(?:["']hls_live["']|hls_live)\s*:\s*["']([^"']+)["']""",
+            """["']manifest["']\s*:\s*["']([^"']+)["']"""
+        )
+        for (rgx in hlsRegexes) {
+            val match = extractRegex(htmlOrJson, rgx)
+            if (!match.isNullOrBlank()) {
+                val cleaned = unescapeJson(match)
+                if (cleaned.startsWith("http")) return cleaned
+            }
         }
 
         // Priority 2: Direct MP4 resolutions (1080p, 720p, 480p, 360p, 240p)
@@ -210,15 +226,25 @@ object VkVideoParser {
             val qRegex = """(?:["']$q["']|$q)\s*:\s*["']([^"']+)["']"""
             val match = extractRegex(htmlOrJson, qRegex)
             if (!match.isNullOrBlank()) {
-                return unescapeJson(match)
+                val cleaned = unescapeJson(match)
+                if (cleaned.startsWith("http")) return cleaned
             }
         }
 
-        // Priority 3: Any direct .m3u8 link in scripts
-        val generalHls = extractRegex(htmlOrJson, """(https?:\\\/\\\/[^"'\s]+?\.m3u8[^"'\s]*)""")
-            ?: extractRegex(htmlOrJson, """(https?:\/\/[^"'\s]+?\.m3u8[^"'\s]*)""")
+        // Priority 3: Direct .m3u8 link in scripts or html attributes
+        val generalHls = extractRegex(htmlOrJson, """(https?:\\\/\\\/[^"'\s<>\\]+?\.m3u8[^"'\s<>\\]*)""")
+            ?: extractRegex(htmlOrJson, """(https?:\/\/[^"'\s<>\\]+?\.m3u8[^"'\s<>\\]*)""")
         if (generalHls != null) {
-            return unescapeJson(generalHls)
+            val cleaned = unescapeJson(generalHls)
+            if (cleaned.startsWith("http")) return cleaned
+        }
+
+        // Priority 4: Direct .mp4 link
+        val generalMp4 = extractRegex(htmlOrJson, """(https?:\\\/\\\/[^"'\s<>\\]+?\.mp4[^"'\s<>\\]*)""")
+            ?: extractRegex(htmlOrJson, """(https?:\/\/[^"'\s<>\\]+?\.mp4[^"'\s<>\\]*)""")
+        if (generalMp4 != null) {
+            val cleaned = unescapeJson(generalMp4)
+            if (cleaned.startsWith("http")) return cleaned
         }
 
         return null
