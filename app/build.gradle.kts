@@ -25,7 +25,7 @@ android {
         applicationId = "com.santiago43rus.rupoop"
         minSdk = 29
         targetSdk = 37
-        versionCode = 6
+        versionCode = 7
         versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -62,15 +62,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            val hasKeystore = listOf(
-                file("keystore.jks"),
-                rootProject.file("keystore.jks"),
-                rootProject.file("rupoop-key"),
-                file("rupoop-key")
-            ).any { it.exists() }
-            if (hasKeystore) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     testOptions {
