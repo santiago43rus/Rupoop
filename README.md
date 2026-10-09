@@ -50,15 +50,15 @@
 ## 📸 Скриншоты
 
 <p align="center">
-  <img src="screenshots/screenshot_1.png" width="18%" alt="Главная лента"/>
-  <img src="screenshots/screenshot_2.png" width="18%" alt="Поиск"/>
-  <img src="screenshots/screenshot_3.png" width="18%" alt="Видеоплеер и детали"/>
-  <img src="screenshots/screenshot_4.png" width="18%" alt="Выбор серий и сезонов"/>
-  <img src="screenshots/screenshot_5.png" width="18%" alt="Библиотека и настройки"/>
+  <img src="screenshots/screenshot_1.jpg" width="18%" alt="Главная лента"/>
+  <img src="screenshots/screenshot_2.jpg" width="18%" alt="Поиск"/>
+  <img src="screenshots/screenshot_3.jpg" width="18%" alt="Видеоплеер и детали"/>
+  <img src="screenshots/screenshot_4.jpg" width="18%" alt="Выбор серий и сезонов"/>
+  <img src="screenshots/screenshot_5.jpg" width="18%" alt="Библиотека и настройки"/>
 </p>
 
 <p align="center">
-  <img src="screenshots/screenshot_player_landscape.png" width="80%" alt="Полноэкранный плеер и режим PiP"/>
+  <img src="screenshots/screenshot_player_landscape.jpg" width="80%" alt="Полноэкранный плеер и режим PiP"/>
 </p>
 
 ---
