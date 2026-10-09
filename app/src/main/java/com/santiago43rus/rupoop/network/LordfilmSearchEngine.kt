@@ -104,7 +104,7 @@ object LordfilmSearchEngine {
         return parseCardsFromHtml(html, hostDomain)
     }
 
-    private fun parseCardsFromHtml(html: String, hostDomain: String): List<SearchResult> {
+    fun parseCardsFromHtml(html: String, hostDomain: String): List<SearchResult> {
         if (html.contains("По вашему запросу ничего не найдено") ||
             (html.contains("не найдено", ignoreCase = true) && !html.contains("item expand-link") && !html.contains("th-item"))
         ) {

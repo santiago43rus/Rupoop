@@ -59,11 +59,35 @@ class SearchEngineTest {
     }
 
     @Test
-    fun testLiveLordfilmSearchMovies() = runBlocking {
-        val results = LordfilmSearchEngine.search("интерстеллар")
-        println("Lordfilm movies results: ${results.size}")
-        results.take(3).forEach { println("Lordfilm Movie: ${it.title} -> ${it.videoUrl}") }
-        assertTrue("Lordfilm movie search should return items", results.isNotEmpty())
+    fun testMockLordfilmSearchParsing() {
+        val mockHtml = """
+            <!DOCTYPE html>
+            <html>
+            <body>
+                <div class="item expand-link">
+                    <img src="https://example.com/poster.jpg" alt="Интерстеллар (2014)">
+                    <a class="item__title" href="/469-interstellar-interstellar-2014.html">Интерстеллар</a>
+                    <span class="news-cat">Фильмы</span>
+                </div>
+                <div class="th-item">
+                    <a class="th-in" href="/zarubezhnye-serialy/618-vedmak.html">
+                        <img src="/uploads/posts/witcher.jpg" alt="Ведьмак 1 сезон">
+                    </a>
+                </div>
+                </div>
+            </body>
+            </html>
+        """.trimIndent()
+
+        val parsed = LordfilmSearchEngine.parseCardsFromHtml(mockHtml, "https://lordfilm.top")
+        assertEquals(2, parsed.size)
+        assertEquals("Интерстеллар (2014)", parsed[0].title)
+        assertEquals("https://lordfilm.top/469-interstellar-interstellar-2014.html", parsed[0].videoUrl)
+        assertEquals("Lordfilm", parsed[0].author?.name)
+        assertEquals("LORDFILM", parsed[0].author?.platform)
+
+        assertEquals("Ведьмак 1 сезон", parsed[1].title)
+        assertEquals("https://lordfilm.top/zarubezhnye-serialy/618-vedmak.html", parsed[1].videoUrl)
     }
 
     @Test

@@ -38,8 +38,14 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreFile = file("keystore.jks")
-            if (keystoreFile.exists()) {
+            val keystoreFile = listOf(
+                file("keystore.jks"),
+                rootProject.file("keystore.jks"),
+                rootProject.file("rupoop-key"),
+                file("rupoop-key")
+            ).firstOrNull { it.exists() }
+
+            if (keystoreFile != null) {
                 storeFile = keystoreFile
                 storePassword = System.getenv("KEYSTORE_PASSWORD") ?: localProperties.getProperty("KEYSTORE_PASSWORD") ?: ""
                 keyAlias = System.getenv("KEY_ALIAS") ?: localProperties.getProperty("KEY_ALIAS") ?: ""
@@ -56,8 +62,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            val keystoreFile = file("keystore.jks")
-            if (keystoreFile.exists()) {
+            val hasKeystore = listOf(
+                file("keystore.jks"),
+                rootProject.file("keystore.jks"),
+                rootProject.file("rupoop-key"),
+                file("rupoop-key")
+            ).any { it.exists() }
+            if (hasKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
