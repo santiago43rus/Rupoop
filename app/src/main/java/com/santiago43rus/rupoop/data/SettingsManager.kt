@@ -30,10 +30,6 @@ class SettingsManager(context: Context) {
         get() = prefs.getBoolean("show_download_notifications", true)
         set(value) = prefs.edit { putBoolean("show_download_notifications", value) }
 
-    var showBackgroundNotifications: Boolean
-        get() = prefs.getBoolean("show_background_notifications", true)
-        set(value) = prefs.edit { putBoolean("show_background_notifications", value) }
-
     var syncFrequencyHours: Int
         get() = prefs.getInt("sync_frequency", 24)
         set(value) = prefs.edit { putInt("sync_frequency", value) }
@@ -103,7 +99,6 @@ class SettingsManager(context: Context) {
             doubleTapSeekDuration = doubleTapSeekDuration,
             appIcon = appIcon,
             showDownloadNotifications = showDownloadNotifications,
-            showBackgroundNotifications = showBackgroundNotifications,
             isEasterEggUnlocked = isEasterEggUnlocked,
             pipEnabled = pipEnabled
         )
@@ -121,7 +116,6 @@ class SettingsManager(context: Context) {
         doubleTapSeekDuration = appSettings.doubleTapSeekDuration
         appIcon = appSettings.appIcon
         showDownloadNotifications = appSettings.showDownloadNotifications
-        showBackgroundNotifications = appSettings.showBackgroundNotifications
         isEasterEggUnlocked = appSettings.isEasterEggUnlocked || isEasterEggUnlocked
         pipEnabled = appSettings.pipEnabled
     }

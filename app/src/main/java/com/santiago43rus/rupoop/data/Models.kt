@@ -100,7 +100,6 @@ data class AppSettings(
     val doubleTapSeekDuration: Int = 10,
     val appIcon: String = "system",
     val showDownloadNotifications: Boolean = true,
-    val showBackgroundNotifications: Boolean = true,
     val isEasterEggUnlocked: Boolean = false,
     val pipEnabled: Boolean = true
 )

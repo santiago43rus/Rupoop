@@ -274,7 +274,7 @@ fun RutubeApp(
                         .fillMaxSize()
                         .padding(bottom = if ((vm.playerState == PlayerState.FULL && vm.isFullscreenVideo) || vm.isSearchExpanded) 0.dp else padding.calculateBottomPadding())
                 ) {
-                    if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible && !vm.isNotificationSettingsVisible) {
+                    if (!vm.isFullscreenVideo && !vm.isHiddenVideosVisible) {
                         AppTopBar(vm = vm, searchState = searchState, focusManager = focusManager, authLauncher = authLauncher, onSearch = {
                             scope.launch { homeListState.scrollToItem(0) }
                         })
@@ -314,8 +314,7 @@ fun RutubeApp(
 
                         RutubeAppOverlays(
                             vm = vm,
-                            onThemeToggle = onThemeToggle,
-                            context = context
+                            onThemeToggle = onThemeToggle
                         )
 
                         SearchSuggestionsOverlay(

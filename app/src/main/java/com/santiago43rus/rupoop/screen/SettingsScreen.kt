@@ -3,7 +3,6 @@ package com.santiago43rus.rupoop.screen
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -34,9 +33,7 @@ import androidx.compose.ui.Alignment
 fun SettingsScreen(
     vm: AppViewModel,
     onThemeToggle: (String) -> Unit,
-    onShowHiddenVideos: () -> Unit,
-    onOpenNotificationSettings: () -> Unit,
-    onNotificationsChanged: () -> Unit
+    onShowHiddenVideos: () -> Unit
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -234,28 +231,18 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 ListItem(
-                    headlineContent = { Text("Настройки уведомлений") },
-                    supportingContent = { Text("Управление уведомлениями загрузки и воспроизведения") },
+                    headlineContent = { Text("Уведомления о загрузке") },
+                    supportingContent = { Text("Показывать уведомления о процессе и завершении скачивания видео") },
                     leadingContent = { Icon(Icons.Default.Notifications, null, tint = Color.Gray) },
                     trailingContent = {
-                        val isAllOn = vm.showDownloadNotifications || vm.showBackgroundNotifications
-                        Box(modifier = Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {} // Consumes click, stops propagation to ListItem
-                        )) {
-                            Switch(
-                                checked = isAllOn,
-                                onCheckedChange = { checked ->
-                                    vm.updateDownloadNotifications(checked)
-                                    vm.updateBackgroundNotifications(checked)
-                                    onNotificationsChanged()
-                                }
-                            )
-                        }
+                        Switch(
+                            checked = vm.showDownloadNotifications,
+                            onCheckedChange = { checked ->
+                                vm.updateDownloadNotifications(checked)
+                            }
+                        )
                     },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier.clickable { onOpenNotificationSettings() }
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
             }
             HorizontalDivider(Modifier.padding(vertical = 12.dp))

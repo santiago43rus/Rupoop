@@ -284,7 +284,6 @@ class UserRegistryManager(private val context: Context) {
             doubleTapSeekDuration = local.appSettings.doubleTapSeekDuration,
             appIcon = if (local.appSettings.appIcon != "system") local.appSettings.appIcon else remote.appSettings.appIcon,
             showDownloadNotifications = local.appSettings.showDownloadNotifications,
-            showBackgroundNotifications = local.appSettings.showBackgroundNotifications,
             isEasterEggUnlocked = local.appSettings.isEasterEggUnlocked || remote.appSettings.isEasterEggUnlocked
         )
 

@@ -3,6 +3,8 @@ package com.santiago43rus.rupoop.player
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import com.santiago43rus.rupoop.util.PlayerState
 import com.santiago43rus.rupoop.util.extractId
 import kotlinx.coroutines.delay
@@ -13,9 +15,9 @@ fun PlaybackController.toggleBackgroundPlayback() {
     syncPlaybackService()
 }
 
+@OptIn(UnstableApi::class)
 internal fun PlaybackController.syncPlaybackService() {
-    val showBackgroundNotifications = settingsManager.showBackgroundNotifications
-    val shouldRun = showBackgroundNotifications && isBackgroundPlaybackEnabled && playerState != PlayerState.CLOSED
+    val shouldRun = playerState != PlayerState.CLOSED
     if (shouldRun) {
         try {
             val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)

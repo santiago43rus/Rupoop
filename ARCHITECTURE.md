@@ -72,7 +72,6 @@ app/src/main/java/com/santiago43rus/rupoop/
 │   ├── SearchSuggestionsOverlay.kt # Оверлей поисковых подсказок (suggestions)
 │   ├── SettingsScreen.kt      # Экран общих настроек приложения
 │   ├── SettingsSections.kt    # Секции экрана настроек (история, кеш, поддержка)
-│   ├── NotificationSettingsScreen.kt # Экран управления уведомлениями (скачивание, фоновое воспроизведение)
 │   ├── RelatedVideosList.kt   # Список похожих видео под плеером в портретной ориентации
 │   ├── RutubeAppOverlays.kt   # Координатор диалогов и оверлеев на уровне всего приложения
 │   ├── RutubeBottomBar.kt     # Нижняя панель навигации

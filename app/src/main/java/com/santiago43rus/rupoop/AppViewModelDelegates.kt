@@ -49,9 +49,6 @@ var AppViewModel.isHiddenVideosVisible: Boolean
     get() = navigationController.isHiddenVideosVisible
     set(value) { navigationController.isHiddenVideosVisible = value }
 
-var AppViewModel.isNotificationSettingsVisible: Boolean
-    get() = navigationController.isNotificationSettingsVisible
-    set(value) { navigationController.isNotificationSettingsVisible = value }
 
 var AppViewModel.isSearchVisible: Boolean
     get() = navigationController.isSearchVisible

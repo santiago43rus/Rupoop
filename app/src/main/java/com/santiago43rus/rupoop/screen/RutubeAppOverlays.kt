@@ -1,9 +1,5 @@
 package com.santiago43rus.rupoop.screen
 
-import android.content.Context
-import android.content.Intent
-import android.os.Build
-import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,8 +21,7 @@ import com.santiago43rus.rupoop.util.PlayerState
 @Composable
 fun RutubeAppOverlays(
     vm: AppViewModel,
-    onThemeToggle: (String) -> Unit,
-    context: Context
+    onThemeToggle: (String) -> Unit
 ) {
     // Overlays with animation
     for (overlay in vm.overlayOrder) {
@@ -78,66 +73,7 @@ fun RutubeAppOverlays(
             SettingsScreen(
                 vm = vm,
                 onThemeToggle = onThemeToggle,
-                onShowHiddenVideos = { vm.isHiddenVideosVisible = true },
-                onOpenNotificationSettings = { vm.isNotificationSettingsVisible = true },
-                onNotificationsChanged = {
-                    val showBg = vm.showBackgroundNotifications
-                    if (!showBg) {
-                        try {
-                            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                            context.stopService(intent)
-                        } catch (e: Exception) {
-                            Log.e("Rupoop", "Failed to stop PlaybackService", e)
-                        }
-                    } else if (vm.playerState != PlayerState.CLOSED) {
-                        try {
-                            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                context.startForegroundService(intent)
-                            } else {
-                                context.startService(intent)
-                            }
-                        } catch (e: Exception) {
-                            Log.e("Rupoop", "Failed to start PlaybackService", e)
-                        }
-                    }
-                }
-            )
-        }
-    }
-
-    // Notification Settings overlay
-    AnimatedVisibility(
-        visible = vm.isNotificationSettingsVisible,
-        enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 4 },
-        exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { it / 4 }
-    ) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            NotificationSettingsScreen(
-                vm = vm,
-                onDismiss = { vm.isNotificationSettingsVisible = false },
-                onSettingsChanged = {
-                    val showBg = vm.showBackgroundNotifications
-                    if (!showBg) {
-                        try {
-                            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                            context.stopService(intent)
-                        } catch (e: Exception) {
-                            Log.e("Rupoop", "Failed to stop PlaybackService", e)
-                        }
-                    } else if (vm.playerState != PlayerState.CLOSED) {
-                        try {
-                            val intent = Intent(context, com.santiago43rus.rupoop.service.PlaybackService::class.java)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                context.startForegroundService(intent)
-                            } else {
-                                context.startService(intent)
-                            }
-                        } catch (e: Exception) {
-                            Log.e("Rupoop", "Failed to start PlaybackService", e)
-                        }
-                    }
-                }
+                onShowHiddenVideos = { vm.isHiddenVideosVisible = true }
             )
         }
     }

@@ -204,7 +204,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val isLoadingRelated: Boolean get() = playbackController.isLoadingRelated
 
     var showDownloadNotifications by mutableStateOf(settingsManager.showDownloadNotifications)
-    var showBackgroundNotifications by mutableStateOf(settingsManager.showBackgroundNotifications)
 
     val currentEpisodes: List<com.santiago43rus.rupoop.parser.Episode> get() = playbackController.currentEpisodes
     val currentEpisodeIndex: Int get() = playbackController.currentEpisodeIndex
@@ -217,12 +216,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateDownloadNotifications(enabled: Boolean) {
         showDownloadNotifications = enabled
         settingsManager.showDownloadNotifications = enabled
-    }
-
-    fun updateBackgroundNotifications(enabled: Boolean) {
-        showBackgroundNotifications = enabled
-        settingsManager.showBackgroundNotifications = enabled
-        syncPlaybackService()
     }
 
     var showPlaylistDialog by mutableStateOf<SearchResult?>(null)

@@ -112,7 +112,6 @@ class NavigationController(
     // ── Overlays ──
     var isSettingsVisible by mutableStateOf(false)
     var isHiddenVideosVisible by mutableStateOf(false)
-    var isNotificationSettingsVisible by mutableStateOf(false)
     var overlayOrder by mutableStateOf(listOf(OverlayState.SEARCH, OverlayState.AUTHOR))
 
     fun restoreSearchStateForTab(tab: NavItem) {
@@ -151,7 +150,6 @@ class NavigationController(
     fun handleBack(): Boolean {
         if (getIsFullscreenVideo()) { setIsFullscreenVideo(false); return true }
         if (getPlayerState() == PlayerState.FULL) { setPlayerState(PlayerState.MINI); return true }
-        if (isNotificationSettingsVisible) { isNotificationSettingsVisible = false; return true }
         if (isHiddenVideosVisible) { isHiddenVideosVisible = false; return true }
         if (isSettingsVisible) { isSettingsVisible = false; return true }
         if (isSearchExpanded) {
