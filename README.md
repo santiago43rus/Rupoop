@@ -69,37 +69,6 @@
 - 👉 **[Архитектура и структура кода (ARCHITECTURE.md)](ARCHITECTURE.md)** — описание модулей, слоев чистой архитектуры и SOLID-принципов.
 
 ---
-├── screen/
-│   ├── AuthorScreen.kt        # Страница автора/канала (видео, плейлисты, о канале)
-│   ├── HiddenVideosScreen.kt  # Экран управления скрытыми и неинтересными видео
-│   ├── LibraryContent.kt      # Экран Библиотеки (история, загрузки, плейлисты, watch later)
-│   ├── MainFeedScreen.kt      # Экран главной ленты видео с вкладками категорий
-│   ├── SubscriptionsScreen.kt # Экран подписок на каналы
-│   ├── SearchOverlay.kt       # Полноэкранный оверлей результатов поиска
-│   ├── SearchSuggestionsOverlay.kt # Оверлей поисковых подсказок (suggestions)
-│   ├── SettingsScreen.kt      # Экран общих настроек приложения
-│   ├── SettingsSections.kt    # Секции экрана настроек (история, кеш, поддержка)
-│   ├── NotificationSettingsScreen.kt # Экран управления уведомлениями (скачивание, фоновое воспроизведение)
-│   ├── RelatedVideosList.kt   # Список похожих видео под плеером в портретной ориентации
-│   ├── RutubeAppOverlays.kt   # Координатор диалогов и оверлеев на уровне всего приложения
-│   ├── RutubeBottomBar.kt     # Нижняя панель навигации
-│   └── RutubePlayerContainer.kt # Контейнер плеера со сложной анимацией перетягивания (swipe-to-collapse)
-├── service/
-│   ├── DownloadService.kt     # Foreground-служба фонового скачивания файлов
-│   ├── DownloadTask.kt        # Логика загрузки HLS-сегментов и извлечения аудиодорожки
-│   ├── DownloadServiceNotifications.kt # Расширение службы для управления уведомлениями скачивания
-│   ├── PlaybackService.kt     # Фоновая Foreground-служба воспроизведения (Media3 MediaSession)
-│   └── SyncWorker.kt          # Периодическая фоновая синхронизация с GitHub Gist (WorkManager)
-├── theme/
-│   ├── Color.kt               # Константы цветовой схемы (Dark/Light)
-│   ├── Theme.kt               # Настройка темы RupoopTheme
-│   └── Type.kt                # Типографика Jetpack Compose
-└── util/
-    ├── FormatterExtensions.kt # Расширения для форматирования просмотров, лайков и дат
-    └── Utils.kt               # Утилиты проверки сети, кеша и системных панелей
-```
-
----
 
 ## 🌐 Авторизационный Прокси-Сервер (Cloudflare Worker)
 

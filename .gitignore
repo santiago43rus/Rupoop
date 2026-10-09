@@ -40,9 +40,7 @@ local.properties
 # Keystore files
 *.jks
 *.keystore
-
-# Screenshots folder
-screenshots/
+rupoop-key
 
 # OS files
 Thumbs.db
