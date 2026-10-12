@@ -49,7 +49,10 @@ fun VideoDetails(
     onAudioOnlyToggle: () -> Unit = {},
     episodes: List<com.santiago43rus.rupoop.parser.Episode> = emptyList(),
     selectedEpisodeIndex: Int = 0,
-    onEpisodeClick: (Int) -> Unit = {}
+    onEpisodeClick: (Int) -> Unit = {},
+    audioTracks: List<com.santiago43rus.rupoop.parser.AudioTrackSource> = emptyList(),
+    selectedAudioTrackId: String? = null,
+    onAudioTrackClick: (com.santiago43rus.rupoop.parser.AudioTrackSource) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -311,10 +314,11 @@ fun VideoDetails(
                 )
             }
 
-            if (episodes.isNotEmpty()) {
+            // ── Audio track / Translation selection (Lordfilm and Balancers) ──
+            if (audioTracks.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Серии (${episodes.size})",
+                    text = "Озвучка / Перевод (${audioTracks.size})",
                     color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
@@ -326,23 +330,136 @@ fun VideoDetails(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    episodes.forEachIndexed { idx, ep ->
-                        val isSelected = idx == selectedEpisodeIndex
+                    audioTracks.forEach { track ->
+                        val isSelected = track.id == selectedAudioTrackId || (selectedAudioTrackId == null && track == audioTracks.first())
                         FilterChip(
                             selected = isSelected,
-                            onClick = { onEpisodeClick(idx) },
+                            onClick = { onAudioTrackClick(track) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.onBackground,
-                                selectedLabelColor = MaterialTheme.colorScheme.background
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                             ),
                             label = {
+                                val labelText = if (track.playerName != null) "${track.name} [${track.playerName}]" else track.name
                                 Text(
-                                    ep.title,
+                                    labelText,
                                     fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             }
                         )
+                    }
+                }
+            }
+
+            // ── Episode and Season selection with Dropdown Menus ──
+            if (episodes.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                val seasons = episodes.map { it.seasonNumber }.distinct().sorted()
+                val currentSelectedEp = episodes.getOrNull(selectedEpisodeIndex) ?: episodes.first()
+                var currentSeason by remember(currentSelectedEp.seasonNumber) {
+                    mutableStateOf(currentSelectedEp.seasonNumber)
+                }
+
+                val episodesInSeason = episodes.filter { it.seasonNumber == currentSeason }
+
+                Text(
+                    text = "Серии и сезоны",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Dropdown for Seasons (if more than 1 season)
+                    if (seasons.size > 1) {
+                        var seasonExpanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedButton(
+                                onClick = { seasonExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = "$currentSeason сезон",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = seasonExpanded,
+                                onDismissRequest = { seasonExpanded = false }
+                            ) {
+                                seasons.forEach { sNum ->
+                                    DropdownMenuItem(
+                                        text = { Text("$sNum сезон") },
+                                        onClick = {
+                                            currentSeason = sNum
+                                            seasonExpanded = false
+                                            val firstEpInNewSeason = episodes.indexOfFirst { it.seasonNumber == sNum }
+                                            if (firstEpInNewSeason != -1) {
+                                                onEpisodeClick(firstEpInNewSeason)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Dropdown for Episodes in current Season
+                    var episodeExpanded by remember { mutableStateOf(false) }
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedButton(
+                            onClick = { episodeExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = currentSelectedEp.title,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = episodeExpanded,
+                            onDismissRequest = { episodeExpanded = false }
+                        ) {
+                            episodesInSeason.forEach { ep ->
+                                val actualIdx = episodes.indexOf(ep)
+                                val isSelected = actualIdx == selectedEpisodeIndex
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            ep.title,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                        )
+                                    },
+                                    onClick = {
+                                        episodeExpanded = false
+                                        onEpisodeClick(actualIdx)
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }

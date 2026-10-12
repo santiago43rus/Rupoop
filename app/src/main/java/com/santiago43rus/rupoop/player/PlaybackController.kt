@@ -67,6 +67,8 @@ class PlaybackController(
     var isLoadingRelated by mutableStateOf(false)
     var currentEpisodes by mutableStateOf<List<com.santiago43rus.rupoop.parser.Episode>>(emptyList())
     var currentEpisodeIndex by mutableStateOf(0)
+    var availableAudioTracks by mutableStateOf<List<com.santiago43rus.rupoop.parser.AudioTrackSource>>(emptyList())
+    var selectedAudioTrackId by mutableStateOf<String?>(null)
 
     // ── ExoPlayer ──
     val exoPlayer: ExoPlayer = run {
@@ -200,6 +202,9 @@ class PlaybackController(
                     if (parsed != null && parsed.streamUrl.isNotBlank()) {
                         currentEpisodes = parsed.episodes
                         currentEpisodeIndex = 0
+                        val initialTracks = parsed.episodes.firstOrNull()?.audioTracks?.takeIf { it.isNotEmpty() } ?: parsed.audioTracks
+                        availableAudioTracks = initialTracks
+                        selectedAudioTrackId = initialTracks.firstOrNull()?.id
                         val updatedVideo = video.copy(
                             title = if (video.title == "Загрузка..." || video.title.isBlank()) parsed.title else video.title,
                             thumbnailUrl = video.thumbnailUrl ?: parsed.thumbnailUrl,
@@ -387,10 +392,69 @@ class PlaybackController(
         progressSavingJob?.cancel()
     }
 
+    fun selectAudioTrack(track: com.santiago43rus.rupoop.parser.AudioTrackSource) {
+        selectedAudioTrackId = track.id
+        val curr = currentVideo ?: return
+        videoLoadingJob?.cancel()
+        videoLoadingJob = scope.launch {
+            var playStreamUrl = track.streamUrl
+            var playHeaders = mapOf<String, String>()
+
+            if (!playStreamUrl.endsWith(".m3u8") && !playStreamUrl.endsWith(".mp4") && !playStreamUrl.endsWith(".mkv") && !playStreamUrl.contains(".m3u8")) {
+                val parsed = withContext(Dispatchers.IO) { UniversalVideoParser.parse(playStreamUrl) }
+                if (parsed != null && parsed.streamUrl.isNotBlank()) {
+                    playStreamUrl = parsed.streamUrl
+                    playHeaders = parsed.headers
+                }
+            }
+
+            val currentPos = exoPlayer.currentPosition
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+
+            val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(curr.title)
+                .setArtist(curr.author?.name)
+                .setArtworkUri(curr.thumbnailUrl?.let { android.net.Uri.parse(it) })
+                .build()
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(playStreamUrl)
+                .setMediaId(curr.videoUrl)
+                .setMediaMetadata(mediaMetadata)
+                .build()
+
+            val dataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(playHeaders["User-Agent"] ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                .setAllowCrossProtocolRedirects(true)
+                .setConnectTimeoutMs(15000)
+                .setReadTimeoutMs(15000)
+
+            if (playHeaders.isNotEmpty()) {
+                dataSourceFactory.setDefaultRequestProperties(playHeaders)
+            }
+
+            val mediaSource = DefaultMediaSourceFactory(context)
+                .setDataSourceFactory(dataSourceFactory)
+                .createMediaSource(mediaItem)
+
+            exoPlayer.setMediaSource(mediaSource)
+            exoPlayer.prepare()
+            if (currentPos > 0) {
+                exoPlayer.seekTo(currentPos)
+            }
+            exoPlayer.play()
+        }
+    }
+
     fun playEpisode(index: Int) {
         if (index in currentEpisodes.indices) {
             currentEpisodeIndex = index
             val ep = currentEpisodes[index]
+            if (ep.audioTracks.isNotEmpty()) {
+                availableAudioTracks = ep.audioTracks
+                selectedAudioTrackId = ep.audioTracks.firstOrNull()?.id
+            }
             val curr = currentVideo ?: return
             val baseTitle = curr.title.replace(Regex("""\s*\([^\)]*серия[^\)]*\)""", RegexOption.IGNORE_CASE), "")
             val updatedVideo = curr.copy(title = "$baseTitle (${ep.title})")

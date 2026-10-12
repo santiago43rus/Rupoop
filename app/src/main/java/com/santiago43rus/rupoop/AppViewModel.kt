@@ -208,7 +208,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val currentEpisodes: List<com.santiago43rus.rupoop.parser.Episode> get() = playbackController.currentEpisodes
     val currentEpisodeIndex: Int get() = playbackController.currentEpisodeIndex
+    val availableAudioTracks: List<com.santiago43rus.rupoop.parser.AudioTrackSource> get() = playbackController.availableAudioTracks
+    val selectedAudioTrackId: String? get() = playbackController.selectedAudioTrackId
     fun playEpisode(index: Int) = playbackController.playEpisode(index)
+    fun selectAudioTrack(track: com.santiago43rus.rupoop.parser.AudioTrackSource) = playbackController.selectAudioTrack(track)
 
     fun syncPlaybackService() {
         playbackController.syncPlaybackService()

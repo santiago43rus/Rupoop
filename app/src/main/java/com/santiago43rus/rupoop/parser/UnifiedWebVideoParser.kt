@@ -133,6 +133,8 @@ object UnifiedWebVideoParser {
 
             // 5. Find iframes and balancer links on page
             val iframes = extractPotentialPlayerUrls(html, normalizedUrl)
+            val foundPlayerVideos = mutableListOf<ParsedVideo>()
+
             for (iframeUrl in iframes) {
                 // If iframe is Rutube
                 if (iframeUrl.contains("rutube.ru")) {
@@ -141,14 +143,17 @@ object UnifiedWebVideoParser {
                         try {
                             val rutubeResp = RetrofitClient.api.getVideoOptions(rutubeId)
                             val m3u8 = rutubeResp.videoBalancer?.m3u8
+                                ?: rutubeResp.liveStreams?.hls?.firstOrNull { !it.url.isNullOrEmpty() }?.url
                             if (!m3u8.isNullOrEmpty()) {
-                                return@withContext ParsedVideo(
-                                    videoUrl = url,
-                                    streamUrl = m3u8,
-                                    title = title,
-                                    thumbnailUrl = thumbnail ?: rutubeResp.thumbnailUrl,
-                                    authorName = "Rutube",
-                                    sourceName = "Rutube"
+                                foundPlayerVideos.add(
+                                    ParsedVideo(
+                                        videoUrl = url,
+                                        streamUrl = m3u8,
+                                        title = title,
+                                        thumbnailUrl = thumbnail ?: rutubeResp.thumbnailUrl,
+                                        authorName = "Rutube",
+                                        sourceName = "Rutube"
+                                    )
                                 )
                             }
                         } catch (e: Exception) {
@@ -161,10 +166,12 @@ object UnifiedWebVideoParser {
                 if (VkVideoParser.isVkUrl(iframeUrl)) {
                     val vkResult = VkVideoParser.parse(iframeUrl)
                     if (vkResult != null) {
-                        return@withContext vkResult.copy(
-                            videoUrl = url,
-                            title = if (title.isNotBlank() && title != "Онлайн видео") title else vkResult.title,
-                            thumbnailUrl = thumbnail ?: vkResult.thumbnailUrl
+                        foundPlayerVideos.add(
+                            vkResult.copy(
+                                videoUrl = url,
+                                title = if (title.isNotBlank() && title != "Онлайн видео") title else vkResult.title,
+                                thumbnailUrl = thumbnail ?: vkResult.thumbnailUrl
+                            )
                         )
                     }
                 }
@@ -173,10 +180,12 @@ object UnifiedWebVideoParser {
                 if (OkVideoParser.isOkUrl(iframeUrl)) {
                     val okResult = OkVideoParser.parse(iframeUrl)
                     if (okResult != null) {
-                        return@withContext okResult.copy(
-                            videoUrl = url,
-                            title = if (title.isNotBlank() && title != "Онлайн видео") title else okResult.title,
-                            thumbnailUrl = thumbnail ?: okResult.thumbnailUrl
+                        foundPlayerVideos.add(
+                            okResult.copy(
+                                videoUrl = url,
+                                title = if (title.isNotBlank() && title != "Онлайн видео") title else okResult.title,
+                                thumbnailUrl = thumbnail ?: okResult.thumbnailUrl
+                            )
                         )
                     }
                 }
@@ -190,8 +199,40 @@ object UnifiedWebVideoParser {
                             playerVideo = playerVideo.copy(episodes = pageEpisodes)
                         }
                     }
-                    return@withContext playerVideo.copy(videoUrl = url)
+                    foundPlayerVideos.add(playerVideo.copy(videoUrl = url))
                 }
+            }
+
+            if (foundPlayerVideos.isNotEmpty()) {
+                val primary = foundPlayerVideos.first()
+                val multiPlayerTracks = mutableListOf<AudioTrackSource>()
+
+                foundPlayerVideos.forEachIndexed { pIdx, pv ->
+                    val pName = pv.sourceName.ifBlank { "Плеер ${pIdx + 1}" }
+                    if (pv.audioTracks.isNotEmpty()) {
+                        pv.audioTracks.forEach { tr ->
+                            multiPlayerTracks.add(
+                                tr.copy(
+                                    id = "${tr.id}_p$pIdx",
+                                    playerName = pName
+                                )
+                            )
+                        }
+                    } else if (pv.streamUrl.isNotBlank()) {
+                        multiPlayerTracks.add(
+                            AudioTrackSource(
+                                id = "player_track_$pIdx",
+                                name = "Основная ($pName)",
+                                streamUrl = pv.streamUrl,
+                                playerName = pName
+                            )
+                        )
+                    }
+                }
+
+                return@withContext primary.copy(
+                    audioTracks = (primary.audioTracks + multiPlayerTracks).distinctBy { it.id }
+                )
             }
 
             Log.w(TAG, "No video stream found for web URL: $url")
@@ -333,19 +374,37 @@ object UnifiedWebVideoParser {
                                 val epKey = epKeys.next()
                                 val epNum = epKey.toIntOrNull() ?: continue
                                 val transObj = episodesObj.optJSONObject(epKey) ?: continue
-                                // Pick first translation available
+                                val tracks = mutableListOf<AudioTrackSource>()
                                 val tKeys = transObj.keys()
-                                if (tKeys.hasNext()) {
-                                    val tFirst = transObj.optJSONObject(tKeys.next())
-                                    val vidId = tFirst?.optString("id")?.takeIf { it.isNotBlank() }
-                                        ?: tFirst?.optString("id_file")?.takeIf { it.isNotBlank() }
+                                while (tKeys.hasNext()) {
+                                    val tKey = tKeys.next()
+                                    val tItem = transObj.optJSONObject(tKey) ?: continue
+                                    val vidId = tItem.optString("id").takeIf { it.isNotBlank() }
+                                        ?: tItem.optString("id_file").takeIf { it.isNotBlank() }
+                                    val tName = tItem.optString("translation").takeIf { it.isNotBlank() } ?: "Стандартная"
                                     if (vidId != null) {
-                                        val epPlaceholder = "https://plapi.cdnvideohub.com/api/v1/player/sv/video/$vidId"
-                                        val epTitle = if (sNum > 1) "$epNum серия ($sNum сезон)" else "$epNum серия"
-                                        if (seen.add("$sNum-$epNum")) {
-                                            list.add(Episode(title = epTitle, seasonNumber = sNum, episodeNumber = epNum, streamUrl = epPlaceholder))
-                                        }
+                                        val epStream = "https://plapi.cdnvideohub.com/api/v1/player/sv/video/$vidId"
+                                        tracks.add(
+                                            AudioTrackSource(
+                                                id = vidId,
+                                                name = tName,
+                                                streamUrl = epStream,
+                                                playerName = "Stravers"
+                                            )
+                                        )
                                     }
+                                }
+                                if (tracks.isNotEmpty() && seen.add("$sNum-$epNum")) {
+                                    val epTitle = if (sNum > 1) "$epNum серия ($sNum сезон)" else "$epNum серия"
+                                    list.add(
+                                        Episode(
+                                            title = epTitle,
+                                            seasonNumber = sNum,
+                                            episodeNumber = epNum,
+                                            streamUrl = tracks.first().streamUrl,
+                                            audioTracks = tracks
+                                        )
+                                    )
                                 }
                             }
                         }
@@ -903,39 +962,59 @@ object UnifiedWebVideoParser {
 
             val titleName = extractRegex(playlistJsonStr, """"titleName"\s*:\s*"([^"]+)"""")?.let { unescapeHtml(it) } ?: fallbackTitle
             
-            // Extract episodes list from CdnVideoHub if it's a serial
+            // Extract episodes list and audio tracks from CdnVideoHub
             val episodesList = mutableListOf<Episode>()
+            val globalAudioTracks = mutableListOf<AudioTrackSource>()
             try {
                 val playlistJson = org.json.JSONObject(playlistJsonStr)
                 val itemsArr = playlistJson.optJSONArray("items")
                 if (itemsArr != null && itemsArr.length() > 0) {
-                    val seenEp = mutableSetOf<String>()
+                    val isSerial = playlistJson.optBoolean("isSerial", false)
+                    val epMap = mutableMapOf<String, MutableList<AudioTrackSource>>()
+                    val epDetails = mutableMapOf<String, Pair<Int, Int>>()
+
                     for (i in 0 until itemsArr.length()) {
                         val itemObj = itemsArr.getJSONObject(i)
                         val sNum = itemObj.optInt("season", 1)
                         val epNum = itemObj.optInt("episode", 1)
                         val vId = itemObj.optString("vkId")
                         val studio = itemObj.optString("voiceStudio").takeIf { it.isNotBlank() }
-                            ?: itemObj.optString("voiceType").takeIf { it.isNotBlank() } ?: ""
+                            ?: itemObj.optString("voiceType").takeIf { it.isNotBlank() } ?: "Стандартная"
                         
-                        val epKey = "$sNum-$epNum"
-                        // Pick first translation of each episode
-                        if (seenEp.add(epKey) && vId.isNotBlank()) {
-                            val epStreamPlaceholder = "https://plapi.cdnvideohub.com/api/v1/player/sv/video/$vId"
-                            val epLabel = if (sNum > 1) "$epNum серия ($sNum сезон)" else "$epNum серия"
-                            episodesList.add(
-                                Episode(
-                                    title = epLabel,
-                                    seasonNumber = sNum,
-                                    episodeNumber = epNum,
-                                    streamUrl = epStreamPlaceholder
-                                )
+                        if (vId.isNotBlank()) {
+                            val epStream = "https://plapi.cdnvideohub.com/api/v1/player/sv/video/$vId"
+                            val track = AudioTrackSource(
+                                id = vId,
+                                name = studio,
+                                streamUrl = epStream,
+                                playerName = "CdnVideoHub"
                             )
+                            val key = "$sNum-$epNum"
+                            epMap.getOrPut(key) { mutableListOf() }.add(track)
+                            epDetails[key] = Pair(sNum, epNum)
+
+                            if (globalAudioTracks.none { it.name.equals(studio, ignoreCase = true) }) {
+                                globalAudioTracks.add(track)
+                            }
                         }
+                    }
+
+                    for ((key, tracks) in epMap) {
+                        val (sNum, epNum) = epDetails[key] ?: Pair(1, 1)
+                        val epLabel = if (sNum > 1) "$epNum серия ($sNum сезон)" else "$epNum серия"
+                        episodesList.add(
+                            Episode(
+                                title = epLabel,
+                                seasonNumber = sNum,
+                                episodeNumber = epNum,
+                                streamUrl = tracks.first().streamUrl,
+                                audioTracks = tracks
+                            )
+                        )
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Error parsing CdnVideoHub episodes", e)
+                Log.w(TAG, "Error parsing CdnVideoHub episodes and audio tracks", e)
             }
 
             val vkId = extractRegex(playlistJsonStr, """"vkId"\s*:\s*"([^"]+)"""")
@@ -979,7 +1058,8 @@ object UnifiedWebVideoParser {
                     "Origin" to "https://player.cdnvideohub.com"
                 ),
                 sourceName = sourceName,
-                episodes = episodesList.sortedWith(compareBy({ it.seasonNumber }, { it.episodeNumber }))
+                episodes = episodesList.sortedWith(compareBy({ it.seasonNumber }, { it.episodeNumber })),
+                audioTracks = globalAudioTracks
             )
         } catch (e: Exception) {
             println("parseCdnVideoHub EXCEPTION: ${e.javaClass.name}: ${e.message}")

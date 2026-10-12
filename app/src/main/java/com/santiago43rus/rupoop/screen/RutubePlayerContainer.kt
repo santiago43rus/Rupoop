@@ -396,7 +396,10 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                                     onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() },
                                     episodes = vm.currentEpisodes,
                                     selectedEpisodeIndex = vm.currentEpisodeIndex,
-                                    onEpisodeClick = { vm.playEpisode(it) }
+                                    onEpisodeClick = { vm.playEpisode(it) },
+                                    audioTracks = vm.availableAudioTracks,
+                                    selectedAudioTrackId = vm.selectedAudioTrackId,
+                                    onAudioTrackClick = { vm.selectAudioTrack(it) }
                                 )
                             }
                         }
@@ -460,7 +463,10 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                             isLoading = vm.isLoadingRelated,
                             episodes = vm.currentEpisodes,
                             selectedEpisodeIndex = vm.currentEpisodeIndex,
-                            onEpisodeClick = { vm.playEpisode(it) }
+                            onEpisodeClick = { vm.playEpisode(it) },
+                            audioTracks = vm.availableAudioTracks,
+                            selectedAudioTrackId = vm.selectedAudioTrackId,
+                            onAudioTrackClick = { vm.selectAudioTrack(it) }
                         )
                     }
                 }
