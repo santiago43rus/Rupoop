@@ -40,6 +40,7 @@ class PlaybackController(
     internal val settingsManager: SettingsManager,
     private val relatedVideoRecommender: RelatedVideoRecommendationStrategy,
     internal val pushToGitHub: () -> Unit,
+    internal val flushToGitHub: () -> Unit = {},
     private val filterHiddenAndDisliked: (List<SearchResult>) -> List<SearchResult>,
     private val removeVideoFromUiLists: (SearchResult) -> Unit,
     private val snackbarMessage: MutableSharedFlow<String>,
@@ -89,6 +90,10 @@ class PlaybackController(
     }.also { player ->
         player.playWhenReady = true
         player.addListener(object : Player.Listener {
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                // Пауза, в том числе при уходе приложения в фон, отправляется сразу
+                if (!playWhenReady) flushToGitHub()
+            }
             override fun onIsPlayingChanged(playing: Boolean) {
                 this@PlaybackController.isPlaying = playing
                 com.santiago43rus.rupoop.service.DownloadService.onPlaybackStateChanged(context, playing)
@@ -111,7 +116,7 @@ class PlaybackController(
                     val id = extractId(currentVideo!!.videoUrl) ?: currentVideo!!.videoUrl
                     registryManager.updateWatchProgress(id, player.duration, player.duration)
                     onRegistryUpdate(registryManager.registry)
-                    pushToGitHub()
+                    flushToGitHub()
                 }
             }
         })
@@ -390,7 +395,7 @@ class PlaybackController(
         exoPlayer.stop()
         com.santiago43rus.rupoop.service.DownloadService.onPlaybackStateChanged(context, false)
         syncPlaybackService()
-        pushToGitHub()
+        flushToGitHub()
     }
 
     fun release() {

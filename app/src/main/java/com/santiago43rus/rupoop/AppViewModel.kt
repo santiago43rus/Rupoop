@@ -116,6 +116,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         settingsManager = settingsManager,
         relatedVideoRecommender = relatedVideoRecommender,
         pushToGitHub = { pushToGitHub() },
+        flushToGitHub = { flushToGitHub() },
         filterHiddenAndDisliked = { filterHiddenAndDisliked(it) },
         removeVideoFromUiLists = { removeVideoFromUiLists(it) },
         snackbarMessage = _snackbarMessage,
@@ -233,11 +234,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var authorSortOrder by mutableStateOf("-publication_ts")
 
     private var pushJob: Job? = null
+    private var lastPushAt = 0L
+    private val pushMinIntervalMs = 5 * 60 * 1000L
+
+    // Обычный запрос (тик прогресса, списки): отправка не чаще раза в 5 минут.
     fun pushToGitHub(forceDirect: Boolean = false) {
         val token = settingsManager.accessToken ?: return
         if (!isNetworkAvailable(context)) return
-        pushJob?.cancel()
         if (forceDirect) {
+            pushJob?.cancel()
             pushJob = viewModelScope.launch {
                 try {
                     withContext(Dispatchers.IO) { syncManager.pushDirect(token) }
@@ -245,12 +250,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     Log.e("RupoopAuth", "Direct push failed", e)
                 }
             }
-        } else {
-            pushJob = viewModelScope.launch {
-                delay(5000)
-                syncManager.push(token)
-            }
+            return
         }
+        if (pushJob?.isActive == true) return   // отправка уже запланирована
+        val wait = (lastPushAt + pushMinIntervalMs - System.currentTimeMillis()).coerceAtLeast(5_000L)
+        pushJob = viewModelScope.launch {
+            delay(wait)
+            sendNow(token)
+        }
+    }
+
+    // Немедленная отправка: пауза, закрытие плеера, конец видео.
+    fun flushToGitHub() {
+        val token = settingsManager.accessToken ?: return
+        if (!isNetworkAvailable(context)) return
+        viewModelScope.launch { sendNow(token) }
+    }
+
+    private suspend fun sendNow(token: String) {
+        userRegistry = withContext(Dispatchers.IO) { syncManager.push(token) }
+        lastPushAt = System.currentTimeMillis()
     }
 
     fun handleDeepLink(url: String) {

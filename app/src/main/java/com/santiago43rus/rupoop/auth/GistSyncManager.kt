@@ -16,6 +16,7 @@ class GistSyncManager(
     private val SYNC_FILE_NAME = "rupoop_user_registry_v2.json"
     private val json = RetrofitClient.json
     private val pushMutex = Mutex()
+    private var lastSentLocal: String? = null
 
     suspend fun pull(token: String): UserRegistry {
         val authHeader = "Bearer $token"
@@ -46,6 +47,11 @@ class GistSyncManager(
     }
 
     suspend fun push(token: String): UserRegistry = pushMutex.withLock {
+        val localBefore = json.encodeToString(registryManager.registry.copy(appSettings = buildAppSettingsFromPreferences()))
+        if (localBefore == lastSentLocal) {
+            Log.d("RupoopAuth", "Local data unchanged, pulling only")
+            return pull(token)
+        }
         val authHeader = "Bearer $token"
         Log.d("RupoopAuth", "Starting Gist Push")
         return try {
@@ -85,6 +91,7 @@ class GistSyncManager(
                 settingsManager.cachedGistId = gistId
             }
 
+            lastSentLocal = json.encodeToString(registryManager.registry.copy(appSettings = buildAppSettingsFromPreferences()))
             mergedRegistry
         } catch (e: Exception) {
             Log.e("RupoopAuth", "Push failed", e)
