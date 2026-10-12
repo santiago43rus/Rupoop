@@ -11,16 +11,13 @@ import java.io.File
 object DownloadIndexer {
 
     fun parseRupoopFile(file: File): DownloadItem? {
-        val name = file.name
-        val regex = """^(.*)_rupoop_([a-zA-Z0-9_-]+___[0-9]+)\.(mp4|m4a|mp3)$""".toRegex(RegexOption.IGNORE_CASE)
-        val match = regex.matchEntire(name) ?: return null
-        val sanitizedTitle = match.groupValues[1]
-        val videoId = match.groupValues[2]
-        
-        val displayTitle = sanitizedTitle.replace('_', ' ').trim()
-        val parts = videoId.split("___")
-        val timestamp = parts.getOrNull(1)?.toLongOrNull() ?: file.lastModified()
-        
+        // "<Название>_rupoop_<uploadId>.<ext>", uploadId = "<realId>___<ts>___<type>_<ts2>_<rand>"
+        // Старый формат "<realId>___<ts>" тоже проходит.
+        val regex = """^(.*)_rupoop_(.+)\.(mp4|m4a|mp3)$""".toRegex(RegexOption.IGNORE_CASE)
+        val match = regex.matchEntire(file.name) ?: return null
+        val displayTitle = match.groupValues[1].replace('_', ' ').trim()
+        val videoId = match.groupValues[2]          // должен совпадать с videoId в трекере
+        val timestamp = videoId.split("___").getOrNull(1)?.toLongOrNull() ?: file.lastModified()
         return DownloadItem(
             videoId = videoId,
             title = displayTitle.ifEmpty { "Видео" },

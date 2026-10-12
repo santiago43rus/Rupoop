@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -23,6 +24,7 @@ import com.santiago43rus.rupoop.data.WatchHistoryItem
 import com.santiago43rus.rupoop.data.RelatedVideoRecommendationStrategy
 import com.santiago43rus.rupoop.network.PlatformSearchEngineResolver
 import com.santiago43rus.rupoop.parser.UniversalVideoParser
+import com.santiago43rus.rupoop.util.HlsVariantPicker
 import com.santiago43rus.rupoop.util.PlayerState
 import com.santiago43rus.rupoop.util.extractId
 import com.santiago43rus.rupoop.util.isNetworkAvailable
@@ -79,7 +81,7 @@ class PlaybackController(
             .setReadTimeoutMs(15000)
 
         val mediaSourceFactory = DefaultMediaSourceFactory(context)
-            .setDataSourceFactory(httpDataSourceFactory)
+            .setDataSourceFactory(DefaultDataSource.Factory(context, httpDataSourceFactory))
 
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSourceFactory)
@@ -121,7 +123,8 @@ class PlaybackController(
 
 
     // ── Play video ──
-    fun playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
+    fun playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false, audioOnly: Boolean = false) {
+        setAudioOnlyMode(audioOnly)
         val isLocal = video.videoUrl.isNotEmpty() && !video.videoUrl.startsWith("http")
         if (isLocal) {
             val file = java.io.File(video.videoUrl)
@@ -283,8 +286,11 @@ class PlaybackController(
                 // Rutube regular loading
                 val rutubeId = UniversalVideoParser.extractRutubeId(rawUrl) ?: id
                 val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(rutubeId) }
-                val url = opt.videoBalancer?.m3u8
+                val masterUrl = opt.videoBalancer?.m3u8
                     ?: opt.liveStreams?.hls?.firstOrNull { !it.url.isNullOrEmpty() }?.url
+                val url = if (audioOnly && masterUrl != null) {
+                    withContext(Dispatchers.IO) { runCatching { HlsVariantPicker.audioOnlyUrl(masterUrl) }.getOrNull() } ?: masterUrl
+                } else masterUrl
                 if (url != null) {
                     exoPlayer.stop()
                     exoPlayer.clearMediaItems()

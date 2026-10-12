@@ -5,6 +5,7 @@ import android.media.MediaScannerConnection
 import android.os.Environment
 import android.util.Log
 import com.santiago43rus.rupoop.data.DownloadStatus
+import com.santiago43rus.rupoop.util.HlsVariantPicker
 import com.santiago43rus.rupoop.util.isNetworkAvailable
 import kotlinx.coroutines.*
 import okhttp3.Request
@@ -85,9 +86,11 @@ class DownloadTask(
                     return@launch
                 }
 
-                val mediaPlaylistUrl = resolveMediaPlaylist(url, if (isAudio) "LOWEST" else quality)
+                val mediaPlaylistUrl = (if (isAudio) HlsVariantPicker.audioOnlyUrl(url) else resolveMediaPlaylist(url, quality))
+                    ?: throw Exception("Не найден поток для загрузки")
                 val segments = fetchSegments(mediaPlaylistUrl)
                 totalSegments = segments.size
+                Log.d("RupoopDownload", "audio=$isAudio requested=${if (isAudio) "LOWEST" else quality} playlist=$mediaPlaylistUrl segments=$totalSegments")
 
                 val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
                 val moviesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
@@ -160,10 +163,12 @@ class DownloadTask(
                     if (isAudio) {
                         try {
                             extractAudioTrack(tempFile, finalFile)
+                            Log.d("RupoopDownload", "audio extracted: ${finalFile.length()} bytes")
+                        } catch (e: Exception) {
+                            finalFile.delete()
+                            throw e
                         } finally {
-                            if (tempFile.exists()) {
-                                tempFile.delete()
-                            }
+                            tempFile.delete()
                         }
                     }
 
@@ -240,8 +245,6 @@ class DownloadTask(
             val lines = body.lines()
             var bestUrl: String? = null
             var maxRes = 0
-            var minRes = Int.MAX_VALUE
-            var worstUrl: String? = null
 
             for (i in lines.indices) {
                 if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
@@ -255,22 +258,15 @@ class DownloadTask(
                     }
 
                     if (streamUrl != null) {
-                        if (quality != "LOWEST" && h.toString() == quality) return streamUrl
+                        if (h.toString() == quality) return streamUrl
                         if (h > maxRes) {
                             maxRes = h
                             bestUrl = streamUrl
                         }
-                        if (h < minRes && h > 0) {
-                            minRes = h
-                            worstUrl = streamUrl
-                        }
                     }
                 }
             }
-            if (quality == "LOWEST") {
-                return worstUrl ?: bestUrl ?: url
-            }
-            return bestUrl ?: url
+            return bestUrl ?: throw Exception("Не найден вариант видео")
         }
         return url
     }
@@ -342,13 +338,8 @@ class DownloadTask(
                                 exportResult: ExportResult,
                                 exportException: ExportException
                             ) {
-                                Log.e("DownloadService", "Media3 Export error", exportException)
-                                try {
-                                    inputFile.copyTo(outputFile, overwrite = true)
-                                    continuation.resume(Unit)
-                                } catch (e: Exception) {
-                                    continuation.resumeWithException(exportException)
-                                }
+                                Log.e("RupoopDownload", "Audio extraction failed", exportException)
+                                continuation.resumeWithException(exportException)
                             }
                         })
                         .build()

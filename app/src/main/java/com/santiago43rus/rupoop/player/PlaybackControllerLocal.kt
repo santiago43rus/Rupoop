@@ -12,6 +12,7 @@ fun PlaybackController.playLocalFile(filePath: String, title: String, list: List
     videoLoadingJob?.cancel()
     val file = java.io.File(filePath)
     if (!file.exists()) return
+    setAudioOnlyMode(false)
     
     val video = SearchResult(videoUrl = filePath, title = title)
     currentVideo = video

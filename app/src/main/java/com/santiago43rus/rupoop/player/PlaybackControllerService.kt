@@ -16,12 +16,20 @@ fun PlaybackController.toggleBackgroundPlayback() {
 }
 
 @OptIn(UnstableApi::class)
-fun PlaybackController.toggleAudioOnlyMode() {
-    isAudioOnlyMode = !isAudioOnlyMode
+fun PlaybackController.setAudioOnlyMode(enabled: Boolean) {
+    isAudioOnlyMode = enabled
     val params = exoPlayer.trackSelectionParameters.buildUpon()
-        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, isAudioOnlyMode)
+        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, enabled)
         .build()
     exoPlayer.trackSelectionParameters = params
+}
+
+@OptIn(UnstableApi::class)
+fun PlaybackController.toggleAudioOnlyMode() {
+    val enable = !isAudioOnlyMode
+    val v = currentVideo
+    if (v != null && v.videoUrl.startsWith("http")) playVideo(v, currentVideoList, isPlaylistMode, audioOnly = enable)
+    else setAudioOnlyMode(enable)
 }
 
 @OptIn(UnstableApi::class)

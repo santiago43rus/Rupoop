@@ -147,8 +147,8 @@ var AppViewModel.relatedVideos: List<SearchResult>
     set(value) { playbackController.relatedVideos = value }
 
 @UnstableApi
-fun AppViewModel.playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false) {
-    playbackController.playVideo(video, list, isPlaylist)
+fun AppViewModel.playVideo(video: SearchResult, list: List<SearchResult>? = null, isPlaylist: Boolean = false, audioOnly: Boolean = false) {
+    playbackController.playVideo(video, list, isPlaylist, audioOnly)
 }
 fun AppViewModel.playNext() = playbackController.playNext()
 fun AppViewModel.playPrevious() = playbackController.playPrevious()

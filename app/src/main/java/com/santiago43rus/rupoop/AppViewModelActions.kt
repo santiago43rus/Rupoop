@@ -218,12 +218,7 @@ fun AppViewModel.handleVideoMoreAction(video: SearchResult, action: String) {
         "share" -> shareVideo(video)
         "download" -> showDownloadDialog = video
         "audio_only" -> {
-            isAudioOnlyMode = true
-            playVideo(video)
-            val params = exoPlayer.trackSelectionParameters.buildUpon()
-                .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
-                .build()
-            exoPlayer.trackSelectionParameters = params
+            playVideo(video, audioOnly = true)
             showSnackbar("Воспроизведение только аудио")
         }
         "dislike" -> {
