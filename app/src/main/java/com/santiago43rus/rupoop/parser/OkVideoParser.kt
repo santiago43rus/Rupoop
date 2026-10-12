@@ -254,6 +254,13 @@ object OkVideoParser {
             val durationSeconds = movie?.optLong("duration")?.takeIf { it > 0 }
                 ?: json.optLong("duration").takeIf { it > 0 }
 
+            val viewsCount = movie?.optInt("views")?.takeIf { it > 0 }
+                ?: movie?.optInt("viewsCount")?.takeIf { it > 0 }
+                ?: json.optInt("views").takeIf { it > 0 }
+                ?: json.optInt("viewsCount").takeIf { it > 0 }
+                ?: movie?.optInt("totalViews")?.takeIf { it > 0 }
+                ?: json.optInt("totalViews").takeIf { it > 0 }
+
             ParsedVideo(
                 videoUrl = originalUrl,
                 streamUrl = streamUrl,
@@ -262,6 +269,7 @@ object OkVideoParser {
                 authorName = authorName,
                 authorAvatarUrl = authorAvatar,
                 durationSeconds = durationSeconds,
+                viewsCount = viewsCount,
                 headers = mapOf(
                     "User-Agent" to USER_AGENT,
                     "Referer" to "https://ok.ru/"

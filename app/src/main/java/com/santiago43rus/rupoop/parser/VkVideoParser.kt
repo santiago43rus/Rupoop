@@ -103,13 +103,27 @@ object VkVideoParser {
             val durationStr = extractRegex(body, """["']duration["']\s*:\s*(\d+)""")
             val duration = durationStr?.toLongOrNull()
 
+            val viewsStr = extractRegex(body, """["']views["']\s*:\s*(\d+)""")
+                ?: extractRegex(body, """["']views_count["']\s*:\s*(\d+)""")
+                ?: extractRegex(body, """(\d+[\d\s]*)\s+просмотр""")?.replace(Regex("""\s+"""), "")
+            val views = viewsStr?.toIntOrNull()
+
+            val authorAvatar = extractRegex(body, """["']author_photo["']\s*:\s*["']([^"']+)["']""")
+                ?: extractRegex(body, """["']author_thumb["']\s*:\s*["']([^"']+)["']""")
+                ?: extractRegex(body, """["']author_img["']\s*:\s*["']([^"']+)["']""")
+                ?: extractRegex(body, """["']author_image["']\s*:\s*["']([^"']+)["']""")
+                ?: extractRegex(body, """(https?:\\\/\\\/[^\s"'\\]+?(?:userapi\.com)[^\s"'\\]+)""")
+            val cleanAvatar = authorAvatar?.let { unescapeJson(it).replace("\\/", "/") }
+
             return ParsedVideo(
                 videoUrl = originalUrl,
                 streamUrl = streamUrl,
                 title = title,
                 thumbnailUrl = thumbnail,
                 authorName = author,
+                authorAvatarUrl = cleanAvatar,
                 durationSeconds = duration,
+                viewsCount = views,
                 headers = mapOf(
                     "User-Agent" to USER_AGENT,
                     "Referer" to "https://vk.com/"
@@ -151,12 +165,24 @@ object VkVideoParser {
                 ?: extractMetaContent(html, "og:site_name")
                 ?: "VK Видео"
 
+            val viewsStr = extractRegex(html, """["']views["']\s*:\s*(\d+)""")
+                ?: extractRegex(html, """["']views_count["']\s*:\s*(\d+)""")
+                ?: extractRegex(html, """(\d+[\d\s]*)\s+просмотр""")?.replace(Regex("""\s+"""), "")
+            val views = viewsStr?.toIntOrNull()
+
+            val authorAvatar = extractRegex(html, """["']author_photo["']\s*:\s*["']([^"']+)["']""")
+                ?: extractRegex(html, """["']author_thumb["']\s*:\s*["']([^"']+)["']""")
+                ?: extractRegex(html, """(https?:\\\/\\\/[^\s"'\\]+?(?:userapi\.com)[^\s"'\\]+)""")
+            val cleanAvatar = authorAvatar?.let { unescapeJson(it).replace("\\/", "/") }
+
             return ParsedVideo(
                 videoUrl = originalUrl,
                 streamUrl = streamUrl,
                 title = title,
                 thumbnailUrl = thumbnail,
                 authorName = author,
+                authorAvatarUrl = cleanAvatar,
+                viewsCount = views,
                 headers = mapOf(
                     "User-Agent" to USER_AGENT,
                     "Referer" to "https://vk.com/"

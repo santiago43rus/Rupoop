@@ -204,6 +204,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val isLoadingRelated: Boolean get() = playbackController.isLoadingRelated
 
     var showDownloadNotifications by mutableStateOf(settingsManager.showDownloadNotifications)
+    var showTelegramChannelDialog by mutableStateOf(false)
 
     val currentEpisodes: List<com.santiago43rus.rupoop.parser.Episode> get() = playbackController.currentEpisodes
     val currentEpisodeIndex: Int get() = playbackController.currentEpisodeIndex

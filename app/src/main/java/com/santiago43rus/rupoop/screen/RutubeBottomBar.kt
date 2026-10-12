@@ -4,9 +4,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.Subscriptions
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.*
@@ -99,6 +101,48 @@ fun RutubeBottomBar(
                         text = "Главная",
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                         color = if (isHome) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Live Streams
+            val isLive = currentNav == NavItem.LIVE
+            Box(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .height(44.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .clickable {
+                            if (currentNav == NavItem.LIVE) {
+                                if (isSettingsVisible || isSearchExpanded || isSearchVisible || isAuthorVisible) {
+                                    onResetOverlays()
+                                } else {
+                                    onScrollHome()
+                                }
+                            } else {
+                                onNavChange(NavItem.LIVE)
+                            }
+                        }
+                        .padding(2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = if (isLive) Icons.Filled.Sensors else Icons.Outlined.Sensors,
+                        contentDescription = "Live",
+                        tint = if (isLive) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Стримы",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                        color = if (isLive) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

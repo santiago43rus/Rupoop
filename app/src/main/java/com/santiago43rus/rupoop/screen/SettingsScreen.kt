@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -300,11 +301,14 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                     Text("Качество видео для скачивания", style = MaterialTheme.typography.labelMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
-                        listOf("360", "480", "720", "1080").forEach { q ->
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(listOf("144", "240", "360", "480", "720", "1080")) { q ->
                             FilterChip(
                                 selected = downloadQuality == q,
                                 onClick = {

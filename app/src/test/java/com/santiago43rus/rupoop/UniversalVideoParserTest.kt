@@ -145,4 +145,36 @@ class UniversalVideoParserTest {
         assertEquals("2 серия (1 сезон)", episodes[1].first)
         assertEquals("https://cdn.example.com/s1e2.m3u8", episodes[1].second)
     }
+
+    @Test
+    fun testLordfilmHtmlEpisodesExtraction() {
+        val mockLordfilmHtml = """
+            <div class="episodes-list">
+                <a href="https://lordfilm.top/123-devochka-kozochka-1-sezon-1-seriya.html">1 серия</a>
+                <a href="https://lordfilm.top/123-devochka-kozochka-1-sezon-2-seriya.html">2 серия</a>
+                <a href="https://lordfilm.top/123-devochka-kozochka-1-sezon-3-seriya.html">3 серия</a>
+            </div>
+        """.trimIndent()
+
+        val p = java.util.regex.Pattern.compile(
+            """<a[^>]+href=["']([^"']+)["'][^>]*>(?:(\d+)\s*сезон[,\s]*)?(\d+)\s*серия</a>""",
+            java.util.regex.Pattern.CASE_INSENSITIVE
+        )
+        val m = p.matcher(mockLordfilmHtml)
+        val episodes = mutableListOf<Triple<String, Int, String>>()
+        while (m.find()) {
+            val href = m.group(1) ?: continue
+            val seasonNum = m.group(2)?.toIntOrNull() ?: 1
+            val epNum = m.group(3)?.toIntOrNull() ?: (episodes.size + 1)
+            episodes.add(Triple("$epNum серия", seasonNum, href))
+        }
+
+        assertEquals(3, episodes.size)
+        assertEquals("1 серия", episodes[0].first)
+        assertEquals(1, episodes[0].second)
+        assertEquals("https://lordfilm.top/123-devochka-kozochka-1-sezon-1-seriya.html", episodes[0].third)
+        assertEquals("2 серия", episodes[1].first)
+        assertEquals(1, episodes[1].second)
+        assertEquals("https://lordfilm.top/123-devochka-kozochka-1-sezon-2-seriya.html", episodes[1].third)
+    }
 }

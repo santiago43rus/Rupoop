@@ -9,6 +9,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -138,6 +139,49 @@ fun RutubeAppOverlays(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
                 ) {
                     Text("Аудио (M4A)", fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
+                }
+            }
+        )
+    }
+
+    // Telegram Channel update notification dialog
+    if (vm.showTelegramChannelDialog) {
+        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+        AlertDialog(
+            onDismissRequest = { vm.showTelegramChannelDialog = false },
+            title = {
+                Text(
+                    text = "Telegram-канал Rupoop",
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Подписывайтесь на наш официальный Telegram-канал @rupoopapp!\n\nТам быстрее всего выходят свежие беты, хотфиксы, ответы на вопросы и оперативная обратная связь по работе приложения на ваших устройствах."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.showTelegramChannelDialog = false
+                        try {
+                            uriHandler.openUri("https://t.me/rupoopapp")
+                        } catch (_: Exception) {}
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
+                ) {
+                    Text("Перейти в канал", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { vm.showTelegramChannelDialog = false }
+                ) {
+                    Text("Позже")
                 }
             }
         )

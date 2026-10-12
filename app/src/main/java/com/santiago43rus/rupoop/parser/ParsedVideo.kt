@@ -21,6 +21,7 @@ data class ParsedVideo(
     val authorName: String? = null,
     val authorAvatarUrl: String? = null,
     val durationSeconds: Long? = null,
+    val viewsCount: Int? = null,
     val headers: Map<String, String> = emptyMap(),
     val sourceName: String = "Web",
     val episodes: List<Episode> = emptyList()
@@ -31,7 +32,8 @@ data class ParsedVideo(
             title = title,
             thumbnailUrl = thumbnailUrl,
             author = authorName?.let { Author(name = it, avatarUrl = authorAvatarUrl) },
-            duration = durationSeconds?.toInt()
+            duration = durationSeconds?.toInt(),
+            hits = viewsCount
         )
     }
 }

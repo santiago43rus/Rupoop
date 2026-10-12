@@ -45,6 +45,8 @@ fun VideoDetails(
     onDownload: (SearchResult) -> Unit,
     onBackgroundPlayToggle: () -> Unit = {},
     isBackgroundEnabled: Boolean = false,
+    isAudioOnly: Boolean = false,
+    onAudioOnlyToggle: () -> Unit = {},
     episodes: List<com.santiago43rus.rupoop.parser.Episode> = emptyList(),
     selectedEpisodeIndex: Int = 0,
     onEpisodeClick: (Int) -> Unit = {}
@@ -66,7 +68,10 @@ fun VideoDetails(
         val isLordfilm = video?.videoUrl?.lowercase()?.let { it.contains("lordfilm") || it.contains("lordserials") } == true
 
         // Video Metadata (Views and publish time)
-        val viewsText = if (!isLordfilm) (video?.let { formatViewCount(it.hits) } ?: "") else ""
+        val viewsText = if (!isLordfilm) {
+            val hits = video?.hits
+            if (hits != null && hits > 0) formatViewCount(hits) else ""
+        } else ""
         val timeAgoText = video?.let { formatTimeAgo(it.publicationTs ?: it.createdTs) } ?: ""
         val metaText = buildString {
             if (viewsText.isNotEmpty()) append(viewsText)
@@ -267,6 +272,14 @@ fun VideoDetails(
                         )
                     }
                 }
+
+                // Audio Only capsule
+                CapsuleAction(
+                    icon = Icons.Default.MusicNote,
+                    label = if (isAudioOnly) "Аудио: ВКЛ" else "Только аудио",
+                    iconColor = if (isAudioOnly) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface,
+                    onClick = onAudioOnlyToggle
+                )
 
                 // Share capsule
                 CapsuleAction(

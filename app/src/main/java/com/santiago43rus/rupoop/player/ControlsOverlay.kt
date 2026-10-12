@@ -246,6 +246,8 @@ fun ControlsOverlay(
                     }
                 }
 
+                val isLive = exoPlayer.isCurrentMediaItemLive || (exoPlayer.duration == androidx.media3.common.C.TIME_UNSET && currentVideo?.duration == null && exoPlayer.playbackState == Player.STATE_READY)
+
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -253,11 +255,29 @@ fun ControlsOverlay(
                     Arrangement.SpaceBetween,
                     Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${formatTime(draggingPos ?: currentTime)} / ${formatTime(duration)}",
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    if (isLive) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Red)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "В ЭФИРЕ",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = "${formatTime(draggingPos ?: currentTime)} / ${formatTime(duration)}",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                     if (!isSeeking) {
                         IconButton(onClick = onToggleFullscreen, modifier = Modifier.size(32.dp)) {
                             Icon(
@@ -270,65 +290,67 @@ fun ControlsOverlay(
                     }
                 }
                 
-                Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.fillMaxWidth().height(if (isCompactLandscape) 20.dp else 32.dp)) {
-                    val progress = if (duration > 0) ((draggingPos ?: currentTime).toFloat() / duration).coerceIn(0f, 1f) else 0f
-                    // Unwatched, not-yet-buffered: clearly gray
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(Color(0xFF6E6E6E))
-                    )
-                    // Unwatched but buffered ahead: lighter gray
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth((bufferedPercent / 100f).coerceIn(0f, 1f))
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(Color(0xFFAFAFAF))
-                    )
-                    // Played/Watched part: vibrant YouTube red!
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(progress)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(Color.Red)
-                    )
-                    Slider(
-                        value = progress,
-                        onValueChange = { 
-                            onSeekStart()
-                            onSeekChange((it * duration).toLong()) 
-                        },
-                        onValueChangeFinished = onSeekEnd,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (isCompactLandscape) 20.dp else 32.dp),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color.Red,
-                            activeTrackColor = Color.Red,
-                            inactiveTrackColor = Color.Transparent
-                        ),
-                        thumb = {
-                            SliderDefaults.Thumb(
-                                interactionSource = remember { MutableInteractionSource() },
-                                thumbSize = DpSize(12.dp, 12.dp),
-                                colors = SliderDefaults.colors(thumbColor = Color.Red)
-                            )
-                        },
-                        track = { sliderState ->
-                            SliderDefaults.Track(
-                                sliderState = sliderState,
-                                modifier = Modifier.height(3.dp),
-                                colors = SliderDefaults.colors(
-                                    activeTrackColor = Color.Red,
-                                    inactiveTrackColor = Color.Transparent
+                if (!isLive) {
+                    Box(contentAlignment = Alignment.CenterStart, modifier = Modifier.fillMaxWidth().height(if (isCompactLandscape) 20.dp else 32.dp)) {
+                        val progress = if (duration > 0) ((draggingPos ?: currentTime).toFloat() / duration).coerceIn(0f, 1f) else 0f
+                        // Unwatched, not-yet-buffered: clearly gray
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.5.dp))
+                                .background(Color(0xFF6E6E6E))
+                        )
+                        // Unwatched but buffered ahead: lighter gray
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth((bufferedPercent / 100f).coerceIn(0f, 1f))
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.5.dp))
+                                .background(Color(0xFFAFAFAF))
+                        )
+                        // Played/Watched part: vibrant YouTube red!
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progress)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.5.dp))
+                                .background(Color.Red)
+                        )
+                        Slider(
+                            value = progress,
+                            onValueChange = { 
+                                onSeekStart()
+                                onSeekChange((it * duration).toLong()) 
+                            },
+                            onValueChangeFinished = onSeekEnd,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(if (isCompactLandscape) 20.dp else 32.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.Red,
+                                activeTrackColor = Color.Red,
+                                inactiveTrackColor = Color.Transparent
+                            ),
+                            thumb = {
+                                SliderDefaults.Thumb(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    thumbSize = DpSize(12.dp, 12.dp),
+                                    colors = SliderDefaults.colors(thumbColor = Color.Red)
                                 )
-                            )
-                        }
-                    )
+                            },
+                            track = { sliderState ->
+                                SliderDefaults.Track(
+                                    sliderState = sliderState,
+                                    modifier = Modifier.height(3.dp),
+                                    colors = SliderDefaults.colors(
+                                        activeTrackColor = Color.Red,
+                                        inactiveTrackColor = Color.Transparent
+                                    )
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }

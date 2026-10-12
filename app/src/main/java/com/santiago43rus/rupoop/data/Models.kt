@@ -6,9 +6,20 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class RutubeResponse(
     @SerialName("video_balancer") val videoBalancer: VideoBalancer? = null,
+    @SerialName("live_streams") val liveStreams: RutubeLiveStreams? = null,
     @SerialName("thumbnail_url") val thumbnailUrl: String? = null,
     val tags: List<Tag>? = emptyList(),
     val duration: Int? = null
+)
+
+@Serializable
+data class RutubeLiveStreams(
+    val hls: List<RutubeLiveStreamItem>? = emptyList()
+)
+
+@Serializable
+data class RutubeLiveStreamItem(
+    val url: String? = null
 )
 
 @Serializable

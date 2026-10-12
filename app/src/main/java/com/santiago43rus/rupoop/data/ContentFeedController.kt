@@ -26,12 +26,19 @@ class ContentFeedController(
 
     // ── Feed states ──
     var homeVideos by mutableStateOf<List<SearchResult>>(emptyList())
+    var liveVideos by mutableStateOf<List<SearchResult>>(emptyList())
     var subscriptionVideos by mutableStateOf<List<SearchResult>>(emptyList())
     var authorVideos by mutableStateOf<List<SearchResult>>(emptyList())
 
     // ── Pagination: Home ──
     var isHomeLoadingMore by mutableStateOf(false)
     var isRefreshingHome by mutableStateOf(false)
+
+    // ── Pagination: Live ──
+    var isLiveLoadingMore by mutableStateOf(false)
+    var isRefreshingLive by mutableStateOf(false)
+    var livePage by mutableIntStateOf(1)
+    var hasMoreLiveVideos by mutableStateOf(true)
 
     // ── Pagination: Author ──
     var isAuthorLoadingMore by mutableStateOf(false)
@@ -90,6 +97,74 @@ class ContentFeedController(
             } finally {
                 isRefreshingHome = false
                 isHomeLoadingMore = false
+            }
+        }
+    }
+
+    // ── Load live streams ──
+    fun loadLiveStreams(isLoadMore: Boolean) {
+        scope.launch {
+            if (isLoadMore) {
+                isLiveLoadingMore = true
+                livePage++
+            } else {
+                isRefreshingLive = true
+                livePage = 1
+                hasMoreLiveVideos = true
+                liveVideos = emptyList()
+            }
+
+            try {
+                val rutubeLiveDeferred = scope.async(Dispatchers.IO) {
+                    try {
+                        RetrofitClient.api.getLiveStreams(page = livePage, limit = 25).results.map {
+                            it.copy(
+                                duration = 0,
+                                tags = listOf("live", "прямой эфир")
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Rupoop", "Error fetching official Rutube live streams", e)
+                        emptyList<SearchResult>()
+                    }
+                }
+                val vkDeferred = scope.async(Dispatchers.IO) {
+                    try {
+                        VkSearchEngine.search("стрим live")
+                    } catch (_: Exception) {
+                        emptyList<SearchResult>()
+                    }
+                }
+                val okDeferred = scope.async(Dispatchers.IO) {
+                    try {
+                        OkSearchEngine.search("прямой эфир")
+                    } catch (_: Exception) {
+                        emptyList<SearchResult>()
+                    }
+                }
+
+                val rutubeRes = rutubeLiveDeferred.await()
+                val vkRes = vkDeferred.await()
+                val okRes = okDeferred.await()
+
+                val combined = (rutubeRes + vkRes + okRes).distinctBy { it.videoUrl }
+                val filtered = filterHiddenAndDisliked(combined)
+
+                if (filtered.isEmpty()) {
+                    hasMoreLiveVideos = false
+                } else {
+                    liveVideos = if (isLoadMore) {
+                        (liveVideos + filtered).distinctBy { it.videoUrl }
+                    } else {
+                        filtered
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("Rupoop", "Error loading live streams", e)
+                if (isLoadMore) livePage--
+            } finally {
+                isRefreshingLive = false
+                isLiveLoadingMore = false
             }
         }
     }

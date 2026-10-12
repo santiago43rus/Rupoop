@@ -35,6 +35,12 @@ object UniversalVideoParser {
 
     fun extractRutubeId(url: String): String? {
         val clean = url.trim()
+        if (clean.contains("/live/video/")) {
+            return clean.substringAfter("/live/video/").substringBefore("/").substringBefore("?")
+        }
+        if (clean.contains("/live/")) {
+            return clean.substringAfter("/live/").substringBefore("/").substringBefore("?")
+        }
         if (clean.contains("/video/")) {
             return clean.substringAfter("/video/").substringBefore("/").substringBefore("?")
         }
@@ -75,6 +81,7 @@ object UniversalVideoParser {
                     try {
                         val resp = RetrofitClient.api.getVideoOptions(rutubeId)
                         val m3u8 = resp.videoBalancer?.m3u8
+                            ?: resp.liveStreams?.hls?.firstOrNull { !it.url.isNullOrEmpty() }?.url
                         if (!m3u8.isNullOrEmpty()) {
                             return@withContext ParsedVideo(
                                 videoUrl = url,
@@ -108,7 +115,49 @@ object UniversalVideoParser {
                 }
             }
 
-            // 5. Web page (Lordfilm, pirate balancers, generic video sites, anime sites, etc.)
+            // 5. CdnVideoHub direct video API endpoint
+            if (url.contains("plapi.cdnvideohub.com/api/v1/player/sv/video/")) {
+                try {
+                    val req = okhttp3.Request.Builder()
+                        .url(url)
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                        .header("Accept", "application/json")
+                        .header("Origin", "https://player.cdnvideohub.com")
+                        .header("Referer", "https://player.cdnvideohub.com/")
+                        .build()
+                    val client = okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+                    val resp = client.newCall(req).execute()
+                    if (resp.isSuccessful) {
+                        val body = resp.body.string()
+                        val hls = Regex(""""hlsUrl"\s*:\s*"([^"]+)"""").find(body)?.groupValues?.get(1)
+                            ?: Regex(""""mpegFullHdUrl"\s*:\s*"([^"]+)"""").find(body)?.groupValues?.get(1)
+                            ?: Regex(""""mpegHighUrl"\s*:\s*"([^"]+)"""").find(body)?.groupValues?.get(1)
+                            ?: Regex(""""mpegMediumUrl"\s*:\s*"([^"]+)"""").find(body)?.groupValues?.get(1)
+                        if (!hls.isNullOrBlank()) {
+                            val cleanHls = hls.replace("\\/", "/").replace("\\u0026", "&")
+                            return@withContext ParsedVideo(
+                                videoUrl = url,
+                                streamUrl = cleanHls,
+                                title = "Серия",
+                                authorName = "Lordfilm",
+                                headers = mapOf(
+                                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                                    "Referer" to "https://player.cdnvideohub.com/",
+                                    "Origin" to "https://player.cdnvideohub.com"
+                                ),
+                                sourceName = "Lordfilm"
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error parsing direct CdnVideoHub video API: $url", e)
+                }
+            }
+
+            // 6. Web page (Lordfilm, pirate balancers, generic video sites, anime sites, etc.)
             val webResult = UnifiedWebVideoParser.parse(url)
             if (webResult != null) {
                 return@withContext webResult

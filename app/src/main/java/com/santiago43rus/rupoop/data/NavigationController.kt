@@ -73,6 +73,7 @@ class NavigationController(
 
     val authorStates = mutableMapOf<NavItem, AuthorState>(
         NavItem.HOME to AuthorState(false, null, emptyList(), 1, true),
+        NavItem.LIVE to AuthorState(false, null, emptyList(), 1, true),
         NavItem.SUBSCRIPTIONS to AuthorState(false, null, emptyList(), 1, true),
         NavItem.LIBRARY to AuthorState(false, null, emptyList(), 1, true)
     )
@@ -86,6 +87,7 @@ class NavigationController(
     // ── Library Sub-Screen State Per Tab ──
     val librarySubScreenStates = mutableMapOf<NavItem, LibrarySubScreen>(
         NavItem.HOME to LibrarySubScreen.NONE,
+        NavItem.LIVE to LibrarySubScreen.NONE,
         NavItem.SUBSCRIPTIONS to LibrarySubScreen.NONE,
         NavItem.LIBRARY to LibrarySubScreen.NONE
     )
@@ -99,6 +101,7 @@ class NavigationController(
 
     val searchStacks = mutableMapOf<NavItem, MutableList<SearchState>>(
         NavItem.HOME to mutableListOf(),
+        NavItem.LIVE to mutableListOf(),
         NavItem.SUBSCRIPTIONS to mutableListOf(),
         NavItem.LIBRARY to mutableListOf()
     )

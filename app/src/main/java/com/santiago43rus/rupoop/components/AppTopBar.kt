@@ -179,6 +179,7 @@ fun AppTopBar(
                             vm.currentNav == NavItem.LIBRARY && vm.currentLibSub == LibrarySubScreen.DOWNLOADS -> "Загрузки"
                             else -> when (vm.currentNav) {
                                 NavItem.HOME -> "Rupoop"
+                                NavItem.LIVE -> "Трансляции"
                                 NavItem.SUBSCRIPTIONS -> "Rupoop"
                                 NavItem.LIBRARY -> "Rupoop"
                             }

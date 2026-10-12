@@ -657,7 +657,8 @@ fun CustomVideoPlayer(
                 }
             }
     ) {
-        val isAudio = currentVideo?.videoUrl?.endsWith(".mp3") == true || currentVideo?.videoUrl?.endsWith(".m4a") == true
+        val isAudio = (exoPlayer.trackSelectionParameters.disabledTrackTypes.contains(androidx.media3.common.C.TRACK_TYPE_VIDEO)) ||
+                currentVideo?.videoUrl?.endsWith(".mp3") == true || currentVideo?.videoUrl?.endsWith(".m4a") == true
         Box(
             modifier = Modifier
                 .fillMaxSize()

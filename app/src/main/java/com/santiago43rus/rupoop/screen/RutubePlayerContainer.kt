@@ -58,7 +58,7 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
     if (vm.playerState == PlayerState.CLOSED || vm.isSettingsVisible) return
 
     if (vm.isInPipMode) {
-        val isAudio = vm.currentVideo?.tags?.any { it.equals("audio", ignoreCase = true) } == true || vm.currentVideo?.videoUrl?.endsWith(".m4a") == true
+        val isAudio = vm.isAudioOnlyMode || vm.currentVideo?.tags?.any { it.equals("audio", ignoreCase = true) } == true || vm.currentVideo?.videoUrl?.endsWith(".m4a") == true
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             AudioOrVideoPlayerView(
                 isAudio = isAudio,
@@ -453,6 +453,8 @@ fun RutubePlayerContainer(vm: AppViewModel, padding: PaddingValues) {
                             alphaProgress = realProgress,
                             isBackgroundEnabled = vm.isBackgroundPlaybackEnabled,
                             onBackgroundPlayToggle = { vm.toggleBackgroundPlayback() },
+                            isAudioOnly = vm.isAudioOnlyMode,
+                            onAudioOnlyToggle = { vm.toggleAudioOnlyMode() },
                             showVideoDetails = true,
                             useTwoColumns = isTablet,
                             isLoading = vm.isLoadingRelated,

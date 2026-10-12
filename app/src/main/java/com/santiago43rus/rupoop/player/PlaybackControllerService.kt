@@ -16,6 +16,15 @@ fun PlaybackController.toggleBackgroundPlayback() {
 }
 
 @OptIn(UnstableApi::class)
+fun PlaybackController.toggleAudioOnlyMode() {
+    isAudioOnlyMode = !isAudioOnlyMode
+    val params = exoPlayer.trackSelectionParameters.buildUpon()
+        .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, isAudioOnlyMode)
+        .build()
+    exoPlayer.trackSelectionParameters = params
+}
+
+@OptIn(UnstableApi::class)
 internal fun PlaybackController.syncPlaybackService() {
     val shouldRun = playerState != PlayerState.CLOSED
     if (shouldRun) {

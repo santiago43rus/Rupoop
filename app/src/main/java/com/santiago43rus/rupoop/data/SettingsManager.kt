@@ -50,6 +50,10 @@ class SettingsManager(context: Context) {
         get() = prefs.getBoolean("is_first_launch", true)
         set(value) = prefs.edit { putBoolean("is_first_launch", value) }
 
+    var lastNotifiedVersionCode: Int
+        get() = prefs.getInt("last_notified_version_code", 0)
+        set(value) = prefs.edit { putInt("last_notified_version_code", value) }
+
     var adultContentEnabled: Boolean
         get() = prefs.getBoolean("adult_content", true)
         set(value) = prefs.edit { putBoolean("adult_content", value) }

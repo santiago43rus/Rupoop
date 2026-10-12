@@ -14,7 +14,7 @@ import java.io.File
 
 enum class PlayerState { CLOSED, MINI, FULL }
 enum class OverlayState { SEARCH, AUTHOR }
-enum class NavItem { HOME, SUBSCRIPTIONS, LIBRARY }
+enum class NavItem { HOME, LIVE, SUBSCRIPTIONS, LIBRARY }
 enum class LibrarySubScreen { NONE, LIKED, WATCH_LATER, PLAYLISTS, PLAYLIST_DETAIL, HISTORY, DOWNLOADS }
 
 fun formatDuration(seconds: Long): String {

@@ -39,6 +39,8 @@ fun RelatedVideosList(
     alphaProgress: Float,
     isBackgroundEnabled: Boolean = false,
     onBackgroundPlayToggle: () -> Unit = {},
+    isAudioOnly: Boolean = false,
+    onAudioOnlyToggle: () -> Unit = {},
     showVideoDetails: Boolean = true,
     useTwoColumns: Boolean = false,
     isLoading: Boolean = false,
@@ -67,6 +69,8 @@ fun RelatedVideosList(
                     onDownload = onDownload,
                     isBackgroundEnabled = isBackgroundEnabled,
                     onBackgroundPlayToggle = onBackgroundPlayToggle,
+                    isAudioOnly = isAudioOnly,
+                    onAudioOnlyToggle = onAudioOnlyToggle,
                     episodes = episodes,
                     selectedEpisodeIndex = selectedEpisodeIndex,
                     onEpisodeClick = onEpisodeClick

@@ -132,6 +132,10 @@ var AppViewModel.isBackgroundPlaybackEnabled: Boolean
     get() = playbackController.isBackgroundPlaybackEnabled
     set(value) { playbackController.isBackgroundPlaybackEnabled = value }
 
+var AppViewModel.isAudioOnlyMode: Boolean
+    get() = playbackController.isAudioOnlyMode
+    set(value) { playbackController.isAudioOnlyMode = value }
+
 var AppViewModel.isFastForwarding: Boolean
     get() = playbackController.isFastForwarding
     set(value) { playbackController.isFastForwarding = value }
@@ -156,6 +160,7 @@ fun AppViewModel.closePlayer() = playbackController.closePlayer()
 fun AppViewModel.startProgressSaving(): Unit = playbackController.startProgressSaving()
 fun AppViewModel.stopProgressSaving(): Unit = playbackController.stopProgressSaving()
 fun AppViewModel.toggleBackgroundPlayback(): Unit = playbackController.toggleBackgroundPlayback()
+fun AppViewModel.toggleAudioOnlyMode(): Unit = playbackController.toggleAudioOnlyMode()
 
 // ── Auth Property Delegation ──
 var AppViewModel.isAuthenticating: Boolean
@@ -214,6 +219,12 @@ var AppViewModel.homeVideos: List<SearchResult>
 
 @get:UnstableApi
 @set:UnstableApi
+var AppViewModel.liveVideos: List<SearchResult>
+    get() = contentFeedController.liveVideos
+    set(value) { contentFeedController.liveVideos = value }
+
+@get:UnstableApi
+@set:UnstableApi
 var AppViewModel.subscriptionVideos: List<SearchResult>
     get() = contentFeedController.subscriptionVideos
     set(value) { contentFeedController.subscriptionVideos = value }
@@ -231,6 +242,18 @@ var AppViewModel.isHomeLoadingMore: Boolean
 var AppViewModel.isRefreshingHome: Boolean
     get() = contentFeedController.isRefreshingHome
     set(value) { contentFeedController.isRefreshingHome = value }
+
+var AppViewModel.isLiveLoadingMore: Boolean
+    get() = contentFeedController.isLiveLoadingMore
+    set(value) { contentFeedController.isLiveLoadingMore = value }
+
+var AppViewModel.isRefreshingLive: Boolean
+    get() = contentFeedController.isRefreshingLive
+    set(value) { contentFeedController.isRefreshingLive = value }
+
+var AppViewModel.hasMoreLiveVideos: Boolean
+    get() = contentFeedController.hasMoreLiveVideos
+    set(value) { contentFeedController.hasMoreLiveVideos = value }
 
 var AppViewModel.isAuthorLoadingMore: Boolean
     get() = contentFeedController.isAuthorLoadingMore
@@ -262,6 +285,8 @@ var AppViewModel.hasMoreSubsVideos: Boolean
 
 @UnstableApi
 fun AppViewModel.loadHome(isLoadMore: Boolean) = contentFeedController.loadHome(isLoadMore)
+@UnstableApi
+fun AppViewModel.loadLiveStreams(isLoadMore: Boolean) = contentFeedController.loadLiveStreams(isLoadMore)
 @UnstableApi
 fun AppViewModel.loadSubscriptions(isLoadMore: Boolean) = contentFeedController.loadSubscriptions(isLoadMore)
 @UnstableApi

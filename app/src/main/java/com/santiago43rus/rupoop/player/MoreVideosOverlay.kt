@@ -189,7 +189,7 @@ fun MoreVideosOverlay(
                                     Spacer(Modifier.width(8.dp))
                                     Column {
                                         Text(video.title, color = Color.White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                                        val viewsText = formatViewCount(video.hits)
+                                        val viewsText = if (video.hits != null && video.hits > 0) formatViewCount(video.hits) else ""
                                         val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
                                         val metaText = buildString {
                                             append(video.author?.name ?: "Автор")

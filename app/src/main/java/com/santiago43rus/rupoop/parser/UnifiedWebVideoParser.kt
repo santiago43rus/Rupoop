@@ -313,7 +313,50 @@ object UnifiedWebVideoParser {
             }
         }
 
-        // 3. Kodik or Collaps format: "1": "https://...m3u8", "2": "https://...m3u8"
+        // 3. Stravers / Ascorbic / Lordfilm fileList JSON pattern: const fileList = JSON.parse('{"type":"serial",..."all":{"1":{"1":...
+        if (list.isEmpty()) {
+            try {
+                val fileListPattern = Pattern.compile("""fileList\s*=\s*JSON\.parse\(['"](\{.*?\})['"]\)""")
+                val fileListMatcher = fileListPattern.matcher(html)
+                if (fileListMatcher.find()) {
+                    val rawJson = fileListMatcher.group(1)?.replace("""\'""", "'")?.replace("""\"""", "\"") ?: ""
+                    val rootJson = org.json.JSONObject(rawJson)
+                    val allObj = rootJson.optJSONObject("all")
+                    if (allObj != null) {
+                        val seasonKeys = allObj.keys()
+                        while (seasonKeys.hasNext()) {
+                            val sKey = seasonKeys.next()
+                            val sNum = sKey.toIntOrNull() ?: 1
+                            val episodesObj = allObj.optJSONObject(sKey) ?: continue
+                            val epKeys = episodesObj.keys()
+                            while (epKeys.hasNext()) {
+                                val epKey = epKeys.next()
+                                val epNum = epKey.toIntOrNull() ?: continue
+                                val transObj = episodesObj.optJSONObject(epKey) ?: continue
+                                // Pick first translation available
+                                val tKeys = transObj.keys()
+                                if (tKeys.hasNext()) {
+                                    val tFirst = transObj.optJSONObject(tKeys.next())
+                                    val vidId = tFirst?.optString("id")?.takeIf { it.isNotBlank() }
+                                        ?: tFirst?.optString("id_file")?.takeIf { it.isNotBlank() }
+                                    if (vidId != null) {
+                                        val epPlaceholder = "https://plapi.cdnvideohub.com/api/v1/player/sv/video/$vidId"
+                                        val epTitle = if (sNum > 1) "$epNum серия ($sNum сезон)" else "$epNum серия"
+                                        if (seen.add("$sNum-$epNum")) {
+                                            list.add(Episode(title = epTitle, seasonNumber = sNum, episodeNumber = epNum, streamUrl = epPlaceholder))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error parsing fileList JSON in balancer", e)
+            }
+        }
+
+        // 4. Kodik or Collaps format: "1": "https://...m3u8", "2": "https://...m3u8"
         if (list.isEmpty()) {
             val p3 = Pattern.compile(
                 """["'](\d+)["']\s*:\s*["'](https?:\/\/[^"'\s<>\\]+?\.m3u8[^"'\s<>\\]*)["']""",
@@ -327,6 +370,45 @@ object UnifiedWebVideoParser {
                 if (seen.add(streamUrl)) {
                     val epNum = epStr.toIntOrNull() ?: (list.size + 1)
                     list.add(Episode(title = "$epNum серия", seasonNumber = 1, episodeNumber = epNum, streamUrl = streamUrl))
+                }
+            }
+        }
+
+        // 4. HTML links / buttons on Lordfilm and DLE serial pages (e.g., <a href="...-1-seriya.html">1 серия</a>)
+        if (list.isEmpty()) {
+            val p4 = Pattern.compile(
+                """<a[^>]+href=["']([^"']+)["'][^>]*>(?:(\d+)\s*сезон[,\s]*)?(\d+)\s*серия<\/a>""",
+                Pattern.CASE_INSENSITIVE
+            )
+            val m4 = p4.matcher(html)
+            while (m4.find()) {
+                val rawHref = m4.group(1) ?: continue
+                val seasonNum = m4.group(2)?.toIntOrNull() ?: 1
+                val epNum = m4.group(3)?.toIntOrNull() ?: (list.size + 1)
+                val resolvedEpUrl = resolveUrl(baseUrl, rawHref)
+                if (seen.add(resolvedEpUrl)) {
+                    list.add(Episode(title = "$epNum серия", seasonNumber = seasonNum, episodeNumber = epNum, streamUrl = resolvedEpUrl))
+                }
+            }
+        }
+
+        // 5. Secondary HTML links pattern: href="...-season-(\d+)-episode-(\d+)..."
+        if (list.isEmpty()) {
+            val p5 = Pattern.compile(
+                """<a[^>]+href=["']([^"']*(?:seriya|episode|serii)[^"']*)["'][^>]*>([^<]+)<\/a>""",
+                Pattern.CASE_INSENSITIVE
+            )
+            val m5 = p5.matcher(html)
+            while (m5.find()) {
+                val rawHref = m5.group(1) ?: continue
+                val linkText = m5.group(2)?.trim() ?: ""
+                val epNum = Regex("""\d+""").find(linkText)?.value?.toIntOrNull() ?: continue
+                val seasonNum = if (linkText.contains("сезон", ignoreCase = true)) {
+                    Regex("""(\d+)\s*сезон""").find(linkText.lowercase())?.groupValues?.get(1)?.toIntOrNull() ?: 1
+                } else 1
+                val resolvedEpUrl = resolveUrl(baseUrl, rawHref)
+                if (seen.add(resolvedEpUrl)) {
+                    list.add(Episode(title = linkText.ifEmpty { "$epNum серия" }, seasonNumber = seasonNum, episodeNumber = epNum, streamUrl = resolvedEpUrl))
                 }
             }
         }
@@ -820,6 +902,42 @@ object UnifiedWebVideoParser {
             val playlistJsonStr = playlistResp.body.string()
 
             val titleName = extractRegex(playlistJsonStr, """"titleName"\s*:\s*"([^"]+)"""")?.let { unescapeHtml(it) } ?: fallbackTitle
+            
+            // Extract episodes list from CdnVideoHub if it's a serial
+            val episodesList = mutableListOf<Episode>()
+            try {
+                val playlistJson = org.json.JSONObject(playlistJsonStr)
+                val itemsArr = playlistJson.optJSONArray("items")
+                if (itemsArr != null && itemsArr.length() > 0) {
+                    val seenEp = mutableSetOf<String>()
+                    for (i in 0 until itemsArr.length()) {
+                        val itemObj = itemsArr.getJSONObject(i)
+                        val sNum = itemObj.optInt("season", 1)
+                        val epNum = itemObj.optInt("episode", 1)
+                        val vId = itemObj.optString("vkId")
+                        val studio = itemObj.optString("voiceStudio").takeIf { it.isNotBlank() }
+                            ?: itemObj.optString("voiceType").takeIf { it.isNotBlank() } ?: ""
+                        
+                        val epKey = "$sNum-$epNum"
+                        // Pick first translation of each episode
+                        if (seenEp.add(epKey) && vId.isNotBlank()) {
+                            val epStreamPlaceholder = "https://plapi.cdnvideohub.com/api/v1/player/sv/video/$vId"
+                            val epLabel = if (sNum > 1) "$epNum серия ($sNum сезон)" else "$epNum серия"
+                            episodesList.add(
+                                Episode(
+                                    title = epLabel,
+                                    seasonNumber = sNum,
+                                    episodeNumber = epNum,
+                                    streamUrl = epStreamPlaceholder
+                                )
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error parsing CdnVideoHub episodes", e)
+            }
+
             val vkId = extractRegex(playlistJsonStr, """"vkId"\s*:\s*"([^"]+)"""")
             if (vkId.isNullOrBlank()) return@withContext null
 
@@ -860,7 +978,8 @@ object UnifiedWebVideoParser {
                     "Referer" to "https://player.cdnvideohub.com/",
                     "Origin" to "https://player.cdnvideohub.com"
                 ),
-                sourceName = sourceName
+                sourceName = sourceName,
+                episodes = episodesList.sortedWith(compareBy({ it.seasonNumber }, { it.episodeNumber }))
             )
         } catch (e: Exception) {
             println("parseCdnVideoHub EXCEPTION: ${e.javaClass.name}: ${e.message}")

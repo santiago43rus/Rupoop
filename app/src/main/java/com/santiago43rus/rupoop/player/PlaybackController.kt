@@ -59,6 +59,7 @@ class PlaybackController(
     var isPlaying by mutableStateOf(false)
     var isBuffering by mutableStateOf(false)
     var isBackgroundPlaybackEnabled by mutableStateOf(false)
+    var isAudioOnlyMode by mutableStateOf(false)
     var isFastForwarding by mutableStateOf(false)
     var isZoomed by mutableStateOf(false)
 
@@ -203,7 +204,8 @@ class PlaybackController(
                             title = if (video.title == "Загрузка..." || video.title.isBlank()) parsed.title else video.title,
                             thumbnailUrl = video.thumbnailUrl ?: parsed.thumbnailUrl,
                             author = video.author ?: parsed.authorName?.let { Author(name = it, avatarUrl = parsed.authorAvatarUrl) },
-                            duration = parsed.durationSeconds?.toInt() ?: video.duration
+                            duration = parsed.durationSeconds?.toInt() ?: video.duration,
+                            hits = parsed.viewsCount ?: video.hits
                         )
                         currentVideo = updatedVideo
 
@@ -277,6 +279,7 @@ class PlaybackController(
                 val rutubeId = UniversalVideoParser.extractRutubeId(rawUrl) ?: id
                 val opt = withContext(Dispatchers.IO) { RetrofitClient.api.getVideoOptions(rutubeId) }
                 val url = opt.videoBalancer?.m3u8
+                    ?: opt.liveStreams?.hls?.firstOrNull { !it.url.isNullOrEmpty() }?.url
                 if (url != null) {
                     exoPlayer.stop()
                     exoPlayer.clearMediaItems()
@@ -393,34 +396,53 @@ class PlaybackController(
             val updatedVideo = curr.copy(title = "$baseTitle (${ep.title})")
             currentVideo = updatedVideo
 
-            exoPlayer.stop()
-            exoPlayer.clearMediaItems()
+            videoLoadingJob?.cancel()
+            videoLoadingJob = scope.launch {
+                var playStreamUrl = ep.streamUrl
+                var playHeaders = mapOf<String, String>()
 
-            val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
-                .setTitle(updatedVideo.title)
-                .setArtist(updatedVideo.author?.name)
-                .setArtworkUri(updatedVideo.thumbnailUrl?.let { android.net.Uri.parse(it) })
-                .build()
+                // If ep.streamUrl is a web page link (e.g. from Lordfilm serial episode page), resolve it via parser
+                if (!playStreamUrl.endsWith(".m3u8") && !playStreamUrl.endsWith(".mp4") && !playStreamUrl.endsWith(".mkv") && !playStreamUrl.contains(".m3u8")) {
+                    val parsed = withContext(Dispatchers.IO) { UniversalVideoParser.parse(playStreamUrl) }
+                    if (parsed != null && parsed.streamUrl.isNotBlank()) {
+                        playStreamUrl = parsed.streamUrl
+                        playHeaders = parsed.headers
+                    }
+                }
 
-            val mediaItem = MediaItem.Builder()
-                .setUri(ep.streamUrl)
-                .setMediaId(curr.videoUrl)
-                .setMediaMetadata(mediaMetadata)
-                .build()
+                exoPlayer.stop()
+                exoPlayer.clearMediaItems()
 
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-                .setAllowCrossProtocolRedirects(true)
-                .setConnectTimeoutMs(15000)
-                .setReadTimeoutMs(15000)
+                val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(updatedVideo.title)
+                    .setArtist(updatedVideo.author?.name)
+                    .setArtworkUri(updatedVideo.thumbnailUrl?.let { android.net.Uri.parse(it) })
+                    .build()
 
-            val mediaSource = DefaultMediaSourceFactory(context)
-                .setDataSourceFactory(dataSourceFactory)
-                .createMediaSource(mediaItem)
+                val mediaItem = MediaItem.Builder()
+                    .setUri(playStreamUrl)
+                    .setMediaId(curr.videoUrl)
+                    .setMediaMetadata(mediaMetadata)
+                    .build()
 
-            exoPlayer.setMediaSource(mediaSource)
-            exoPlayer.prepare()
-            exoPlayer.play()
+                val dataSourceFactory = DefaultHttpDataSource.Factory()
+                    .setUserAgent(playHeaders["User-Agent"] ?: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+                    .setAllowCrossProtocolRedirects(true)
+                    .setConnectTimeoutMs(15000)
+                    .setReadTimeoutMs(15000)
+
+                if (playHeaders.isNotEmpty()) {
+                    dataSourceFactory.setDefaultRequestProperties(playHeaders)
+                }
+
+                val mediaSource = DefaultMediaSourceFactory(context)
+                    .setDataSourceFactory(dataSourceFactory)
+                    .createMediaSource(mediaItem)
+
+                exoPlayer.setMediaSource(mediaSource)
+                exoPlayer.prepare()
+                exoPlayer.play()
+            }
         }
     }
 }

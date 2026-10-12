@@ -203,8 +203,16 @@ fun RutubeApp(
         }
     }
 
-    LaunchedEffect(Unit) { vm.initializeApp() }
+    LaunchedEffect(Unit) {
+        vm.initializeApp()
+        val currentVersion = BuildConfig.VERSION_CODE
+        if (vm.settingsManager.lastNotifiedVersionCode < currentVersion) {
+            vm.showTelegramChannelDialog = true
+            vm.settingsManager.lastNotifiedVersionCode = currentVersion
+        }
+    }
     LaunchedEffect(vm.currentNav) {
+        if (vm.currentNav == NavItem.LIVE && vm.liveVideos.isEmpty()) vm.loadLiveStreams(false)
         if (vm.currentNav == NavItem.SUBSCRIPTIONS) vm.loadSubscriptions(false)
         if (vm.currentNav == NavItem.HOME && vm.homeVideos.isEmpty()) vm.loadHome(false)
     }
@@ -295,6 +303,16 @@ fun RutubeApp(
                                         onAuthorClick = { vm.loadAuthorVideos(it, false) },
                                         onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) },
                                         listState = homeListState
+                                    )
+                                }
+                                NavItem.LIVE -> {
+                                    MainFeedScreen(
+                                        videos = vm.liveVideos, userRegistry = vm.userRegistry,
+                                        isRefreshing = vm.isRefreshingLive, isLoadingMore = vm.isLiveLoadingMore,
+                                        onRefresh = { vm.loadLiveStreams(false) }, onLoadMore = { vm.loadLiveStreams(true) },
+                                        onVideoClick = { video, list -> vm.playVideo(video, list) },
+                                        onAuthorClick = { vm.loadAuthorVideos(it, false) },
+                                        onMoreClick = { video, action -> vm.handleVideoMoreAction(video, action) }
                                     )
                                 }
                                 NavItem.SUBSCRIPTIONS -> {

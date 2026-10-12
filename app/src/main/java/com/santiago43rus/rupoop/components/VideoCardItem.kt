@@ -83,21 +83,40 @@ fun VideoCardItem(
                 contentScale = ContentScale.Crop
             )
 
-            // Duration
-            video.duration?.let { durSeconds ->
+            // Duration or Live badge
+            val isLiveStream = video.duration == 0 || video.duration == null && (video.tags?.any { it.contains("live", ignoreCase = true) || it.contains("эфир", ignoreCase = true) } == true || video.title.contains("прямой эфир", ignoreCase = true) || video.title.contains("live", ignoreCase = true))
+
+            if (isLiveStream) {
                 Surface(
-                    color = Color.Black.copy(alpha = 0.8f),
+                    color = Color.Red,
                     shape = RoundedCornerShape(4.dp),
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(bottom = 8.dp, end = 8.dp)
                 ) {
                     Text(
-                        text = formatDuration(durSeconds.toLong()),
+                        text = "В ЭФИРЕ",
                         color = Color.White,
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                     )
+                }
+            } else {
+                video.duration?.let { durSeconds ->
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(bottom = 8.dp, end = 8.dp)
+                    ) {
+                        Text(
+                            text = formatDuration(durSeconds.toLong()),
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             }
 
@@ -178,7 +197,7 @@ fun VideoCardItem(
                         modifier = Modifier.clickable(enabled = false) { onAuthorClick(lordAuthor) }
                     )
                 } else {
-                    val viewsText = formatViewCount(video.hits)
+                    val viewsText = if (video.hits != null && video.hits > 0) formatViewCount(video.hits) else ""
                     val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
                     val sep1 = if (viewsText.isNotEmpty()) " • " else ""
                     val sep2 = if (timeAgoText.isNotEmpty()) " • " else ""
@@ -216,6 +235,7 @@ fun VideoCardItem(
                         DropdownMenuItem(text = { Text("Смотреть позже") }, onClick = { showMenu = false; onMoreClick("later") }, leadingIcon = { Icon(Icons.Default.WatchLater, null) })
                         DropdownMenuItem(text = { Text("Поделиться") }, onClick = { showMenu = false; onMoreClick("share") }, leadingIcon = { Icon(Icons.Default.Share, null) })
                         DropdownMenuItem(text = { Text("Скачать") }, onClick = { showMenu = false; onMoreClick("download") }, leadingIcon = { Icon(Icons.Outlined.Download, null) })
+                        DropdownMenuItem(text = { Text("Слушать как аудио") }, onClick = { showMenu = false; onMoreClick("audio_only") }, leadingIcon = { Icon(Icons.Default.MusicNote, null) })
                     }
                 }
             }

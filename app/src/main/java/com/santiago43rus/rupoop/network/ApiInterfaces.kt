@@ -21,6 +21,12 @@ interface RutubeApi {
         @Query("ordering") ordering: String? = "-hits",
         @Query("page") page: Int = 1
     ): SearchResponse
+
+    @GET("api/video/topic/1/?format=json")
+    suspend fun getLiveStreams(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 20
+    ): SearchResponse
 }
 
 interface GistApi {

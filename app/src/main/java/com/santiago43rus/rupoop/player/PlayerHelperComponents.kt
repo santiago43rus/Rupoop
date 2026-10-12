@@ -80,7 +80,7 @@ fun SettingsDialog(
         }
     }
     if (showQuality) {
-        OptionSelectionDialog("Качество", listOf("Авто", "1080p", "720p", "480p", "360p"), currentQuality, {
+        OptionSelectionDialog("Качество", listOf("Авто", "1080p", "720p", "480p", "360p", "240p", "144p"), currentQuality, {
             onQualitySelected(it)
             val params = exoPlayer.trackSelectionParameters.buildUpon()
             when(it) {
@@ -88,6 +88,8 @@ fun SettingsDialog(
                 "720p" -> params.setMaxVideoSize(1280, 720).setForceHighestSupportedBitrate(true)
                 "480p" -> params.setMaxVideoSize(854, 480).setForceHighestSupportedBitrate(true)
                 "360p" -> params.setMaxVideoSize(640, 360).setForceHighestSupportedBitrate(true)
+                "240p" -> params.setMaxVideoSize(426, 240).setForceHighestSupportedBitrate(true)
+                "144p" -> params.setMaxVideoSize(256, 144).setForceHighestSupportedBitrate(true)
                 else -> params.clearVideoSizeConstraints().setForceHighestSupportedBitrate(false)
             }
             exoPlayer.trackSelectionParameters = params.build()
