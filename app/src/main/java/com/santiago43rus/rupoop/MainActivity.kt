@@ -246,15 +246,20 @@ class MainActivity : ComponentActivity() {
 
             RupoopTheme(themeMode = themeMode, darkTheme = isDarkTheme) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    RutubeApp(
-                        vm = vm,
-                        onThemeToggle = { newThemeMode ->
-                            themeMode = newThemeMode
-                            vm.settingsManager.themeMode = newThemeMode
-                        },
-                        deepLinkVideoUrl = deepLinkVideoUrl,
-                        onDeepLinkConsumed = { deepLinkVideoUrl = null }
-                    )
+                    val isTvDevice = remember { isTv() }
+                    if (isTvDevice) {
+                        com.santiago43rus.rupoop.tv.TvApp(vm = vm)
+                    } else {
+                        RutubeApp(
+                            vm = vm,
+                            onThemeToggle = { newThemeMode ->
+                                themeMode = newThemeMode
+                                vm.settingsManager.themeMode = newThemeMode
+                            },
+                            deepLinkVideoUrl = deepLinkVideoUrl,
+                            onDeepLinkConsumed = { deepLinkVideoUrl = null }
+                        )
+                    }
                 }
             }
         }

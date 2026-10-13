@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <!-- Фоновый градиент / прямоугольник -->
+    <path
+        android:fillColor="#1A1C1E"
+        android:pathData="M0,0h320v180h-320z" />
+
+    <!-- Акцентный круг на фоне -->
+    <path
+        android:fillColor="#332B5B84"
+        android:pathData="M160,90m-70,0a70,70 0,1,1 140,0a70,70 0,1,1 -140,0" />
+
+    <!-- Иконка Play / логотипа по центру -->
+    <path
+        android:fillColor="#58A6FF"
+        android:pathData="M145,70 L185,90 L145,110 Z" />
+</vector>

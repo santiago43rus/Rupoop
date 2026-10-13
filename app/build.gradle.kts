@@ -14,7 +14,7 @@ val localProperties = Properties().apply {
 }
 
 base {
-    archivesName.set("Rupoop-v1.1.0")
+    archivesName.set("Rupoop-v1.1.1")
 }
 
 android {
@@ -23,10 +23,10 @@ android {
 
     defaultConfig {
         applicationId = "com.santiago43rus.rupoop"
-        minSdk = 29
+        minSdk = 28
         targetSdk = 37
-        versionCode = 8
-        versionName = "1.1.0"
+        versionCode = 9
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -90,6 +90,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
+    // Android TV Compose
+    implementation(libs.androidx.tv.foundation)
+    implementation(libs.androidx.tv.material)
 
     // Security
     implementation(libs.androidx.security.crypto)

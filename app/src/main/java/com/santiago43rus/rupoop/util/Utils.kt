@@ -31,6 +31,12 @@ fun setScreenOrientation(context: Context, orientation: Int) {
     context.findActivity()?.requestedOrientation = orientation
 }
 
+fun Context.isTv(): Boolean {
+    val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager
+    return packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) ||
+            uiModeManager?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
+}
+
 fun isAutoRotationEnabled(context: Context): Boolean {
     return try {
         android.provider.Settings.System.getInt(
