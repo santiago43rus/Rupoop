@@ -20,7 +20,8 @@ export default {
       });
     }
 
-    // 2. БЕЗОПАСНАЯ АВТОРИЗАЦИЯ GITHUB (Только для роута /auth/token)
+    // 2. БЕЗОПАСНАЯ АВТОРИЗАЦИЯ GITHUB
+    // 2.1. Web OAuth Redirect Flow (/auth/token)
     if (url.pathname === "/auth/token") {
       if (request.method !== "POST") {
         return new Response("Method Not Allowed", { status: 405 });
@@ -53,6 +54,85 @@ export default {
 
         return new Response(JSON.stringify(tokenData), {
           status: 200,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.toString() }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      }
+    }
+
+    // 2.2. Device Flow: Запрос кода устройства (/auth/device/code)
+    if (url.pathname === "/auth/device/code") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", { status: 405 });
+      }
+      try {
+        const deviceResponse = await fetch("https://github.com/login/device/code", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            client_id: env.GH_CLIENT_ID,
+            scope: "gist"
+          })
+        });
+
+        const data = await deviceResponse.json();
+        return new Response(JSON.stringify(data), {
+          status: deviceResponse.status,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.toString() }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      }
+    }
+
+    // 2.3. Device Flow: Опрос токена (/auth/device/token)
+    if (url.pathname === "/auth/device/token") {
+      if (request.method !== "POST") {
+        return new Response("Method Not Allowed", { status: 405 });
+      }
+      try {
+        const body = await request.json();
+        const deviceCode = body.device_code;
+
+        if (!deviceCode) {
+          return new Response(JSON.stringify({ error: "Missing device_code" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          });
+        }
+
+        const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            client_id: env.GH_CLIENT_ID,
+            device_code: deviceCode,
+            grant_type: "urn:ietf:params:oauth:grant-type:device_code"
+          })
+        });
+
+        const tokenData = await tokenResponse.json();
+        return new Response(JSON.stringify(tokenData), {
+          status: tokenResponse.status,
           headers: {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*"

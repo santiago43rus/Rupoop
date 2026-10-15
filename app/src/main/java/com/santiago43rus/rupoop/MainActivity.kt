@@ -248,7 +248,7 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val isTvDevice = remember { isTv() }
                     if (isTvDevice) {
-                        com.santiago43rus.rupoop.tv.TvApp(vm = vm)
+                        com.santiago43rus.rupoop.tv.TvRoot(vm = vm)
                     } else {
                         RutubeApp(
                             vm = vm,

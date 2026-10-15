@@ -48,6 +48,14 @@ interface GitHubApi {
     suspend fun getUser(@Header("Authorization") authHeader: String): GitHubUser
 }
 
+interface DeviceAuthApi {
+    @POST("auth/device/code")
+    suspend fun getDeviceCode(): DeviceCodeResponse
+
+    @POST("auth/device/token")
+    suspend fun getDeviceToken(@Body request: DeviceCodeRequest): DeviceTokenResponse
+}
+
 interface SuggestApi {
     @GET("complete/search?client=firefox&ds=yt")
     suspend fun getSuggestions(@Query("q") query: String): retrofit2.Response<okhttp3.ResponseBody>

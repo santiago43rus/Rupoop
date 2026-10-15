@@ -1,6 +1,5 @@
-package com.santiago43rus.rupoop.tv
+package com.santiago43rus.rupoop.tv.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -8,7 +7,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -16,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.santiago43rus.rupoop.data.SearchResult
@@ -29,14 +28,17 @@ fun TvVideoCard(
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(targetValue = if (isFocused) 1.06f else 1.0f, label = "cardScale")
 
     Card(
         onClick = onClick,
         modifier = modifier
             .width(280.dp)
-            .scale(scale)
+            .zIndex(if (isFocused) 10f else 1f)
             .onFocusChanged { isFocused = it.isFocused },
+        scale = CardDefaults.scale(
+            scale = 1.0f,
+            focusedScale = 1.08f
+        ),
         shape = CardDefaults.shape(shape = RoundedCornerShape(12.dp)),
         border = CardDefaults.border(
             border = Border(BorderStroke(1.dp, Color.Transparent)),

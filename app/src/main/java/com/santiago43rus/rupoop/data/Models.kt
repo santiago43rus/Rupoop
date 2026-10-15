@@ -129,3 +129,26 @@ data class GitHubUser(
     val login: String,
     @SerialName("avatar_url") val avatarUrl: String? = null
 )
+
+@Serializable
+data class DeviceCodeResponse(
+    @SerialName("device_code") val deviceCode: String,
+    @SerialName("user_code") val userCode: String,
+    @SerialName("verification_uri") val verificationUri: String,
+    @SerialName("expires_in") val expiresIn: Int = 900,
+    val interval: Int = 5
+)
+
+@Serializable
+data class DeviceCodeRequest(
+    @SerialName("device_code") val deviceCode: String
+)
+
+@Serializable
+data class DeviceTokenResponse(
+    @SerialName("access_token") val accessToken: String? = null,
+    @SerialName("token_type") val tokenType: String? = null,
+    val scope: String? = null,
+    val error: String? = null,
+    @SerialName("error_description") val errorDescription: String? = null
+)

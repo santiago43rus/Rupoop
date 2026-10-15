@@ -49,6 +49,15 @@ object RetrofitClient {
             .create(GitHubApi::class.java)
     }
 
+    val deviceAuthApi: DeviceAuthApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(BuildConfig.PROXY_URL)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(DeviceAuthApi::class.java)
+    }
+
     val suggestApi: SuggestApi by lazy {
         Retrofit.Builder()
             .baseUrl("https://suggestqueries.google.com/")
