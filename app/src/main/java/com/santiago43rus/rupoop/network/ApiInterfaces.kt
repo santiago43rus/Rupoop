@@ -31,7 +31,11 @@ interface RutubeApi {
 
 interface GistApi {
     @GET("gists")
-    suspend fun listGists(@Header("Authorization") authHeader: String): List<Gist>
+    suspend fun listGists(
+        @Header("Authorization") authHeader: String,
+        @Query("per_page") perPage: Int = 100,
+        @Query("page") page: Int = 1
+    ): List<Gist>
 
     @GET("gists/{id}")
     suspend fun getGist(@Header("Authorization") authHeader: String, @Path("id") id: String): Gist

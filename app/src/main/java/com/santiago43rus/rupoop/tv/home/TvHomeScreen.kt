@@ -19,6 +19,7 @@ fun TvHomeScreen(
     likedVideos: List<SearchResult>,
     liveVideos: List<SearchResult>,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
+    onVideoMenuClick: ((SearchResult) -> Unit)? = null,
     onLoadMoreHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -35,7 +36,8 @@ fun TvHomeScreen(
                 TvRow(
                     title = "История просмотра",
                     videos = historyVideos,
-                    onVideoClick = { onVideoSelected(it, historyVideos) }
+                    onVideoClick = { onVideoSelected(it, historyVideos) },
+                    onVideoMenuClick = onVideoMenuClick
                 )
             }
         }
@@ -46,7 +48,8 @@ fun TvHomeScreen(
                 TvRow(
                     title = "Прямые трансляции",
                     videos = liveVideos,
-                    onVideoClick = { onVideoSelected(it, liveVideos) }
+                    onVideoClick = { onVideoSelected(it, liveVideos) },
+                    onVideoMenuClick = onVideoMenuClick
                 )
             }
         }
@@ -70,7 +73,8 @@ fun TvHomeScreen(
                     TvRow(
                         title = title,
                         videos = rowVideos,
-                        onVideoClick = { onVideoSelected(it, homeVideos) }
+                        onVideoClick = { onVideoSelected(it, homeVideos) },
+                        onVideoMenuClick = onVideoMenuClick
                     )
                 }
             }
@@ -82,7 +86,8 @@ fun TvHomeScreen(
                 TvRow(
                     title = "Понравившиеся видео",
                     videos = likedVideos,
-                    onVideoClick = { onVideoSelected(it, likedVideos) }
+                    onVideoClick = { onVideoSelected(it, likedVideos) },
+                    onVideoMenuClick = onVideoMenuClick
                 )
             }
         }

@@ -248,7 +248,13 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     val isTvDevice = remember { isTv() }
                     if (isTvDevice) {
-                        com.santiago43rus.rupoop.tv.TvRoot(vm = vm)
+                        com.santiago43rus.rupoop.tv.TvRoot(
+                            vm = vm,
+                            onThemeToggle = { newThemeMode ->
+                                themeMode = newThemeMode
+                                vm.settingsManager.themeMode = newThemeMode
+                            }
+                        )
                     } else {
                         RutubeApp(
                             vm = vm,

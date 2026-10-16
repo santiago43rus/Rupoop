@@ -37,6 +37,8 @@ fun TvPlayerScreen(
     currentEpisodeIndex: Int = 0,
     audioTracks: List<AudioTrackSource> = emptyList(),
     selectedAudioTrackId: String? = null,
+    currentQuality: String = "Авто",
+    onQualitySelected: (String) -> Unit = {},
     onPlayPause: () -> Unit,
     onSeekRelative: (Long) -> Unit,
     onClosePlayer: () -> Unit,
@@ -54,21 +56,18 @@ fun TvPlayerScreen(
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var showControls by remember { mutableStateOf(true) }
+    var showControls by remember { mutableStateOf(false) } // По умолчанию скрыты, чистый плеер
     var showInfoPanel by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
     var autoHideJob by remember { mutableStateOf<Job?>(null) }
     val focusRequester = remember { FocusRequester() }
 
     var currentPositionMs by remember { mutableLongStateOf(exoPlayer.currentPosition) }
     var durationMs by remember { mutableLongStateOf(exoPlayer.duration.coerceAtLeast(0L)) }
 
-    // Ускоренная перемотка при удержании кнопок влево/вправо
-    var repeatCount by remember { mutableIntStateOf(0) }
-    var lastKeyEventTime by remember { mutableLongStateOf(0L) }
-
     fun scheduleAutoHide() {
         autoHideJob?.cancel()
-        if (isPlaying && !showInfoPanel) {
+        if (isPlaying && !showInfoPanel && !showSettingsDialog) {
             autoHideJob = coroutineScope.launch {
                 delay(4000)
                 showControls = false
@@ -76,12 +75,11 @@ fun TvPlayerScreen(
         }
     }
 
-    // Периодическое обновление прогресса во время показа панели
-    LaunchedEffect(showControls, isPlaying, showInfoPanel) {
+    LaunchedEffect(showControls, isPlaying, showInfoPanel, showSettingsDialog) {
         if (showControls) {
             currentPositionMs = exoPlayer.currentPosition
             durationMs = exoPlayer.duration.coerceAtLeast(0L)
-            if (isPlaying && !showInfoPanel) {
+            if (isPlaying && !showInfoPanel && !showSettingsDialog) {
                 scheduleAutoHide()
                 while (true) {
                     delay(500)
@@ -96,11 +94,14 @@ fun TvPlayerScreen(
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
-        scheduleAutoHide()
     }
 
     BackHandler {
-        if (showInfoPanel) {
+        if (showSettingsDialog) {
+            showSettingsDialog = false
+            showControls = true
+            scheduleAutoHide()
+        } else if (showInfoPanel) {
             showInfoPanel = false
             showControls = true
             scheduleAutoHide()
@@ -118,50 +119,15 @@ fun TvPlayerScreen(
             .focusRequester(focusRequester)
             .focusable()
             .onPreviewKeyEvent { event ->
+                // Перехватываем на уровне preview ТОЛЬКО когда оверлей и панель СКРЫТЫ,
+                // либо когда нажимаются специализированные медиа-клавиши
                 if (event.type == KeyEventType.KeyDown) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastKeyEventTime < 300) {
-                        repeatCount++
-                    } else {
-                        repeatCount = 0
-                    }
-                    lastKeyEventTime = now
-
-                    // Коэффициент ускорения при удержании стрелок
-                    val stepMultiplier = when {
-                        repeatCount > 8 -> 4L
-                        repeatCount > 3 -> 2L
-                        else -> 1L
-                    }
-
                     when (event.key) {
-                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause, Key.Spacebar -> {
-                            if (!showInfoPanel) {
-                                onPlayPause()
-                                showControls = true
-                                scheduleAutoHide()
-                                true
-                            } else false
-                        }
-                        Key.DirectionLeft, Key.MediaRewind -> {
-                            if (!showInfoPanel) {
-                                val seekStep = -10_000L * stepMultiplier
-                                onSeekRelative(seekStep)
-                                currentPositionMs = exoPlayer.currentPosition
-                                showControls = true
-                                scheduleAutoHide()
-                                true
-                            } else false
-                        }
-                        Key.DirectionRight, Key.MediaFastForward -> {
-                            if (!showInfoPanel) {
-                                val seekStep = 10_000L * stepMultiplier
-                                onSeekRelative(seekStep)
-                                currentPositionMs = exoPlayer.currentPosition
-                                showControls = true
-                                scheduleAutoHide()
-                                true
-                            } else false
+                        Key.MediaPlayPause -> {
+                            onPlayPause()
+                            showControls = true
+                            scheduleAutoHide()
+                            true
                         }
                         Key.MediaNext -> {
                             onPlayNext()
@@ -175,29 +141,46 @@ fun TvPlayerScreen(
                             scheduleAutoHide()
                             true
                         }
-                        Key.DirectionUp -> {
-                            if (showInfoPanel) {
-                                showInfoPanel = false
-                                showControls = true
-                                scheduleAutoHide()
-                                true
+                        else -> {
+                            // Если оверлей и панель скрыты: пульт управляет плеером напрямую
+                            if (!showControls && !showInfoPanel && !showSettingsDialog) {
+                                when (event.key) {
+                                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                                        onPlayPause()
+                                        showControls = true
+                                        scheduleAutoHide()
+                                        true
+                                    }
+                                    Key.DirectionLeft, Key.MediaRewind -> {
+                                        onSeekRelative(-10_000L)
+                                        showControls = true
+                                        scheduleAutoHide()
+                                        true
+                                    }
+                                    Key.DirectionRight, Key.MediaFastForward -> {
+                                        onSeekRelative(10_000L)
+                                        showControls = true
+                                        scheduleAutoHide()
+                                        true
+                                    }
+                                    Key.DirectionUp -> {
+                                        showControls = true
+                                        scheduleAutoHide()
+                                        true
+                                    }
+                                    Key.DirectionDown -> {
+                                        showInfoPanel = true
+                                        autoHideJob?.cancel()
+                                        true
+                                    }
+                                    else -> false
+                                }
                             } else {
-                                showControls = true
-                                scheduleAutoHide()
-                                true
-                            }
-                        }
-                        Key.DirectionDown -> {
-                            if (!showInfoPanel) {
-                                showInfoPanel = true
-                                showControls = false
-                                autoHideJob?.cancel()
-                                true
-                            } else {
+                                // Когда оверлей открыт: НЕ перехватываем стрелки и Enter в Preview,
+                                // чтобы они свободно перемещали фокус по элементам управления (серии, кнопки, прогресс-бар)
                                 false
                             }
                         }
-                        else -> false
                     }
                 } else false
             }
@@ -213,8 +196,8 @@ fun TvPlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Панель информации, прогресса и управления
-        if (showControls && !showInfoPanel) {
+        // Панель информации, прогресса и управления (серии, звук, кнопки, настройки)
+        if (showControls && !showInfoPanel && !showSettingsDialog) {
             TvPlayerOverlay(
                 currentVideo = currentVideo,
                 currentPositionMs = currentPositionMs,
@@ -229,7 +212,25 @@ fun TvPlayerScreen(
                 onPlayNext = onPlayNext,
                 onPlayPrevious = onPlayPrevious,
                 onEpisodeSelect = onEpisodeSelect,
-                onAudioTrackSelect = onAudioTrackSelect
+                onAudioTrackSelect = onAudioTrackSelect,
+                onOpenSettings = {
+                    showSettingsDialog = true
+                    autoHideJob?.cancel()
+                }
+            )
+        }
+
+        // Диалог настроек качества и скорости видео
+        if (showSettingsDialog) {
+            TvVideoSettingsDialog(
+                exoPlayer = exoPlayer,
+                currentQuality = currentQuality,
+                onQualitySelected = onQualitySelected,
+                onDismiss = {
+                    showSettingsDialog = false
+                    showControls = true
+                    scheduleAutoHide()
+                }
             )
         }
 
@@ -245,7 +246,12 @@ fun TvPlayerScreen(
                 onAddToPlaylist = onAddToPlaylist,
                 onShare = onShare,
                 onAuthorClick = onAuthorClick,
-                onRelatedVideoClick = onRelatedVideoClick
+                onRelatedVideoClick = onRelatedVideoClick,
+                onClose = {
+                    showInfoPanel = false
+                    showControls = true
+                    scheduleAutoHide()
+                }
             )
         }
     }

@@ -139,8 +139,25 @@ class GistSyncManager(
     private suspend fun getOrFindGistId(authHeader: String): String? {
         var gistId = settingsManager.cachedGistId
         if (gistId == null) {
-            val gists = gistApi.listGists(authHeader)
-            gistId = gists.find { it.files.containsKey(SYNC_FILE_NAME) }?.id
+            var page = 1
+            var foundId: String? = null
+            while (page <= 5) {
+                val gists = try {
+                    gistApi.listGists(authHeader, perPage = 100, page = page)
+                } catch (e: Exception) {
+                    Log.e("RupoopAuth", "Error listing gists on page $page", e)
+                    break
+                }
+                if (gists.isEmpty()) break
+                val match = gists.find { it.files.containsKey(SYNC_FILE_NAME) }
+                if (match != null) {
+                    foundId = match.id
+                    break
+                }
+                if (gists.size < 100) break
+                page++
+            }
+            gistId = foundId
             settingsManager.cachedGistId = gistId
         }
         return gistId

@@ -94,8 +94,10 @@ class AuthController(
                 val syncedRegistry = withContext(Dispatchers.IO) { syncManager.sync(token) }
                 onRegistryUpdate(syncedRegistry)
                 isAuthenticated = true
+                snackbarMessage.emit("Вход выполнен успешно! Данные синхронизированы.")
             } catch (e: Exception) {
                 Log.e("RupoopAuth", "Sync error", e)
+                snackbarMessage.emit("Ошибка синхронизации: ${e.localizedMessage ?: "Сбой соединения"}")
             } finally {
                 isAuthenticating = false
                 loadHome(false)

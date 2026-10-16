@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
-private val DarkColorScheme = darkColorScheme(
+val DarkColorScheme = darkColorScheme(
     primary = Color.White,
     onPrimary = Color.Black,
     secondary = Color.White,
@@ -29,7 +29,7 @@ private val DarkColorScheme = darkColorScheme(
     outline = Color(0xFF3A3A3A)
 )
 
-private val LightColorScheme = lightColorScheme(
+val LightColorScheme = lightColorScheme(
     primary = Color(0xFF0F0F0F),
     onPrimary = Color.White,
     secondary = Color(0xFF0F0F0F),
@@ -48,7 +48,7 @@ private val LightColorScheme = lightColorScheme(
     outline = Color(0xFFD0D0D0)
 )
 
-private val EasterEggColorScheme = darkColorScheme(
+val EasterEggColorScheme = darkColorScheme(
     primary = EasterPrimary,
     onPrimary = Color.Black,
     secondary = EasterPrimaryDark,

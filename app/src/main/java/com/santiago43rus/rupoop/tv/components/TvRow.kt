@@ -17,12 +17,15 @@ fun TvRow(
     title: String,
     videos: List<SearchResult>,
     onVideoClick: (SearchResult) -> Unit,
+    onVideoMenuClick: ((SearchResult) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (videos.isEmpty()) return
 
     Column(modifier = modifier.fillMaxWidth()) {
-        TvSectionTitle(title = title)
+        if (title.isNotBlank()) {
+            TvSectionTitle(title = title)
+        }
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -33,7 +36,8 @@ fun TvRow(
             items(videos, key = { it.videoUrl }) { video ->
                 TvVideoCard(
                     video = video,
-                    onClick = { onVideoClick(video) }
+                    onClick = { onVideoClick(video) },
+                    onMenuClick = { onVideoMenuClick?.invoke(video) }
                 )
             }
         }

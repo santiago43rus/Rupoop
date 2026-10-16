@@ -308,7 +308,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(listOf("144", "240", "360", "480", "720", "1080")) { q ->
+                        items(listOf("144", "240", "360", "480", "720", "1080", "1440", "2160")) { q ->
                             FilterChip(
                                 selected = downloadQuality == q,
                                 onClick = {

@@ -13,10 +13,14 @@ import androidx.compose.material.icons.filled.WatchLater
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,7 +29,6 @@ import com.santiago43rus.rupoop.data.Author
 import com.santiago43rus.rupoop.data.SearchResult
 import com.santiago43rus.rupoop.data.UserRegistry
 import com.santiago43rus.rupoop.tv.components.TvRow
-import com.santiago43rus.rupoop.tv.components.TvSectionTitle
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -40,19 +43,34 @@ fun TvVideoInfoPanel(
     onShare: (SearchResult) -> Unit,
     onAuthorClick: (Author) -> Unit,
     onRelatedVideoClick: (SearchResult) -> Unit,
+    onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (currentVideo == null) return
 
+    val colorScheme = MaterialTheme.colorScheme
     val isLiked = registry.likedVideos.any { it.videoUrl == currentVideo.videoUrl }
     val isDisliked = registry.dislikedVideos.contains(currentVideo.videoUrl)
     val isWatchLater = registry.watchLater.any { it.videoUrl == currentVideo.videoUrl }
 
+    val firstButtonFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        firstButtonFocusRequester.requestFocus()
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xE60D1117))
+            .background(colorScheme.background.copy(alpha = 0.92f))
             .padding(horizontal = 48.dp, vertical = 32.dp)
+            .onPreviewKeyEvent { event ->
+                // Стрелка вверх на самом верхнем уровне закрывает панель инфо
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp) {
+                    onClose()
+                    true
+                } else false
+            }
     ) {
         LazyColumn(
             modifier = Modifier
@@ -65,7 +83,7 @@ fun TvVideoInfoPanel(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = currentVideo.title,
-                        color = Color.White,
+                        color = colorScheme.onBackground,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -74,13 +92,13 @@ fun TvVideoInfoPanel(
                             onClick = { onAuthorClick(author) },
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
-                                containerColor = Color(0xFF21262D),
-                                focusedContainerColor = Color(0xFF30363D)
+                                containerColor = colorScheme.surfaceVariant,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary
                             )
                         ) {
                             Text(
                                 text = "Канал: ${author.name}",
-                                color = Color(0xFF58A6FF),
                                 fontSize = 16.sp,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
@@ -102,85 +120,86 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onLike(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isLiked) Color(0xFF238636) else Color(0xFF21262D),
-                            focusedContainerColor = if (isLiked) Color(0xFF2EA043) else Color(0xFF30363D)
-                        )
+                            containerColor = if (isLiked) colorScheme.primary else colorScheme.surfaceVariant,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
+                        ),
+                        modifier = Modifier.focusRequester(firstButtonFocusRequester)
                     ) {
                         Icon(
                             imageVector = if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
-                            contentDescription = "Нравится",
-                            tint = Color.White
+                            contentDescription = "Нравится"
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = if (isLiked) "Понравилось" else "Нравится", color = Color.White)
+                        Text(text = if (isLiked) "Понравилось" else "Нравится")
                     }
 
                     // Дизлайк / Скрыть
                     Button(
                         onClick = { onDislike(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isDisliked) Color(0xFFDA3633) else Color(0xFF21262D),
-                            focusedContainerColor = if (isDisliked) Color(0xFFF85149) else Color(0xFF30363D)
+                            containerColor = if (isDisliked) colorScheme.tertiary else colorScheme.surfaceVariant,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
                         Icon(
                             imageVector = if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
-                            contentDescription = "Скрыть",
-                            tint = Color.White
+                            contentDescription = "Скрыть"
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = if (isDisliked) "Скрыто" else "Не нравится", color = Color.White)
+                        Text(text = if (isDisliked) "Скрыто" else "Не нравится")
                     }
 
                     // Смотреть позже
                     Button(
                         onClick = { onWatchLater(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isWatchLater) Color(0xFF1F6FEB) else Color(0xFF21262D),
-                            focusedContainerColor = if (isWatchLater) Color(0xFF388BFD) else Color(0xFF30363D)
+                            containerColor = if (isWatchLater) colorScheme.primary else colorScheme.surfaceVariant,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
                         Icon(
                             imageVector = Icons.Default.WatchLater,
-                            contentDescription = "Смотреть позже",
-                            tint = Color.White
+                            contentDescription = "Смотреть позже"
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = if (isWatchLater) "В списке" else "Позже", color = Color.White)
+                        Text(text = if (isWatchLater) "В списке" else "Позже")
                     }
 
                     // В плейлист
                     Button(
                         onClick = { onAddToPlaylist(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = Color(0xFF21262D),
-                            focusedContainerColor = Color(0xFF30363D)
+                            containerColor = colorScheme.surfaceVariant,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                            contentDescription = "В плейлист",
-                            tint = Color.White
+                            contentDescription = "В плейлист"
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Плейлист", color = Color.White)
+                        Text(text = "Плейлист")
                     }
 
                     // Поделиться (копировать ссылку)
                     Button(
                         onClick = { onShare(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = Color(0xFF21262D),
-                            focusedContainerColor = Color(0xFF30363D)
+                            containerColor = colorScheme.surfaceVariant,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
                         Icon(
                             imageVector = Icons.Default.Share,
-                            contentDescription = "Поделиться",
-                            tint = Color.White
+                            contentDescription = "Поделиться"
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Поделиться", color = Color.White)
+                        Text(text = "Поделиться")
                     }
                 }
             }
