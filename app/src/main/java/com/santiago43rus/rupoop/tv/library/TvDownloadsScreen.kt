@@ -7,14 +7,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
+import com.santiago43rus.rupoop.components.DeleteConfirmationDialog
 import com.santiago43rus.rupoop.data.DownloadItem
 import com.santiago43rus.rupoop.tv.components.TvSectionTitle
 
@@ -26,6 +26,9 @@ fun TvDownloadsScreen(
     onDelete: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+    var downloadToDelete by remember { mutableStateOf<DownloadItem?>(null) }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -39,7 +42,7 @@ fun TvDownloadsScreen(
 
         if (downloads.isEmpty()) {
             item {
-                Text("Нет скачанных видео", color = Color.Gray, fontSize = 16.sp)
+                Text("Нет скачанных видео", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }
         } else {
             items(downloads, key = { it.videoId }) { download ->
@@ -47,8 +50,8 @@ fun TvDownloadsScreen(
                     onClick = { onPlay(download) },
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                     colors = ClickableSurfaceDefaults.colors(
-                        containerColor = Color(0xFF1E2228),
-                        focusedContainerColor = Color(0xFF282E38)
+                        containerColor = colorScheme.surfaceVariant,
+                        focusedContainerColor = colorScheme.surface
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -65,13 +68,13 @@ fun TvDownloadsScreen(
                         ) {
                             Text(
                                 text = download.title,
-                                color = Color.White,
+                                color = colorScheme.onSurface,
                                 fontSize = 16.sp,
                                 maxLines = 1
                             )
                             Text(
                                 text = "Статус: ${download.status} • Прогресс: ${download.progress}%",
-                                color = Color(0xFF8B949E),
+                                color = colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp
                             )
                         }
@@ -80,25 +83,40 @@ fun TvDownloadsScreen(
                             IconButton(
                                 onClick = { onPlay(download) },
                                 colors = IconButtonDefaults.colors(
-                                    containerColor = Color(0xFF238636),
-                                    focusedContainerColor = Color(0xFF2EA043)
+                                    containerColor = colorScheme.primary,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
                                 )
                             ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Играть", tint = Color.White)
+                                Icon(Icons.Default.PlayArrow, contentDescription = "Играть")
                             }
                             IconButton(
-                                onClick = { onDelete(download.videoId) },
+                                onClick = { downloadToDelete = download },
                                 colors = IconButtonDefaults.colors(
-                                    containerColor = Color(0xFFDA3633),
-                                    focusedContainerColor = Color(0xFFF85149)
+                                    containerColor = colorScheme.surfaceVariant,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
                                 )
                             ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Удалить", tint = Color.White)
+                                Icon(Icons.Default.Delete, contentDescription = "Удалить")
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    val item = downloadToDelete
+    if (item != null) {
+        DeleteConfirmationDialog(
+            title = "Удалить загрузку",
+            message = "Вы уверены, что хотите удалить «${item.title}»?",
+            onConfirm = { _: Boolean ->
+                onDelete(item.videoId)
+                downloadToDelete = null
+            },
+            onDismiss = { downloadToDelete = null }
+        )
     }
 }

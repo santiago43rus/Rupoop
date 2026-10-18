@@ -15,16 +15,15 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +47,7 @@ fun TvPlayerOverlay(
     currentEpisodeIndex: Int,
     audioTracks: List<AudioTrackSource>,
     selectedAudioTrackId: String?,
+    seekStepDurationMs: Long = 10_000L,
     onPlayPause: () -> Unit,
     onSeekRelative: (Long) -> Unit,
     onPlayNext: () -> Unit,
@@ -58,19 +58,49 @@ fun TvPlayerOverlay(
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val playPauseFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        playPauseFocusRequester.requestFocus()
+    }
+
+    // Выделение доступных сезонов
+    val seasons = remember(episodes) {
+        episodes.mapNotNull { it.seasonNumber }.distinct().sorted()
+    }
+    var selectedSeason by remember(currentEpisodeIndex, episodes) {
+        val currentEp = episodes.getOrNull(currentEpisodeIndex)
+        mutableStateOf(currentEp?.seasonNumber ?: seasons.firstOrNull() ?: 1)
+    }
+
+    val seasonEpisodes = remember(episodes, selectedSeason, seasons) {
+        if (seasons.size > 1) {
+            episodes.filter { it.seasonNumber == selectedSeason }
+        } else {
+            episodes
+        }
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colorScheme.background.copy(alpha = 0.85f))
-            .padding(horizontal = 48.dp, vertical = 32.dp)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        colorScheme.background.copy(alpha = 0.65f),
+                        colorScheme.background.copy(alpha = 0.95f)
+                    )
+                )
+            )
+            .padding(horizontal = 48.dp, vertical = 24.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomStart)
                 .focusRestorer(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Заголовок и автор видео
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -91,7 +121,53 @@ fun TvPlayerOverlay(
                 )
             }
 
-            // Серии (для Lordfilm и сериалов)
+            // Выбор сезона (если сериалы с несколькими сезонами)
+            if (seasons.size > 1) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Сезон",
+                        color = colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRestorer(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(seasons.size) { idx ->
+                            val sNum = seasons[idx]
+                            val isSelected = sNum == selectedSeason
+                            Surface(
+                                onClick = {
+                                    selectedSeason = sNum
+                                    val firstEpInSeason = episodes.indexOfFirst { it.seasonNumber == sNum }
+                                    if (firstEpInSeason != -1) {
+                                        onEpisodeSelect(firstEpInSeason)
+                                    }
+                                },
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
+                                )
+                            ) {
+                                Text(
+                                    text = "$sNum сезон",
+                                    color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Серии выбранного сезона
             if (episodes.size > 1) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
@@ -106,10 +182,11 @@ fun TvPlayerOverlay(
                             .focusRestorer(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        itemsIndexed(episodes) { index, episode ->
-                            val isSelected = index == currentEpisodeIndex
+                        itemsIndexed(seasonEpisodes) { _, episode ->
+                            val globalIndex = episodes.indexOf(episode)
+                            val isSelected = globalIndex == currentEpisodeIndex
                             Surface(
-                                onClick = { onEpisodeSelect(index) },
+                                onClick = { onEpisodeSelect(globalIndex) },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
                                     containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
@@ -181,13 +258,14 @@ fun TvPlayerOverlay(
                     .focusable()
                     .onPreviewKeyEvent { event ->
                         if (isProgressFocused && event.type == KeyEventType.KeyDown) {
+                            val step = if (event.nativeKeyEvent.repeatCount > 2) seekStepDurationMs * 2 else seekStepDurationMs
                             when (event.key) {
                                 Key.DirectionLeft -> {
-                                    onSeekRelative(-10_000L)
+                                    onSeekRelative(-step)
                                     true
                                 }
                                 Key.DirectionRight -> {
-                                    onSeekRelative(10_000L)
+                                    onSeekRelative(step)
                                     true
                                 }
                                 else -> false
@@ -238,8 +316,8 @@ fun TvPlayerOverlay(
                     Icon(Icons.Default.SkipPrevious, contentDescription = "Предыдущее", tint = colorScheme.onBackground)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
-                IconButton(onClick = { onSeekRelative(-10_000L) }) {
-                    Icon(Icons.Default.FastRewind, contentDescription = "-10 сек", tint = colorScheme.onBackground)
+                IconButton(onClick = { onSeekRelative(-seekStepDurationMs) }) {
+                    Icon(Icons.Default.FastRewind, contentDescription = "-$seekStepDurationMs мс", tint = colorScheme.onBackground)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 IconButton(
@@ -248,7 +326,8 @@ fun TvPlayerOverlay(
                         containerColor = colorScheme.primary,
                         focusedContainerColor = colorScheme.primary,
                         focusedContentColor = colorScheme.onPrimary
-                    )
+                    ),
+                    modifier = Modifier.focusRequester(playPauseFocusRequester)
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
@@ -257,8 +336,8 @@ fun TvPlayerOverlay(
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
-                IconButton(onClick = { onSeekRelative(10_000L) }) {
-                    Icon(Icons.Default.FastForward, contentDescription = "+10 сек", tint = colorScheme.onBackground)
+                IconButton(onClick = { onSeekRelative(seekStepDurationMs) }) {
+                    Icon(Icons.Default.FastForward, contentDescription = "+$seekStepDurationMs мс", tint = colorScheme.onBackground)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 IconButton(onClick = onPlayNext) {

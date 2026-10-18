@@ -1,7 +1,10 @@
 package com.santiago43rus.rupoop.tv.search
 
-import android.content.Context
+import android.content.Intent
+import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -21,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -48,13 +50,24 @@ fun TvSearchScreen(
     onRemoveSearchQuery: (String) -> Unit,
     onClearSearchHistory: () -> Unit,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
+    onVideoMenuClick: (SearchResult) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val colorScheme = MaterialTheme.colorScheme
     val isSpeechAvailable = remember(context) { SpeechRecognizer.isRecognitionAvailable(context) }
     var queryText by remember(searchQuery) { mutableStateOf(searchQuery) }
     val focusManager = LocalFocusManager.current
     val searchFocusRequester = remember { FocusRequester() }
+
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!spokenText.isNullOrBlank()) {
+            queryText = spokenText
+            onSearchQueryChange(spokenText)
+            onPerformSearch(spokenText)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -74,7 +87,7 @@ fun TvSearchScreen(
                     queryText = it
                     onSearchQueryChange(it)
                 },
-                label = { Text("Поиск видео", color = Color(0xFF8B949E)) },
+                label = { Text("Поиск видео") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
@@ -84,10 +97,10 @@ fun TvSearchScreen(
                     }
                 ),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color(0xFF58A6FF),
-                    unfocusedBorderColor = Color(0xFF30363D)
+                    focusedTextColor = colorScheme.onSurface,
+                    unfocusedTextColor = colorScheme.onSurface,
+                    focusedBorderColor = colorScheme.primary,
+                    unfocusedBorderColor = colorScheme.border
                 ),
                 modifier = Modifier
                     .weight(1f)
@@ -108,25 +121,33 @@ fun TvSearchScreen(
                     onPerformSearch(queryText)
                 },
                 colors = ButtonDefaults.colors(
-                    containerColor = Color(0xFF238636),
-                    focusedContainerColor = Color(0xFF2EA043)
+                    containerColor = colorScheme.primary,
+                    focusedContainerColor = colorScheme.primary,
+                    focusedContentColor = colorScheme.onPrimary
                 )
             ) {
-                Text("Искать", color = Color.White)
+                Text("Искать")
             }
 
-            // Голосовой ввод (показывается только если доступен на устройстве)
+            // Голосовой ввод через SpeechRecognizer intent
             if (isSpeechAvailable) {
                 IconButton(
                     onClick = {
-                        // Опциональный голосовой ввод
+                        try {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Скажите поисковый запрос")
+                            }
+                            speechLauncher.launch(intent)
+                        } catch (_: Exception) {}
                     },
                     colors = IconButtonDefaults.colors(
-                        containerColor = Color(0xFF21262D),
-                        focusedContainerColor = Color(0xFF30363D)
+                        containerColor = colorScheme.surfaceVariant,
+                        focusedContainerColor = colorScheme.primary,
+                        focusedContentColor = colorScheme.onPrimary
                     )
                 ) {
-                    Icon(Icons.Default.Mic, contentDescription = "Голосовой поиск", tint = Color.White)
+                    Icon(Icons.Default.Mic, contentDescription = "Голосовой поиск")
                 }
             }
         }
@@ -149,26 +170,26 @@ fun TvSearchScreen(
                         }
                     },
                     colors = FilterChipDefaults.colors(
-                        containerColor = Color(0xFF1E2228),
-                        focusedContainerColor = Color(0xFF282E38),
-                        selectedContainerColor = Color(0xFF58A6FF),
-                        focusedSelectedContainerColor = Color(0xFF79B8FF)
+                        containerColor = colorScheme.surfaceVariant,
+                        focusedContainerColor = colorScheme.primary,
+                        selectedContainerColor = colorScheme.primary,
+                        focusedSelectedContainerColor = colorScheme.primary
                     )
                 ) {
                     Text(
                         text = source.displayName,
-                        color = if (isSelected) Color.Black else Color.White,
-                        fontSize = 13.sp
+                        color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
+                        fontSize = 14.sp
                     )
                 }
             }
         }
 
-        // Подсказки и история поиска (если строка не пустая и нет активных результатов)
+        // Подсказки и история поиска
         if (searchResults.isEmpty() && !isSearching) {
             if (queryText.isNotBlank() && searchSuggestions.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Подсказки", color = Color(0xFF8B949E), fontSize = 14.sp)
+                    Text("Подсказки", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
                     LazyRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -184,14 +205,14 @@ fun TvSearchScreen(
                                 },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = Color(0xFF1E2228),
-                                    focusedContainerColor = Color(0xFF282E38)
+                                    containerColor = colorScheme.surfaceVariant,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
                                 )
                             ) {
                                 Text(
                                     text = suggestion,
-                                    color = Color.White,
-                                    fontSize = 13.sp,
+                                    fontSize = 14.sp,
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                                 )
                             }
@@ -205,15 +226,16 @@ fun TvSearchScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("История поиска", color = Color(0xFF8B949E), fontSize = 14.sp)
+                        Text("История поиска", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
                         Button(
                             onClick = onClearSearchHistory,
                             colors = ButtonDefaults.colors(
-                                containerColor = Color.Transparent,
-                                focusedContainerColor = Color(0xFF21262D)
+                                containerColor = colorScheme.surfaceVariant,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary
                             )
                         ) {
-                            Text("Очистить историю", color = Color(0xFFDA3633), fontSize = 12.sp)
+                            Text("Очистить историю", fontSize = 13.sp)
                         }
                     }
                     LazyRow(
@@ -231,8 +253,9 @@ fun TvSearchScreen(
                                 },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = Color(0xFF1E2228),
-                                    focusedContainerColor = Color(0xFF282E38)
+                                    containerColor = colorScheme.surfaceVariant,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
                                 )
                             ) {
                                 Row(
@@ -243,14 +266,18 @@ fun TvSearchScreen(
                                     Icon(
                                         Icons.Default.History,
                                         contentDescription = null,
-                                        tint = Color(0xFF8B949E),
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
                                         text = historyItem,
-                                        color = Color.White,
-                                        fontSize = 13.sp
+                                        fontSize = 14.sp
                                     )
+                                    IconButton(
+                                        onClick = { onRemoveSearchQuery(historyItem) },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Удалить", modifier = Modifier.size(14.dp))
+                                    }
                                 }
                             }
                         }
@@ -262,7 +289,7 @@ fun TvSearchScreen(
         // Результаты поиска
         if (isSearching) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Поиск видео...", color = Color.Gray, fontSize = 16.sp)
+                Text("Поиск видео...", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }
         } else if (searchResults.isNotEmpty()) {
             LazyColumn(
@@ -277,13 +304,14 @@ fun TvSearchScreen(
                     TvRow(
                         title = "",
                         videos = rowVideos,
-                        onVideoClick = { onVideoSelected(it, searchResults) }
+                        onVideoClick = { onVideoSelected(it, searchResults) },
+                        onVideoMenuClick = onVideoMenuClick
                     )
                 }
             }
         } else if (queryText.isNotBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Ничего не найдено", color = Color.Gray, fontSize = 16.sp)
+                Text("Ничего не найдено", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }
         }
     }

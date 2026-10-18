@@ -1,5 +1,6 @@
 package com.santiago43rus.rupoop.tv
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
@@ -27,6 +28,7 @@ import com.santiago43rus.rupoop.*
 import com.santiago43rus.rupoop.data.Author
 import com.santiago43rus.rupoop.data.SearchResult
 import com.santiago43rus.rupoop.tv.components.TvDownloadDialog
+import com.santiago43rus.rupoop.tv.components.TvPlaylistSelectionDialog
 import com.santiago43rus.rupoop.tv.components.TvVideoMenuDialog
 import com.santiago43rus.rupoop.tv.home.TvHomeScreen
 import com.santiago43rus.rupoop.tv.library.TvDownloadsScreen
@@ -39,7 +41,6 @@ import com.santiago43rus.rupoop.tv.subscriptions.TvAuthorScreen
 import com.santiago43rus.rupoop.tv.subscriptions.TvSubscriptionsScreen
 import com.santiago43rus.rupoop.tv.theme.RupoopTvTheme
 import com.santiago43rus.rupoop.util.PlayerState
-import kotlinx.coroutines.launch
 
 enum class TvNavSection(val title: String, val icon: ImageVector) {
     HOME("Главная", Icons.Default.Home),
@@ -59,17 +60,32 @@ fun TvRoot(
     modifier: Modifier = Modifier
 ) {
     var selectedSection by remember { mutableStateOf(TvNavSection.HOME) }
+    var libraryInitialTab by remember { mutableIntStateOf(0) }
     var viewingAuthor by remember { mutableStateOf<Author?>(null) }
     var isLoginScreenOpen by remember { mutableStateOf(false) }
     var activeMenuVideo by remember { mutableStateOf<SearchResult?>(null) }
+    var currentPlaybackQuality by remember { mutableStateOf("Авто") }
 
-    val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Сбор системных сообщений snackbarMessage на ТВ
     LaunchedEffect(Unit) {
         vm.snackbarMessage.collect { msg ->
             snackbarHostState.showSnackbar(msg)
+        }
+    }
+
+    // Обработка кнопки Back: если не на Главной, переключаемся на Главную, иначе выход
+    val canHandleBack = selectedSection != TvNavSection.HOME || viewingAuthor != null || isLoginScreenOpen || vm.playerState == PlayerState.FULL
+    BackHandler(enabled = canHandleBack) {
+        if (vm.playerState == PlayerState.FULL) {
+            vm.closePlayer()
+        } else if (isLoginScreenOpen) {
+            isLoginScreenOpen = false
+        } else if (viewingAuthor != null) {
+            viewingAuthor = null
+        } else if (selectedSection != TvNavSection.HOME) {
+            selectedSection = TvNavSection.HOME
         }
     }
 
@@ -93,6 +109,12 @@ fun TvRoot(
                     currentEpisodeIndex = vm.currentEpisodeIndex,
                     audioTracks = vm.availableAudioTracks,
                     selectedAudioTrackId = vm.selectedAudioTrackId,
+                    currentQuality = currentPlaybackQuality,
+                    seekStepDurationSeconds = vm.settingsManager.doubleTapSeekDuration,
+                    isAudioOnly = vm.isAudioOnlyMode,
+                    onQualitySelected = { quality ->
+                        currentPlaybackQuality = quality
+                    },
                     onPlayPause = {
                         if (vm.isPlaying) {
                             vm.exoPlayer.pause()
@@ -132,18 +154,24 @@ fun TvRoot(
                     onAddToPlaylist = { video ->
                         vm.showPlaylistDialog = video
                     },
-                    onShare = { video ->
-                        val clipboard = vm.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                        val clip = android.content.ClipData.newPlainText("Video URL", video.videoUrl)
-                        clipboard?.setPrimaryClip(clip)
-                        vm.showSnackbar("Ссылка скопирована в буфер обмена")
+                    onDownload = { video ->
+                        vm.showDownloadDialog = video
+                    },
+                    onAudioOnlyToggle = {
+                        vm.isAudioOnlyMode = !vm.isAudioOnlyMode
                     },
                     onAuthorClick = { author ->
                         viewingAuthor = author
                         vm.loadAuthorVideos(author, false)
                     },
+                    onToggleSubscription = { author ->
+                        vm.toggleSubscription(author)
+                    },
                     onRelatedVideoClick = { video ->
                         vm.playVideo(video, vm.relatedVideos)
+                    },
+                    onVideoMenuClick = { video ->
+                        activeMenuVideo = video
                     }
                 )
                 return@RupoopTvTheme
@@ -173,6 +201,9 @@ fun TvRoot(
                         vm.playVideo(video, list)
                         vm.playerState = PlayerState.FULL
                     },
+                    onVideoMenuClick = { video ->
+                        activeMenuVideo = video
+                    },
                     onLoadMore = { vm.loadAuthorVideos(author, true) },
                     onBack = { viewingAuthor = null }
                 )
@@ -188,7 +219,7 @@ fun TvRoot(
                 }
             }
 
-            // Фиксированный Row: левый рейл (~88dp) + контент без перекрытия
+            // Фиксированный Row: левый рейл (~96dp) + контент
             Row(modifier = Modifier.fillMaxSize()) {
                 // Левый навигационный рейл
                 Column(
@@ -211,7 +242,7 @@ fun TvRoot(
                                 focusedContainerColor = colorScheme.primary,
                                 focusedContentColor = colorScheme.onPrimary
                             ),
-                            modifier = Modifier.size(68.dp)
+                            modifier = Modifier.size(72.dp)
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxSize(),
@@ -228,7 +259,8 @@ fun TvRoot(
                                 Text(
                                     text = section.title,
                                     color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
-                                    fontSize = 11.sp
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
                                 )
                             }
                         }
@@ -244,26 +276,8 @@ fun TvRoot(
                     Crossfade(targetState = selectedSection, label = "TvNavTransition") { section ->
                         when (section) {
                             TvNavSection.HOME -> {
-                                val historyVideos = remember(vm.userRegistry.watchHistory) {
-                                    vm.userRegistry.watchHistory.map { item ->
-                                        SearchResult(
-                                            videoUrl = item.videoUrl,
-                                            title = item.title ?: "",
-                                            thumbnailUrl = item.thumbnailUrl,
-                                            author = Author(
-                                                id = item.authorId,
-                                                name = item.authorName ?: "",
-                                                avatarUrl = item.authorAvatarUrl
-                                            ),
-                                            duration = (item.totalDuration / 1000).toInt()
-                                        )
-                                    }
-                                }
                                 TvHomeScreen(
                                     homeVideos = vm.homeVideos,
-                                    historyVideos = historyVideos,
-                                    likedVideos = vm.userRegistry.likedVideos,
-                                    liveVideos = vm.liveVideos,
                                     onVideoSelected = { video, list ->
                                         vm.playVideo(video, list)
                                         vm.playerState = PlayerState.FULL
@@ -281,6 +295,9 @@ fun TvRoot(
                                     onVideoSelected = { video, list ->
                                         vm.playVideo(video, list)
                                         vm.playerState = PlayerState.FULL
+                                    },
+                                    onVideoMenuClick = { video ->
+                                        activeMenuVideo = video
                                     },
                                     onAuthorSelected = { author ->
                                         viewingAuthor = author
@@ -300,11 +317,14 @@ fun TvRoot(
                                     onSearchQueryChange = { vm.updateSearchQuery(it) },
                                     onSearchSourceSelect = { vm.selectSearchSource(it) },
                                     onPerformSearch = { vm.performSearch(it) },
-                                    onRemoveSearchQuery = { vm.removeSearchQuery(it) },
+                                    onRemoveSearchQuery = { query -> vm.removeSearchQuery(query) },
                                     onClearSearchHistory = { vm.clearSearchHistory() },
                                     onVideoSelected = { video, list ->
                                         vm.playVideo(video, list)
                                         vm.playerState = PlayerState.FULL
+                                    },
+                                    onVideoMenuClick = { video ->
+                                        activeMenuVideo = video
                                     }
                                 )
                             }
@@ -330,13 +350,17 @@ fun TvRoot(
                                     watchLaterVideos = vm.userRegistry.watchLater,
                                     playlists = vm.userRegistry.playlists,
                                     hiddenVideos = vm.userRegistry.hiddenVideosList,
+                                    initialTab = libraryInitialTab,
                                     onVideoSelected = { video, list ->
                                         vm.playVideo(video, list)
                                         vm.playerState = PlayerState.FULL
                                     },
+                                    onVideoMenuClick = { video ->
+                                        activeMenuVideo = video
+                                    },
                                     onRemoveFromHistory = { vm.removeFromHistory(it.videoUrl) },
                                     onRemoveFromWatchLater = { vm.toggleWatchLater(it) },
-                                    onRestoreHiddenVideo = { vm.restoreHiddenVideo(it, "") },
+                                    onRestoreHiddenVideo = { vm.restoreHiddenVideo(it.videoUrl, it.title) },
                                     onDeletePlaylist = { vm.deletePlaylist(it.id) }
                                 )
                             }
@@ -360,8 +384,12 @@ fun TvRoot(
                                     settingsManager = vm.settingsManager,
                                     registry = vm.userRegistry,
                                     currentThemeMode = vm.settingsManager.themeMode,
+                                    donateUrl = BuildConfig.DONATE_URL,
+                                    versionName = BuildConfig.VERSION_NAME,
+                                    versionCode = BuildConfig.VERSION_CODE,
                                     onThemeToggle = onThemeToggle,
                                     onOpenHiddenVideos = {
+                                        libraryInitialTab = 4 // Вкладка «Скрытые»
                                         selectedSection = TvNavSection.LIBRARY
                                     },
                                     onPullFromGist = { vm.pullFromGist() },
@@ -370,7 +398,8 @@ fun TvRoot(
                                         vm.settingsManager.cachedGistId = null
                                         vm.showSnackbar("ID Gist сброшен")
                                     },
-                                    onClearHistory = { vm.clearWatchHistory() },
+                                    onClearWatchHistory = { vm.clearWatchHistory() },
+                                    onClearSearchHistory = { vm.clearSearchHistory() },
                                     onOpenLogin = { isLoginScreenOpen = true },
                                     onLogout = { vm.logout() }
                                 )
@@ -388,6 +417,22 @@ fun TvRoot(
                         vm.handleVideoMoreAction(video, action)
                     },
                     onDismiss = { activeMenuVideo = null }
+                )
+            }
+
+            // Диалог выбора плейлиста на ТВ
+            vm.showPlaylistDialog?.let { video ->
+                TvPlaylistSelectionDialog(
+                    playlists = vm.userRegistry.playlists,
+                    onPlaylistSelected = { playlistId ->
+                        vm.addToPlaylist(playlistId, video)
+                        vm.showPlaylistDialog = null
+                    },
+                    onCreateNew = { name ->
+                        vm.createPlaylistAndAdd(name, video)
+                        vm.showPlaylistDialog = null
+                    },
+                    onDismiss = { vm.showPlaylistDialog = null }
                 )
             }
 

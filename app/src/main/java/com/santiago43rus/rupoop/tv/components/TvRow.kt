@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -30,14 +31,15 @@ fun TvRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRestorer(),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
         ) {
             items(videos, key = { it.videoUrl }) { video ->
                 TvVideoCard(
                     video = video,
                     onClick = { onVideoClick(video) },
-                    onMenuClick = { onVideoMenuClick?.invoke(video) }
+                    onMenuClick = { onVideoMenuClick?.invoke(video) },
+                    modifier = Modifier.width(300.dp)
                 )
             }
         }

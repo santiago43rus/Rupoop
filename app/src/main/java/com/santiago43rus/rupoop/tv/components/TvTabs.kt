@@ -3,13 +3,10 @@ package com.santiago43rus.rupoop.tv.components
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Tab
-import androidx.tv.material3.TabRow
-import androidx.tv.material3.Text
+import androidx.tv.material3.*
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -19,21 +16,25 @@ fun TvTabs(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     TabRow(
         selectedTabIndex = selectedTabIndex,
         modifier = modifier
     ) {
         tabs.forEachIndexed { index, title ->
+            val isSelected = selectedTabIndex == index
             Tab(
-                selected = selectedTabIndex == index,
+                selected = isSelected,
                 onFocus = { onTabSelected(index) },
                 onClick = { onTabSelected(index) }
             ) {
                 Text(
                     text = title,
-                    color = if (selectedTabIndex == index) Color.White else Color(0xFF8B949E),
-                    fontSize = 15.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    color = if (isSelected) colorScheme.primary else colorScheme.onSurfaceVariant,
+                    fontSize = 16.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
                 )
             }
         }

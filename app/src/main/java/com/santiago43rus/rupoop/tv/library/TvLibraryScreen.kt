@@ -2,16 +2,19 @@ package com.santiago43rus.rupoop.tv.library
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
+import com.santiago43rus.rupoop.components.DeleteConfirmationDialog
 import com.santiago43rus.rupoop.data.Playlist
 import com.santiago43rus.rupoop.data.SearchResult
 import com.santiago43rus.rupoop.tv.components.TvRow
@@ -25,15 +28,22 @@ fun TvLibraryScreen(
     watchLaterVideos: List<SearchResult>,
     playlists: List<Playlist>,
     hiddenVideos: List<SearchResult>,
+    initialTab: Int = 0,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
+    onVideoMenuClick: (SearchResult) -> Unit,
     onRemoveFromHistory: (SearchResult) -> Unit,
     onRemoveFromWatchLater: (SearchResult) -> Unit,
-    onRestoreHiddenVideo: (String) -> Unit,
+    onRestoreHiddenVideo: (SearchResult) -> Unit,
     onDeletePlaylist: (Playlist) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val tabs = listOf("История", "Понравившиеся", "Смотреть позже", "Плейлисты", "Скрытые")
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
+    val colorScheme = MaterialTheme.colorScheme
+
+    var pendingDeleteItem by remember { mutableStateOf<Any?>(null) }
+    var deleteDialogTitle by remember { mutableStateOf("") }
+    var deleteDialogMessage by remember { mutableStateOf("") }
 
     Column(
         modifier = modifier
@@ -57,7 +67,7 @@ fun TvLibraryScreen(
             when (selectedTab) {
                 0 -> { // История
                     if (historyVideos.isEmpty()) {
-                        item { Text("История просмотров пуста", color = Color.Gray, fontSize = 16.sp) }
+                        item { Text("История просмотров пуста", color = colorScheme.onSurfaceVariant, fontSize = 16.sp) }
                     } else {
                         val chunks = historyVideos.chunked(4)
                         chunks.forEachIndexed { idx, rowVideos ->
@@ -65,7 +75,8 @@ fun TvLibraryScreen(
                                 TvRow(
                                     title = if (idx == 0) "Недавно просмотренные" else "",
                                     videos = rowVideos,
-                                    onVideoClick = { onVideoSelected(it, historyVideos) }
+                                    onVideoClick = { onVideoSelected(it, historyVideos) },
+                                    onVideoMenuClick = onVideoMenuClick
                                 )
                             }
                         }
@@ -73,7 +84,7 @@ fun TvLibraryScreen(
                 }
                 1 -> { // Понравившиеся
                     if (likedVideos.isEmpty()) {
-                        item { Text("Нет понравившихся видео", color = Color.Gray, fontSize = 16.sp) }
+                        item { Text("Нет понравившихся видео", color = colorScheme.onSurfaceVariant, fontSize = 16.sp) }
                     } else {
                         val chunks = likedVideos.chunked(4)
                         chunks.forEachIndexed { idx, rowVideos ->
@@ -81,7 +92,8 @@ fun TvLibraryScreen(
                                 TvRow(
                                     title = if (idx == 0) "Понравившиеся" else "",
                                     videos = rowVideos,
-                                    onVideoClick = { onVideoSelected(it, likedVideos) }
+                                    onVideoClick = { onVideoSelected(it, likedVideos) },
+                                    onVideoMenuClick = onVideoMenuClick
                                 )
                             }
                         }
@@ -89,7 +101,7 @@ fun TvLibraryScreen(
                 }
                 2 -> { // Смотреть позже
                     if (watchLaterVideos.isEmpty()) {
-                        item { Text("Список «Смотреть позже» пуст", color = Color.Gray, fontSize = 16.sp) }
+                        item { Text("Список «Смотреть позже» пуст", color = colorScheme.onSurfaceVariant, fontSize = 16.sp) }
                     } else {
                         val chunks = watchLaterVideos.chunked(4)
                         chunks.forEachIndexed { idx, rowVideos ->
@@ -97,7 +109,8 @@ fun TvLibraryScreen(
                                 TvRow(
                                     title = if (idx == 0) "Смотреть позже" else "",
                                     videos = rowVideos,
-                                    onVideoClick = { onVideoSelected(it, watchLaterVideos) }
+                                    onVideoClick = { onVideoSelected(it, watchLaterVideos) },
+                                    onVideoMenuClick = onVideoMenuClick
                                 )
                             }
                         }
@@ -105,14 +118,35 @@ fun TvLibraryScreen(
                 }
                 3 -> { // Плейлисты
                     if (playlists.isEmpty()) {
-                        item { Text("Нет созданных плейлистов", color = Color.Gray, fontSize = 16.sp) }
+                        item { Text("Нет созданных плейлистов", color = colorScheme.onSurfaceVariant, fontSize = 16.sp) }
                     } else {
                         playlists.forEach { playlist ->
                             item {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${playlist.name} (${playlist.videos.size})",
+                                        color = colorScheme.onBackground,
+                                        fontSize = 20.sp
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            deleteDialogTitle = "Удалить плейлист"
+                                            deleteDialogMessage = "Удалить плейлист «${playlist.name}»?"
+                                            pendingDeleteItem = playlist
+                                        }
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Удалить плейлист")
+                                    }
+                                }
                                 TvRow(
-                                    title = "${playlist.name} (${playlist.videos.size})",
+                                    title = "",
                                     videos = playlist.videos,
-                                    onVideoClick = { onVideoSelected(it, playlist.videos) }
+                                    onVideoClick = { onVideoSelected(it, playlist.videos) },
+                                    onVideoMenuClick = onVideoMenuClick
                                 )
                             }
                         }
@@ -120,21 +154,60 @@ fun TvLibraryScreen(
                 }
                 4 -> { // Скрытые
                     if (hiddenVideos.isEmpty()) {
-                        item { Text("Список скрытых видео пуст", color = Color.Gray, fontSize = 16.sp) }
+                        item { Text("Список скрытых видео пуст", color = colorScheme.onSurfaceVariant, fontSize = 16.sp) }
                     } else {
-                        val chunks = hiddenVideos.chunked(4)
-                        chunks.forEachIndexed { idx, rowVideos ->
-                            item {
-                                TvRow(
-                                    title = if (idx == 0) "Скрытые видео" else "",
-                                    videos = rowVideos,
-                                    onVideoClick = { onVideoSelected(it, hiddenVideos) }
-                                )
+                        items(hiddenVideos, key = { it.videoUrl }) { video ->
+                            Surface(
+                                onClick = { onVideoSelected(video, hiddenVideos) },
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = colorScheme.surfaceVariant,
+                                    focusedContainerColor = colorScheme.surface
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(video.title, color = colorScheme.onSurface, fontSize = 16.sp, maxLines = 1)
+                                        Text(video.author?.name ?: "", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                                    }
+                                    Button(
+                                        onClick = { onRestoreHiddenVideo(video) },
+                                        colors = ButtonDefaults.colors(
+                                            containerColor = colorScheme.primary,
+                                            focusedContainerColor = colorScheme.primary,
+                                            focusedContentColor = colorScheme.onPrimary
+                                        )
+                                    ) {
+                                        Icon(Icons.Default.Restore, contentDescription = null)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Вернуть в ленту")
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    val currentItem = pendingDeleteItem
+    if (currentItem != null) {
+        DeleteConfirmationDialog(
+            title = deleteDialogTitle,
+            message = deleteDialogMessage,
+            onConfirm = { _: Boolean ->
+                if (currentItem is Playlist) {
+                    onDeletePlaylist(currentItem)
+                }
+                pendingDeleteItem = null
+            },
+            onDismiss = { pendingDeleteItem = null }
+        )
     }
 }

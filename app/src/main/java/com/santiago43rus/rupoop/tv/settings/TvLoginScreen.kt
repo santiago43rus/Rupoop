@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -30,6 +29,7 @@ fun TvLoginScreen(
     modifier: Modifier = Modifier
 ) {
     BackHandler { onBack() }
+    val colorScheme = MaterialTheme.colorScheme
 
     var userCode by remember { mutableStateOf<String?>(null) }
     var verificationUri by remember { mutableStateOf<String?>(null) }
@@ -66,7 +66,7 @@ fun TvLoginScreen(
 
                         when (tokenResponse.error) {
                             "authorization_pending" -> {
-                                // Пользователь ещё не завершил авторизацию
+                                // Ожидание подтверждения
                             }
                             "slow_down" -> {
                                 interval += 5
@@ -90,7 +90,6 @@ fun TvLoginScreen(
                             }
                         }
                     } catch (_: Exception) {
-                        // Ошибка сети при очередном polling-запросе
                     }
                 }
             } catch (e: Exception) {
@@ -107,7 +106,7 @@ fun TvLoginScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F1115))
+            .background(colorScheme.background)
             .padding(48.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -115,8 +114,8 @@ fun TvLoginScreen(
             onClick = {},
             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(16.dp)),
             colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color(0xFF1E2228),
-                focusedContainerColor = Color(0xFF1E2228)
+                containerColor = colorScheme.surface,
+                focusedContainerColor = colorScheme.surface
             ),
             modifier = Modifier.widthIn(max = 680.dp)
         ) {
@@ -129,14 +128,14 @@ fun TvLoginScreen(
             ) {
                 Text(
                     text = "Вход в аккаунт GitHub",
-                    color = Color.White,
+                    color = colorScheme.onSurface,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Text(
                     text = "Откройте страницу на телефоне или компьютере:\n${verificationUri ?: "https://github.com/login/device"}",
-                    color = Color(0xFF58A6FF),
+                    color = colorScheme.primary,
                     fontSize = 17.sp,
                     textAlign = TextAlign.Center
                 )
@@ -148,21 +147,21 @@ fun TvLoginScreen(
                     ) {
                         Text(
                             text = "И введите одноразовый код:",
-                            color = Color(0xFF8B949E),
+                            color = colorScheme.onSurfaceVariant,
                             fontSize = 15.sp
                         )
                         Surface(
                             onClick = {},
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
                             colors = ClickableSurfaceDefaults.colors(
-                                containerColor = Color(0xFF282E38),
-                                focusedContainerColor = Color(0xFF282E38)
+                                containerColor = colorScheme.surfaceVariant,
+                                focusedContainerColor = colorScheme.surfaceVariant
                             )
                         ) {
                             Text(
                                 text = userCode ?: "",
-                                color = Color.White,
-                                fontSize = 36.sp,
+                                color = colorScheme.primary,
+                                fontSize = 38.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontFamily = FontFamily.Monospace,
                                 letterSpacing = 4.sp,
@@ -174,7 +173,7 @@ fun TvLoginScreen(
 
                 Text(
                     text = statusText,
-                    color = Color(0xFF8B949E),
+                    color = colorScheme.onSurfaceVariant,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center
                 )
@@ -183,23 +182,25 @@ fun TvLoginScreen(
                     Button(
                         onClick = { startDeviceFlow() },
                         colors = ButtonDefaults.colors(
-                            containerColor = Color(0xFF238636),
-                            focusedContainerColor = Color(0xFF2EA043)
+                            containerColor = colorScheme.primary,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.Refresh, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Обновить код", color = Color.White)
+                        Text("Обновить код")
                     }
 
                     Button(
                         onClick = onBack,
                         colors = ButtonDefaults.colors(
-                            containerColor = Color(0xFF21262D),
-                            focusedContainerColor = Color(0xFF30363D)
+                            containerColor = colorScheme.surfaceVariant,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
-                        Text("Назад", color = Color.White)
+                        Text("Назад", color = colorScheme.onSurface)
                     }
                 }
             }

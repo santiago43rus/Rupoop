@@ -1,94 +1,45 @@
 package com.santiago43rus.rupoop.tv.home
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.unit.dp
 import com.santiago43rus.rupoop.data.SearchResult
-import com.santiago43rus.rupoop.tv.components.TvRow
+import com.santiago43rus.rupoop.tv.components.TvVideoCard
 
 @Composable
 fun TvHomeScreen(
     homeVideos: List<SearchResult>,
-    historyVideos: List<SearchResult>,
-    likedVideos: List<SearchResult>,
-    liveVideos: List<SearchResult>,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
     onVideoMenuClick: ((SearchResult) -> Unit)? = null,
     onLoadMoreHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
         modifier = modifier
             .fillMaxSize()
             .focusRestorer(),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp)
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Ряд 1: История просмотра / Продолжить просмотр
-        if (historyVideos.isNotEmpty()) {
-            item {
-                TvRow(
-                    title = "История просмотра",
-                    videos = historyVideos,
-                    onVideoClick = { onVideoSelected(it, historyVideos) },
-                    onVideoMenuClick = onVideoMenuClick
-                )
-            }
-        }
+        itemsIndexed(homeVideos, key = { _, v -> v.videoUrl }) { index, video ->
+            TvVideoCard(
+                video = video,
+                onClick = { onVideoSelected(video, homeVideos) },
+                onMenuClick = { onVideoMenuClick?.invoke(video) }
+            )
 
-        // Ряд 2: Прямые трансляции
-        if (liveVideos.isNotEmpty()) {
-            item {
-                TvRow(
-                    title = "Прямые трансляции",
-                    videos = liveVideos,
-                    onVideoClick = { onVideoSelected(it, liveVideos) },
-                    onVideoMenuClick = onVideoMenuClick
-                )
-            }
-        }
-
-        // Ряд 3: Рекомендации (разбитые на ряды по категориям / частям)
-        if (homeVideos.isNotEmpty()) {
-            val chunks = homeVideos.chunked(4)
-            chunks.forEachIndexed { index, rowVideos ->
-                item {
-                    if (index == chunks.size - 1) {
-                        LaunchedEffect(Unit) {
-                            onLoadMoreHome()
-                        }
-                    }
-                    val title = when (index) {
-                        0 -> "Рекомендации"
-                        1 -> "Популярное"
-                        2 -> "Новинки"
-                        else -> "Ещё видео"
-                    }
-                    TvRow(
-                        title = title,
-                        videos = rowVideos,
-                        onVideoClick = { onVideoSelected(it, homeVideos) },
-                        onVideoMenuClick = onVideoMenuClick
-                    )
+            if (index == homeVideos.lastIndex) {
+                LaunchedEffect(Unit) {
+                    onLoadMoreHome()
                 }
-            }
-        }
-
-        // Ряд 4: Понравившиеся видео
-        if (likedVideos.isNotEmpty()) {
-            item {
-                TvRow(
-                    title = "Понравившиеся видео",
-                    videos = likedVideos,
-                    onVideoClick = { onVideoSelected(it, likedVideos) },
-                    onVideoMenuClick = onVideoMenuClick
-                )
             }
         }
     }

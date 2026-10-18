@@ -33,8 +33,9 @@ fun TvVideoCard(
 
     Card(
         onClick = onClick,
+        onLongClick = onMenuClick,
         modifier = modifier
-            .width(280.dp)
+            .fillMaxWidth()
             .zIndex(if (isFocused) 10f else 1f)
             .onFocusChanged { isFocused = it.isFocused }
             .onPreviewKeyEvent { event ->
@@ -47,12 +48,12 @@ fun TvVideoCard(
             },
         scale = CardDefaults.scale(
             scale = 1.0f,
-            focusedScale = 1.08f
+            focusedScale = 1.06f
         ),
         shape = CardDefaults.shape(shape = RoundedCornerShape(12.dp)),
         border = CardDefaults.border(
             border = Border(BorderStroke(1.dp, colorScheme.border.copy(alpha = 0.2f))),
-            focusedBorder = Border(BorderStroke(2.dp, colorScheme.primary))
+            focusedBorder = Border(BorderStroke(2.5.dp, colorScheme.primary))
         ),
         colors = CardDefaults.colors(
             containerColor = colorScheme.surfaceVariant,
@@ -77,14 +78,14 @@ fun TvVideoCard(
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(6.dp)
+                            .padding(8.dp)
                             .background(colorScheme.background.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = formatDuration(duration.toLong()),
                             color = colorScheme.onBackground,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -94,12 +95,12 @@ fun TvVideoCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(10.dp)
+                    .padding(12.dp)
             ) {
                 Text(
                     text = video.title,
                     color = colorScheme.onSurface,
-                    fontSize = 13.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -108,7 +109,7 @@ fun TvVideoCard(
                 Text(
                     text = video.author?.name ?: "",
                     color = colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

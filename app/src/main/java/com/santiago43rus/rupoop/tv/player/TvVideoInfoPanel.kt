@@ -6,10 +6,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WatchLater
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.runtime.Composable
@@ -20,7 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.input.key.*
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,14 +40,17 @@ fun TvVideoInfoPanel(
     currentVideo: SearchResult?,
     registry: UserRegistry,
     relatedVideos: List<SearchResult>,
+    isAudioOnly: Boolean,
     onLike: (SearchResult) -> Unit,
     onDislike: (SearchResult) -> Unit,
     onWatchLater: (SearchResult) -> Unit,
     onAddToPlaylist: (SearchResult) -> Unit,
-    onShare: (SearchResult) -> Unit,
+    onDownload: (SearchResult) -> Unit,
+    onAudioOnlyToggle: () -> Unit,
     onAuthorClick: (Author) -> Unit,
+    onToggleSubscription: (Author) -> Unit,
     onRelatedVideoClick: (SearchResult) -> Unit,
-    onClose: () -> Unit,
+    onVideoMenuClick: (SearchResult) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (currentVideo == null) return
@@ -52,6 +59,9 @@ fun TvVideoInfoPanel(
     val isLiked = registry.likedVideos.any { it.videoUrl == currentVideo.videoUrl }
     val isDisliked = registry.dislikedVideos.contains(currentVideo.videoUrl)
     val isWatchLater = registry.watchLater.any { it.videoUrl == currentVideo.videoUrl }
+    val isSubscribed = currentVideo.author?.let { author ->
+        registry.subscriptions.any { it.name == author.name }
+    } ?: false
 
     val firstButtonFocusRequester = remember { FocusRequester() }
 
@@ -62,46 +72,70 @@ fun TvVideoInfoPanel(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colorScheme.background.copy(alpha = 0.92f))
-            .padding(horizontal = 48.dp, vertical = 32.dp)
-            .onPreviewKeyEvent { event ->
-                // Стрелка вверх на самом верхнем уровне закрывает панель инфо
-                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp) {
-                    onClose()
-                    true
-                } else false
-            }
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        colorScheme.background.copy(alpha = 0.75f),
+                        colorScheme.background.copy(alpha = 0.95f)
+                    )
+                )
+            )
+            .padding(horizontal = 48.dp, vertical = 24.dp)
     ) {
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .align(Alignment.BottomStart)
                 .focusRestorer(),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Заголовок и автор
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         text = currentVideo.title,
                         color = colorScheme.onBackground,
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Bold
                     )
                     currentVideo.author?.let { author ->
-                        Surface(
-                            onClick = { onAuthorClick(author) },
-                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary
-                            )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Канал: ${author.name}",
-                                fontSize = 16.sp,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
+                            Surface(
+                                onClick = { onAuthorClick(author) },
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = colorScheme.surfaceVariant,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
+                                )
+                            ) {
+                                Text(
+                                    text = "Канал: ${author.name}",
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+
+                            // Кнопка подписки
+                            Button(
+                                onClick = { onToggleSubscription(author) },
+                                colors = ButtonDefaults.colors(
+                                    containerColor = if (isSubscribed) colorScheme.surfaceVariant else colorScheme.primary,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = if (isSubscribed) Icons.Filled.Notifications else Icons.Outlined.NotificationsNone,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isSubscribed) "Подписка оформлена" else "Подписаться")
+                            }
                         }
                     }
                 }
@@ -113,7 +147,7 @@ fun TvVideoInfoPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRestorer(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Лайк
@@ -130,7 +164,7 @@ fun TvVideoInfoPanel(
                             imageVector = if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
                             contentDescription = "Нравится"
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(text = if (isLiked) "Понравилось" else "Нравится")
                     }
 
@@ -145,9 +179,9 @@ fun TvVideoInfoPanel(
                     ) {
                         Icon(
                             imageVector = if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
-                            contentDescription = "Скрыть"
+                            contentDescription = "Не нравится"
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(text = if (isDisliked) "Скрыто" else "Не нравится")
                     }
 
@@ -160,11 +194,8 @@ fun TvVideoInfoPanel(
                             focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.WatchLater,
-                            contentDescription = "Смотреть позже"
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.WatchLater, contentDescription = "Позже")
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(text = if (isWatchLater) "В списке" else "Позже")
                     }
 
@@ -177,29 +208,37 @@ fun TvVideoInfoPanel(
                             focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.PlaylistAdd,
-                            contentDescription = "В плейлист"
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "В плейлист")
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(text = "Плейлист")
                     }
 
-                    // Поделиться (копировать ссылку)
+                    // Скачать
                     Button(
-                        onClick = { onShare(currentVideo) },
+                        onClick = { onDownload(currentVideo) },
                         colors = ButtonDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Поделиться"
+                        Icon(Icons.Outlined.Download, contentDescription = "Скачать")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = "Скачать")
+                    }
+
+                    // Только аудио
+                    Button(
+                        onClick = onAudioOnlyToggle,
+                        colors = ButtonDefaults.colors(
+                            containerColor = if (isAudioOnly) colorScheme.primary else colorScheme.surfaceVariant,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Поделиться")
+                    ) {
+                        Icon(Icons.Default.MusicNote, contentDescription = "Аудио")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(text = if (isAudioOnly) "Аудио: ВКЛ" else "Только аудио")
                     }
                 }
             }
@@ -210,7 +249,8 @@ fun TvVideoInfoPanel(
                     TvRow(
                         title = "Далее / Похожие видео",
                         videos = relatedVideos,
-                        onVideoClick = onRelatedVideoClick
+                        onVideoClick = onRelatedVideoClick,
+                        onVideoMenuClick = onVideoMenuClick
                     )
                 }
             }

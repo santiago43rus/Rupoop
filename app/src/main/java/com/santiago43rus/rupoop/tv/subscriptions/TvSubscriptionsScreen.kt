@@ -13,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,10 +32,13 @@ fun TvSubscriptionsScreen(
     userRegistry: UserRegistry,
     subscriptionVideos: List<SearchResult>,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
+    onVideoMenuClick: (SearchResult) -> Unit,
     onAuthorSelected: (Author) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     if (userRegistry.subscriptions.isEmpty()) {
         Box(
             modifier = modifier
@@ -48,8 +50,8 @@ fun TvSubscriptionsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Нет подписок", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Подписывайтесь на каналы под плеером, чтобы видеть их новые видео здесь", color = Color.Gray, fontSize = 15.sp)
+                Text("Нет подписок", color = colorScheme.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Подписывайтесь на каналы под плеером, чтобы видеть их новые видео здесь", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
             }
         }
         return
@@ -77,8 +79,8 @@ fun TvSubscriptionsScreen(
                         onClick = { onAuthorSelected(author) },
                         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                         colors = ClickableSurfaceDefaults.colors(
-                            containerColor = Color(0xFF1E2228),
-                            focusedContainerColor = Color(0xFF282E38)
+                            containerColor = colorScheme.surfaceVariant,
+                            focusedContainerColor = colorScheme.surface
                         ),
                         modifier = Modifier.width(140.dp)
                     ) {
@@ -95,13 +97,13 @@ fun TvSubscriptionsScreen(
                                 modifier = Modifier
                                     .size(56.dp)
                                     .clip(CircleShape)
-                                    .background(Color.DarkGray),
+                                    .background(colorScheme.border),
                                 contentScale = ContentScale.Crop
                             )
                             Text(
                                 text = author.name,
-                                color = Color.White,
-                                fontSize = 13.sp,
+                                color = colorScheme.onSurface,
+                                fontSize = 14.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -116,7 +118,6 @@ fun TvSubscriptionsScreen(
             val chunks = subscriptionVideos.chunked(4)
             chunks.forEachIndexed { index, rowVideos ->
                 item {
-                    // Подгрузка при достижении конца
                     if (index == chunks.size - 1) {
                         LaunchedEffect(Unit) {
                             onLoadMore()
@@ -125,13 +126,14 @@ fun TvSubscriptionsScreen(
                     TvRow(
                         title = if (index == 0) "Новые видео подписок" else "",
                         videos = rowVideos,
-                        onVideoClick = { onVideoSelected(it, subscriptionVideos) }
+                        onVideoClick = { onVideoSelected(it, subscriptionVideos) },
+                        onVideoMenuClick = onVideoMenuClick
                     )
                 }
             }
         } else {
             item {
-                Text("Загрузка видео подписок...", color = Color.Gray, fontSize = 15.sp)
+                Text("Загрузка видео подписок...", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
             }
         }
     }
