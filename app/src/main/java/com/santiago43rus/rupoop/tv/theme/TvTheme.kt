@@ -2,6 +2,7 @@ package com.santiago43rus.rupoop.tv.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.tv.material3.ColorScheme
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
@@ -33,12 +34,12 @@ fun RupoopTvTheme(
         darkColorScheme(
             primary = mobileColors.primary,
             onPrimary = mobileColors.onPrimary,
-            primaryContainer = mobileColors.primaryContainer,
-            onPrimaryContainer = mobileColors.onPrimaryContainer,
+            primaryContainer = mobileColors.surfaceVariant,
+            onPrimaryContainer = mobileColors.onSurface,
             secondary = mobileColors.secondary,
             onSecondary = mobileColors.onSecondary,
-            secondaryContainer = mobileColors.secondaryContainer,
-            onSecondaryContainer = mobileColors.onSecondaryContainer,
+            secondaryContainer = mobileColors.surfaceVariant,
+            onSecondaryContainer = mobileColors.onSurface,
             tertiary = mobileColors.tertiary,
             onTertiary = mobileColors.onTertiary,
             background = mobileColors.background,
@@ -47,18 +48,20 @@ fun RupoopTvTheme(
             onSurface = mobileColors.onSurface,
             surfaceVariant = mobileColors.surfaceVariant,
             onSurfaceVariant = mobileColors.onSurfaceVariant,
+            inverseSurface = mobileColors.onSurface,
+            inverseOnSurface = mobileColors.surface,
             border = mobileColors.outline
         )
     } else {
         lightColorScheme(
             primary = mobileColors.primary,
             onPrimary = mobileColors.onPrimary,
-            primaryContainer = mobileColors.primaryContainer,
-            onPrimaryContainer = mobileColors.onPrimaryContainer,
+            primaryContainer = mobileColors.surfaceVariant,
+            onPrimaryContainer = mobileColors.onSurface,
             secondary = mobileColors.secondary,
             onSecondary = mobileColors.onSecondary,
-            secondaryContainer = mobileColors.secondaryContainer,
-            onSecondaryContainer = mobileColors.onSecondaryContainer,
+            secondaryContainer = mobileColors.surfaceVariant,
+            onSecondaryContainer = mobileColors.onSurface,
             tertiary = mobileColors.tertiary,
             onTertiary = mobileColors.onTertiary,
             background = mobileColors.background,
@@ -67,6 +70,8 @@ fun RupoopTvTheme(
             onSurface = mobileColors.onSurface,
             surfaceVariant = mobileColors.surfaceVariant,
             onSurfaceVariant = mobileColors.onSurfaceVariant,
+            inverseSurface = mobileColors.onSurface,
+            inverseOnSurface = mobileColors.surface,
             border = mobileColors.outline
         )
     }

@@ -48,12 +48,12 @@ fun TvVideoCard(
             },
         scale = CardDefaults.scale(
             scale = 1.0f,
-            focusedScale = 1.06f
+            focusedScale = 1.05f
         ),
         shape = CardDefaults.shape(shape = RoundedCornerShape(12.dp)),
         border = CardDefaults.border(
             border = Border(BorderStroke(1.dp, colorScheme.border.copy(alpha = 0.2f))),
-            focusedBorder = Border(BorderStroke(2.5.dp, colorScheme.primary))
+            focusedBorder = Border(BorderStroke(2.dp, colorScheme.primary))
         ),
         colors = CardDefaults.colors(
             containerColor = colorScheme.surfaceVariant,
@@ -106,13 +106,28 @@ fun TvVideoCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = video.author?.name ?: "",
-                    color = colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = video.author?.name ?: "",
+                        color = colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (onMenuClick != null) {
+                        Text(
+                            text = "⋮",
+                            color = colorScheme.onSurfaceVariant,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }

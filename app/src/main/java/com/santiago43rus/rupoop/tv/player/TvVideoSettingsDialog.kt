@@ -4,15 +4,24 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.tv.material3.*
+
+data class VideoQualityOption(
+    val label: String,
+    val width: Int,
+    val height: Int
+)
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -25,8 +34,66 @@ fun TvVideoSettingsDialog(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Качество, 1: Скорость
-    val qualityList = listOf("Авто", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p")
     val speedList = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+    val tabQualityFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        tabQualityFocusRequester.requestFocus()
+    }
+
+    // Извлечение реально доступных разрешений из текущего видеопотока ExoPlayer
+    val availableQualities = remember(exoPlayer) {
+        val tracks = exoPlayer.currentTracks
+        val qualityList = mutableListOf<VideoQualityOption>()
+        qualityList.add(VideoQualityOption("Авто", 0, 0))
+
+        val heights = mutableSetOf<Int>()
+        for (group in tracks.groups) {
+            if (group.type == C.TRACK_TYPE_VIDEO) {
+                for (i in 0 until group.length) {
+                    val format = group.getTrackFormat(i)
+                    if (format.height > 0) {
+                        heights.add(format.height)
+                    }
+                }
+            }
+        }
+
+        // Сортировка от большего к меньшему
+        val sortedHeights = heights.sortedDescending()
+        for (h in sortedHeights) {
+            val (label, width) = when {
+                h >= 2160 -> "2160p" to 3840
+                h >= 1440 -> "1440p" to 2560
+                h >= 1080 -> "1080p" to 1920
+                h >= 720 -> "720p" to 1280
+                h >= 480 -> "480p" to 854
+                h >= 360 -> "360p" to 640
+                h >= 240 -> "240p" to 426
+                else -> "${h}p" to ((h * 16) / 9)
+            }
+            if (qualityList.none { it.label == label }) {
+                qualityList.add(VideoQualityOption(label, width, h))
+            }
+        }
+
+        // Если HLS / DASH стрим еще не передал trackGroup с отдельными битрейтами, предоставим стандартный набор
+        if (qualityList.size == 1) {
+            listOf(
+                VideoQualityOption("Авто", 0, 0),
+                VideoQualityOption("2160p", 3840, 2160),
+                VideoQualityOption("1440p", 2560, 1440),
+                VideoQualityOption("1080p", 1920, 1080),
+                VideoQualityOption("720p", 1280, 720),
+                VideoQualityOption("480p", 854, 480),
+                VideoQualityOption("360p", 640, 360),
+                VideoQualityOption("240p", 426, 240),
+                VideoQualityOption("144p", 256, 144)
+            )
+        } else {
+            qualityList
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -61,29 +128,29 @@ fun TvVideoSettingsDialog(
                     Button(
                         onClick = { selectedTab = 0 },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (selectedTab == 0) colorScheme.primary else colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.primary
+                            containerColor = if (selectedTab == 0) colorScheme.surfaceVariant else colorScheme.surface,
+                            contentColor = colorScheme.onSurface,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         ),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(tabQualityFocusRequester)
                     ) {
-                        Text(
-                            "Качество",
-                            color = if (selectedTab == 0) colorScheme.onPrimary else colorScheme.onSurface
-                        )
+                        Text("Качество")
                     }
 
                     Button(
                         onClick = { selectedTab = 1 },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (selectedTab == 1) colorScheme.primary else colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.primary
+                            containerColor = if (selectedTab == 1) colorScheme.surfaceVariant else colorScheme.surface,
+                            contentColor = colorScheme.onSurface,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         ),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            "Скорость",
-                            color = if (selectedTab == 1) colorScheme.onPrimary else colorScheme.onSurface
-                        )
+                        Text("Скорость")
                     }
                 }
 
@@ -94,36 +161,34 @@ fun TvVideoSettingsDialog(
                             .focusRestorer(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        qualityList.forEach { q ->
-                            val isSelected = currentQuality == q
+                        availableQualities.forEach { qOption ->
+                            val isSelected = currentQuality == qOption.label
                             Surface(
                                 onClick = {
-                                    onQualitySelected(q)
+                                    onQualitySelected(qOption.label)
                                     val params = exoPlayer.trackSelectionParameters.buildUpon()
-                                    when (q) {
-                                        "2160p" -> params.setMaxVideoSize(3840, 2160).setForceHighestSupportedBitrate(true)
-                                        "1440p" -> params.setMaxVideoSize(2560, 1440).setForceHighestSupportedBitrate(true)
-                                        "1080p" -> params.setMaxVideoSize(1920, 1080).setForceHighestSupportedBitrate(true)
-                                        "720p" -> params.setMaxVideoSize(1280, 720).setForceHighestSupportedBitrate(true)
-                                        "480p" -> params.setMaxVideoSize(854, 480).setForceHighestSupportedBitrate(true)
-                                        "360p" -> params.setMaxVideoSize(640, 360).setForceHighestSupportedBitrate(true)
-                                        "240p" -> params.setMaxVideoSize(426, 240).setForceHighestSupportedBitrate(true)
-                                        "144p" -> params.setMaxVideoSize(256, 144).setForceHighestSupportedBitrate(true)
-                                        else -> params.clearVideoSizeConstraints().setForceHighestSupportedBitrate(false)
+                                    if (qOption.label == "Авто" || qOption.height == 0) {
+                                        params.clearVideoSizeConstraints()
+                                            .setForceHighestSupportedBitrate(false)
+                                    } else {
+                                        params.setMaxVideoSize(qOption.width, qOption.height)
+                                            .setMinVideoSize(qOption.width, qOption.height)
+                                            .setForceHighestSupportedBitrate(true)
                                     }
                                     exoPlayer.trackSelectionParameters = params.build()
                                     onDismiss()
                                 },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.background,
+                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    text = q,
+                                    text = qOption.label,
                                     fontSize = 15.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
@@ -148,7 +213,8 @@ fun TvVideoSettingsDialog(
                                 },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.background,
+                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 ),

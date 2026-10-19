@@ -6,12 +6,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.WatchLater
-import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
@@ -40,13 +38,10 @@ fun TvVideoInfoPanel(
     currentVideo: SearchResult?,
     registry: UserRegistry,
     relatedVideos: List<SearchResult>,
-    isAudioOnly: Boolean,
     onLike: (SearchResult) -> Unit,
     onDislike: (SearchResult) -> Unit,
     onWatchLater: (SearchResult) -> Unit,
     onAddToPlaylist: (SearchResult) -> Unit,
-    onDownload: (SearchResult) -> Unit,
-    onAudioOnlyToggle: () -> Unit,
     onAuthorClick: (Author) -> Unit,
     onToggleSubscription: (Author) -> Unit,
     onRelatedVideoClick: (SearchResult) -> Unit,
@@ -76,8 +71,8 @@ fun TvVideoInfoPanel(
                 Brush.verticalGradient(
                     colors = listOf(
                         Color.Transparent,
-                        colorScheme.background.copy(alpha = 0.75f),
-                        colorScheme.background.copy(alpha = 0.95f)
+                        colorScheme.background.copy(alpha = 0.6f),
+                        colorScheme.background.copy(alpha = 0.96f)
                     )
                 )
             )
@@ -92,7 +87,7 @@ fun TvVideoInfoPanel(
         ) {
             // Заголовок и автор
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = currentVideo.title,
                         color = colorScheme.onBackground,
@@ -115,6 +110,7 @@ fun TvVideoInfoPanel(
                             ) {
                                 Text(
                                     text = "Канал: ${author.name}",
+                                    color = colorScheme.onSurface,
                                     fontSize = 15.sp,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
@@ -124,7 +120,8 @@ fun TvVideoInfoPanel(
                             Button(
                                 onClick = { onToggleSubscription(author) },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (isSubscribed) colorScheme.surfaceVariant else colorScheme.primary,
+                                    containerColor = if (isSubscribed) colorScheme.surfaceVariant else colorScheme.surface,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 )
@@ -154,7 +151,8 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onLike(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isLiked) colorScheme.primary else colorScheme.surfaceVariant,
+                            containerColor = if (isLiked) colorScheme.surfaceVariant else colorScheme.surface,
+                            contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         ),
@@ -172,7 +170,8 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onDislike(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isDisliked) colorScheme.tertiary else colorScheme.surfaceVariant,
+                            containerColor = if (isDisliked) colorScheme.surfaceVariant else colorScheme.surface,
+                            contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )
@@ -189,7 +188,8 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onWatchLater(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isWatchLater) colorScheme.primary else colorScheme.surfaceVariant,
+                            containerColor = if (isWatchLater) colorScheme.surfaceVariant else colorScheme.surface,
+                            contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )
@@ -203,7 +203,8 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onAddToPlaylist(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = colorScheme.surfaceVariant,
+                            containerColor = colorScheme.surface,
+                            contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )
@@ -211,34 +212,6 @@ fun TvVideoInfoPanel(
                         Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "В плейлист")
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(text = "Плейлист")
-                    }
-
-                    // Скачать
-                    Button(
-                        onClick = { onDownload(currentVideo) },
-                        colors = ButtonDefaults.colors(
-                            containerColor = colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.primary,
-                            focusedContentColor = colorScheme.onPrimary
-                        )
-                    ) {
-                        Icon(Icons.Outlined.Download, contentDescription = "Скачать")
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "Скачать")
-                    }
-
-                    // Только аудио
-                    Button(
-                        onClick = onAudioOnlyToggle,
-                        colors = ButtonDefaults.colors(
-                            containerColor = if (isAudioOnly) colorScheme.primary else colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.primary,
-                            focusedContentColor = colorScheme.onPrimary
-                        )
-                    ) {
-                        Icon(Icons.Default.MusicNote, contentDescription = "Аудио")
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = if (isAudioOnly) "Аудио: ВКЛ" else "Только аудио")
                     }
                 }
             }

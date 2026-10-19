@@ -14,9 +14,9 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
-import com.santiago43rus.rupoop.components.DeleteConfirmationDialog
 import com.santiago43rus.rupoop.data.Playlist
 import com.santiago43rus.rupoop.data.SearchResult
+import com.santiago43rus.rupoop.tv.components.TvDeleteConfirmationDialog
 import com.santiago43rus.rupoop.tv.components.TvRow
 import com.santiago43rus.rupoop.tv.components.TvTabs
 
@@ -137,7 +137,13 @@ fun TvLibraryScreen(
                                             deleteDialogTitle = "Удалить плейлист"
                                             deleteDialogMessage = "Удалить плейлист «${playlist.name}»?"
                                             pendingDeleteItem = playlist
-                                        }
+                                        },
+                                        colors = IconButtonDefaults.colors(
+                                            containerColor = colorScheme.surfaceVariant,
+                                            contentColor = colorScheme.onSurface,
+                                            focusedContainerColor = colorScheme.primary,
+                                            focusedContentColor = colorScheme.onPrimary
+                                        )
                                     ) {
                                         Icon(Icons.Default.Delete, contentDescription = "Удалить плейлист")
                                     }
@@ -179,6 +185,7 @@ fun TvLibraryScreen(
                                         onClick = { onRestoreHiddenVideo(video) },
                                         colors = ButtonDefaults.colors(
                                             containerColor = colorScheme.primary,
+                                            contentColor = colorScheme.onPrimary,
                                             focusedContainerColor = colorScheme.primary,
                                             focusedContentColor = colorScheme.onPrimary
                                         )
@@ -198,10 +205,10 @@ fun TvLibraryScreen(
 
     val currentItem = pendingDeleteItem
     if (currentItem != null) {
-        DeleteConfirmationDialog(
+        TvDeleteConfirmationDialog(
             title = deleteDialogTitle,
             message = deleteDialogMessage,
-            onConfirm = { _: Boolean ->
+            onConfirm = {
                 if (currentItem is Playlist) {
                     onDeletePlaylist(currentItem)
                 }

@@ -5,9 +5,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Download
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -30,13 +33,15 @@ fun TvVideoMenuDialog(
     val items = listOf(
         TvMenuItem("not_interested", "Не интересно", Icons.Default.VisibilityOff),
         TvMenuItem("playlist", "В плейлист", Icons.AutoMirrored.Filled.PlaylistAdd),
-        TvMenuItem("later", "Смотреть позже", Icons.Default.WatchLater),
-        TvMenuItem("share", "Поделиться", Icons.Default.Share),
-        TvMenuItem("download", "Скачать", Icons.Outlined.Download),
-        TvMenuItem("audio_only", "Слушать как аудио", Icons.Default.MusicNote)
+        TvMenuItem("later", "Смотреть позже", Icons.Default.WatchLater)
     )
 
     val colorScheme = MaterialTheme.colorScheme
+    val firstItemFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        firstItemFocusRequester.requestFocus()
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -65,7 +70,7 @@ fun TvVideoMenuDialog(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                items.forEach { item ->
+                items.forEachIndexed { index, item ->
                     Surface(
                         onClick = {
                             onAction(item.id)
@@ -74,10 +79,13 @@ fun TvVideoMenuDialog(
                         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
+                            contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         ),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
                     ) {
                         Row(
                             modifier = Modifier

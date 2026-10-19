@@ -47,6 +47,7 @@ fun TvPlayerOverlay(
     currentEpisodeIndex: Int,
     audioTracks: List<AudioTrackSource>,
     selectedAudioTrackId: String?,
+    modifier: Modifier = Modifier,
     seekStepDurationMs: Long = 10_000L,
     onPlayPause: () -> Unit,
     onSeekRelative: (Long) -> Unit,
@@ -54,8 +55,7 @@ fun TvPlayerOverlay(
     onPlayPrevious: () -> Unit,
     onEpisodeSelect: (Int) -> Unit,
     onAudioTrackSelect: (AudioTrackSource) -> Unit,
-    onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    onOpenSettings: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val playPauseFocusRequester = remember { FocusRequester() }
@@ -88,19 +88,19 @@ fun TvPlayerOverlay(
                 Brush.verticalGradient(
                     colors = listOf(
                         Color.Transparent,
-                        colorScheme.background.copy(alpha = 0.65f),
+                        colorScheme.background.copy(alpha = 0.5f),
                         colorScheme.background.copy(alpha = 0.95f)
                     )
                 )
             )
-            .padding(horizontal = 48.dp, vertical = 24.dp)
+            .padding(start = 48.dp, end = 48.dp, top = 24.dp, bottom = 32.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomStart)
                 .focusRestorer(),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Заголовок и автор видео
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -149,14 +149,14 @@ fun TvPlayerOverlay(
                                 },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 )
                             ) {
                                 Text(
                                     text = "$sNum сезон",
-                                    color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
+                                    color = colorScheme.onSurface,
                                     fontSize = 13.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
@@ -189,14 +189,14 @@ fun TvPlayerOverlay(
                                 onClick = { onEpisodeSelect(globalIndex) },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 )
                             ) {
                                 Text(
                                     text = episode.title.ifBlank { "Серия ${episode.episodeNumber}" },
-                                    color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
+                                    color = colorScheme.onSurface,
                                     fontSize = 13.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
@@ -229,14 +229,14 @@ fun TvPlayerOverlay(
                                 onClick = { onAudioTrackSelect(track) },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 )
                             ) {
                                 Text(
                                     text = track.name,
-                                    color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
+                                    color = colorScheme.onSurface,
                                     fontSize = 13.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
@@ -272,7 +272,7 @@ fun TvPlayerOverlay(
                             }
                         } else false
                     },
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 LinearProgressIndicator(
                     progress = { progress },
@@ -308,22 +308,40 @@ fun TvPlayerOverlay(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(top = 4.dp)
                     .focusRestorer(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onPlayPrevious) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = "Предыдущее", tint = colorScheme.onBackground)
+                IconButton(
+                    onClick = onPlayPrevious,
+                    colors = IconButtonDefaults.colors(
+                        containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.primary,
+                        focusedContentColor = colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.SkipPrevious, contentDescription = "Предыдущее")
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                IconButton(onClick = { onSeekRelative(-seekStepDurationMs) }) {
-                    Icon(Icons.Default.FastRewind, contentDescription = "-$seekStepDurationMs мс", tint = colorScheme.onBackground)
+                Spacer(modifier = Modifier.width(20.dp))
+                IconButton(
+                    onClick = { onSeekRelative(-seekStepDurationMs) },
+                    colors = IconButtonDefaults.colors(
+                        containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.primary,
+                        focusedContentColor = colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.FastRewind, contentDescription = "-$seekStepDurationMs мс")
                 }
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(20.dp))
                 IconButton(
                     onClick = onPlayPause,
                     colors = IconButtonDefaults.colors(
-                        containerColor = colorScheme.primary,
+                        containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
                         focusedContainerColor = colorScheme.primary,
                         focusedContentColor = colorScheme.onPrimary
                     ),
@@ -331,29 +349,45 @@ fun TvPlayerOverlay(
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Пауза" else "Играть",
-                        tint = colorScheme.onPrimary
+                        contentDescription = if (isPlaying) "Пауза" else "Играть"
                     )
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                IconButton(onClick = { onSeekRelative(seekStepDurationMs) }) {
-                    Icon(Icons.Default.FastForward, contentDescription = "+$seekStepDurationMs мс", tint = colorScheme.onBackground)
+                Spacer(modifier = Modifier.width(20.dp))
+                IconButton(
+                    onClick = { onSeekRelative(seekStepDurationMs) },
+                    colors = IconButtonDefaults.colors(
+                        containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.primary,
+                        focusedContentColor = colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.FastForward, contentDescription = "+$seekStepDurationMs мс")
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                IconButton(onClick = onPlayNext) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Следующее", tint = colorScheme.onBackground)
+                Spacer(modifier = Modifier.width(20.dp))
+                IconButton(
+                    onClick = onPlayNext,
+                    colors = IconButtonDefaults.colors(
+                        containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.primary,
+                        focusedContentColor = colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.SkipNext, contentDescription = "Следующее")
                 }
-                Spacer(modifier = Modifier.width(24.dp))
+                Spacer(modifier = Modifier.width(28.dp))
                 // Настройки видео (качество и скорость)
                 IconButton(
                     onClick = onOpenSettings,
                     colors = IconButtonDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
                         focusedContainerColor = colorScheme.primary,
                         focusedContentColor = colorScheme.onPrimary
                     )
                 ) {
-                    Icon(Icons.Default.Settings, contentDescription = "Качество и скорость", tint = colorScheme.onBackground)
+                    Icon(Icons.Default.Settings, contentDescription = "Качество и скорость")
                 }
             }
         }

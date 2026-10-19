@@ -1,6 +1,5 @@
 package com.santiago43rus.rupoop.tv.settings
 
-import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -18,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import com.santiago43rus.rupoop.data.SettingsManager
 import com.santiago43rus.rupoop.data.UserRegistry
+import com.santiago43rus.rupoop.tv.components.TvDeleteConfirmationDialog
 import com.santiago43rus.rupoop.tv.components.TvSectionTitle
 import com.santiago43rus.rupoop.util.clearAppCache
 import com.santiago43rus.rupoop.util.formatFileSize
@@ -36,7 +36,6 @@ fun TvSettingsScreen(
     onOpenHiddenVideos: () -> Unit,
     onPullFromGist: () -> Unit,
     onPushToGist: () -> Unit,
-    onResetSync: () -> Unit,
     onClearWatchHistory: () -> Unit,
     onClearSearchHistory: () -> Unit,
     onOpenLogin: () -> Unit,
@@ -49,12 +48,12 @@ fun TvSettingsScreen(
     val isEasterUnlocked = settingsManager.isEasterEggUnlocked
 
     var doubleTapDuration by remember { mutableIntStateOf(settingsManager.doubleTapSeekDuration) }
-    var downloadNotifications by remember { mutableStateOf(settingsManager.showDownloadNotifications) }
-    var downloadQuality by remember { mutableStateOf(settingsManager.downloadQuality) }
-    var maxDownloads by remember { mutableIntStateOf(settingsManager.maxConcurrentDownloads) }
     var syncFreq by remember { mutableIntStateOf(settingsManager.syncFrequencyHours) }
     val enabledGenres = remember { mutableStateOf(settingsManager.enabledGenres) }
     var cacheSize by remember { mutableLongStateOf(getCacheSize(context)) }
+
+    var showClearWatchHistoryDialog by remember { mutableStateOf(false) }
+    var showClearSearchHistoryDialog by remember { mutableStateOf(false) }
 
     val allGenres = listOf(
         "аниме", "боевики", "комедии", "фантастика", "ужасы",
@@ -96,14 +95,17 @@ fun TvSettingsScreen(
                             },
                             colors = FilterChipDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
-                                selectedContainerColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary
+                                focusedContentColor = colorScheme.onPrimary,
+                                selectedContainerColor = colorScheme.surfaceVariant,
+                                selectedContentColor = colorScheme.primary,
+                                focusedSelectedContainerColor = colorScheme.primary,
+                                focusedSelectedContentColor = colorScheme.onPrimary
                             )
                         ) {
                             Text(
                                 text = label,
-                                color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                                 fontSize = 14.sp
                             )
                         }
@@ -132,14 +134,17 @@ fun TvSettingsScreen(
                             },
                             colors = FilterChipDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
-                                selectedContainerColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary
+                                focusedContentColor = colorScheme.onPrimary,
+                                selectedContainerColor = colorScheme.surfaceVariant,
+                                selectedContentColor = colorScheme.primary,
+                                focusedSelectedContainerColor = colorScheme.primary,
+                                focusedSelectedContentColor = colorScheme.onPrimary
                             )
                         ) {
                             Text(
                                 text = "$dur сек",
-                                color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                                 fontSize = 14.sp
                             )
                         }
@@ -148,36 +153,7 @@ fun TvSettingsScreen(
             }
         }
 
-        // 3. УВЕДОМЛЕНИЯ О ЗАГРУЗКЕ
-        item {
-            Surface(
-                onClick = {
-                    val newVal = !downloadNotifications
-                    downloadNotifications = newVal
-                    settingsManager.showDownloadNotifications = newVal
-                },
-                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = colorScheme.surfaceVariant,
-                    focusedContainerColor = colorScheme.surface
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Уведомления о загрузке", color = colorScheme.onSurface, fontSize = 16.sp)
-                        Text("Показывать прогресс и статус загрузки файлов", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                    }
-                    Switch(checked = downloadNotifications, onCheckedChange = null)
-                }
-            }
-        }
-
-        // 4. ЖАНРЫ
+        // 3. ЖАНРЫ
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Жанры", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -200,14 +176,17 @@ fun TvSettingsScreen(
                             },
                             colors = FilterChipDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
-                                selectedContainerColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary
+                                focusedContentColor = colorScheme.onPrimary,
+                                selectedContainerColor = colorScheme.surfaceVariant,
+                                selectedContentColor = colorScheme.primary,
+                                focusedSelectedContainerColor = colorScheme.primary,
+                                focusedSelectedContentColor = colorScheme.onPrimary
                             )
                         ) {
                             Text(
                                 text = genre.replaceFirstChar { it.uppercase() },
-                                color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                                 fontSize = 14.sp
                             )
                         }
@@ -216,74 +195,7 @@ fun TvSettingsScreen(
             }
         }
 
-        // 5. ЗАГРУЗКА
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Загрузка", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Качество видео для скачивания", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                val qualities = listOf("144", "240", "360", "480", "720", "1080", "1440", "2160")
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().focusRestorer(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(qualities) { q ->
-                        val isSelected = downloadQuality == q
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                downloadQuality = q
-                                settingsManager.downloadQuality = q
-                            },
-                            colors = FilterChipDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                focusedContainerColor = colorScheme.primary,
-                                selectedContainerColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary
-                            )
-                        ) {
-                            Text(
-                                text = "${q}p",
-                                color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(4.dp))
-                Text("Максимум одновременных загрузок", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                val limits = listOf(1, 2, 3)
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().focusRestorer(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(limits) { limit ->
-                        val isSelected = maxDownloads == limit
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                maxDownloads = limit
-                                settingsManager.maxConcurrentDownloads = limit
-                            },
-                            colors = FilterChipDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                focusedContainerColor = colorScheme.primary,
-                                selectedContainerColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary
-                            )
-                        ) {
-                            Text(
-                                text = "$limit",
-                                color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 6. КОНТЕНТ И РЕКОМЕНДАЦИИ
+        // 4. КОНТЕНТ И РЕКОМЕНДАЦИИ
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Контент и рекомендации", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -292,7 +204,9 @@ fun TvSettingsScreen(
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
-                        focusedContainerColor = colorScheme.surface
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.surface,
+                        focusedContentColor = colorScheme.primary
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -302,7 +216,7 @@ fun TvSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Скрытые и неинтересные видео", color = colorScheme.onSurface, fontSize = 16.sp)
+                            Text("Скрытые и неинтересные видео", fontSize = 16.sp)
                             Text("Управление видео, исключенными из ленты (${registry.hiddenVideosList.size})", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
                         }
                         Text("Открыть", color = colorScheme.primary, fontSize = 15.sp)
@@ -311,7 +225,7 @@ fun TvSettingsScreen(
             }
         }
 
-        // 7. GITHUB СИНХРОНИЗАЦИЯ
+        // 5. GITHUB СИНХРОНИЗАЦИЯ
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("GitHub Синхронизация", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -320,6 +234,7 @@ fun TvSettingsScreen(
                         onClick = onOpenLogin,
                         colors = ButtonDefaults.colors(
                             containerColor = colorScheme.primary,
+                            contentColor = colorScheme.onPrimary,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )
@@ -331,10 +246,35 @@ fun TvSettingsScreen(
                         modifier = Modifier.fillMaxWidth().focusRestorer(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Button(onClick = onPullFromGist) { Text("Загрузить") }
-                        Button(onClick = onPushToGist) { Text("Выгрузить") }
-                        Button(onClick = onResetSync) { Text("Сбросить") }
-                        Button(onClick = onLogout) { Text("Выйти") }
+                        Button(
+                            onClick = onPullFromGist,
+                            colors = ButtonDefaults.colors(
+                                containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary
+                            )
+                        ) { Text("Загрузить") }
+
+                        Button(
+                            onClick = onPushToGist,
+                            colors = ButtonDefaults.colors(
+                                containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary
+                            )
+                        ) { Text("Выгрузить") }
+
+                        Button(
+                            onClick = onLogout,
+                            colors = ButtonDefaults.colors(
+                                containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary
+                            )
+                        ) { Text("Выйти") }
                     }
 
                     Spacer(Modifier.height(4.dp))
@@ -354,14 +294,17 @@ fun TvSettingsScreen(
                                 },
                                 colors = FilterChipDefaults.colors(
                                     containerColor = colorScheme.surfaceVariant,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
-                                    selectedContainerColor = colorScheme.primary,
-                                    focusedSelectedContainerColor = colorScheme.primary
+                                    focusedContentColor = colorScheme.onPrimary,
+                                    selectedContainerColor = colorScheme.surfaceVariant,
+                                    selectedContentColor = colorScheme.primary,
+                                    focusedSelectedContainerColor = colorScheme.primary,
+                                    focusedSelectedContentColor = colorScheme.onPrimary
                                 )
                             ) {
                                 Text(
                                     text = "$hours ч",
-                                    color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                                     fontSize = 14.sp
                                 )
                             }
@@ -371,7 +314,7 @@ fun TvSettingsScreen(
             }
         }
 
-        // 8. КЭШ И ХРАНИЛИЩЕ
+        // 6. КЭШ И ХРАНИЛИЩЕ
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Кэш и хранилище", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -383,7 +326,9 @@ fun TvSettingsScreen(
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
-                        focusedContainerColor = colorScheme.surface
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.surface,
+                        focusedContentColor = colorScheme.primary
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -393,7 +338,7 @@ fun TvSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Размер кэша", color = colorScheme.onSurface, fontSize = 16.sp)
+                            Text("Размер кэша", fontSize = 16.sp)
                             Text(formatFileSize(cacheSize), color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
                         }
                         Text("Очистить кэш", color = colorScheme.primary, fontSize = 15.sp)
@@ -402,7 +347,7 @@ fun TvSettingsScreen(
             }
         }
 
-        // 9. ИСТОРИЯ И КОНФИДЕНЦИАЛЬНОСТЬ
+        // 7. ИСТОРИЯ И КОНФИДЕНЦИАЛЬНОСТЬ
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("История и конфиденциальность", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -411,28 +356,32 @@ fun TvSettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
-                        onClick = onClearWatchHistory,
+                        onClick = { showClearWatchHistoryDialog = true },
                         colors = ButtonDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.surface
+                            contentColor = colorScheme.onSurface,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
-                        Text("Очистить историю просмотра", color = colorScheme.onSurface)
+                        Text("Очистить историю просмотра")
                     }
                     Button(
-                        onClick = onClearSearchHistory,
+                        onClick = { showClearSearchHistoryDialog = true },
                         colors = ButtonDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.surface
+                            contentColor = colorScheme.onSurface,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
-                        Text("Очистить историю поиска", color = colorScheme.onSurface)
+                        Text("Очистить историю поиска")
                     }
                 }
             }
         }
 
-        // 10. ПОДДЕРЖАТЬ АВТОРА
+        // 8. ПОДДЕРЖАТЬ АВТОРА
         if (donateUrl.isNotBlank()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -446,12 +395,14 @@ fun TvSettingsScreen(
                         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.surface
+                            contentColor = colorScheme.onSurface,
+                            focusedContainerColor = colorScheme.surface,
+                            focusedContentColor = colorScheme.primary
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Поддержать рублём", color = colorScheme.onSurface, fontSize = 16.sp)
+                            Text("Поддержать рублём", fontSize = 16.sp)
                             Text("CloudTips — быстрый перевод", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
                         }
                     }
@@ -459,7 +410,7 @@ fun TvSettingsScreen(
             }
         }
 
-        // 11. О ПРИЛОЖЕНИИ
+        // 9. О ПРИЛОЖЕНИИ
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("О приложении", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -468,12 +419,14 @@ fun TvSettingsScreen(
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
-                        focusedContainerColor = colorScheme.surfaceVariant
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.surfaceVariant,
+                        focusedContentColor = colorScheme.onSurface
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Версия: $versionName ($versionCode)", color = colorScheme.onSurface, fontSize = 15.sp)
+                        Text("Версия: $versionName ($versionCode)", fontSize = 15.sp)
                         Text("Telegram: t.me/rupoopapp", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
                         Text("Исходный код: github.com/santiago43rus/Rupoop", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
                         Text("Лицензия: MIT License", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
@@ -481,5 +434,31 @@ fun TvSettingsScreen(
                 }
             }
         }
+    }
+
+    if (showClearWatchHistoryDialog) {
+        TvDeleteConfirmationDialog(
+            title = "Очистить историю просмотров",
+            message = "Вы уверены, что хотите полностью очистить историю просмотров?",
+            confirmButtonText = "Очистить",
+            onConfirm = {
+                onClearWatchHistory()
+                showClearWatchHistoryDialog = false
+            },
+            onDismiss = { showClearWatchHistoryDialog = false }
+        )
+    }
+
+    if (showClearSearchHistoryDialog) {
+        TvDeleteConfirmationDialog(
+            title = "Очистить историю поиска",
+            message = "Вы уверены, что хотите полностью очистить историю поиска?",
+            confirmButtonText = "Очистить",
+            onConfirm = {
+                onClearSearchHistory()
+                showClearSearchHistoryDialog = false
+            },
+            onDismiss = { showClearSearchHistoryDialog = false }
+        )
     }
 }

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.LibraryBooks
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -27,11 +26,9 @@ import androidx.tv.material3.*
 import com.santiago43rus.rupoop.*
 import com.santiago43rus.rupoop.data.Author
 import com.santiago43rus.rupoop.data.SearchResult
-import com.santiago43rus.rupoop.tv.components.TvDownloadDialog
 import com.santiago43rus.rupoop.tv.components.TvPlaylistSelectionDialog
 import com.santiago43rus.rupoop.tv.components.TvVideoMenuDialog
 import com.santiago43rus.rupoop.tv.home.TvHomeScreen
-import com.santiago43rus.rupoop.tv.library.TvDownloadsScreen
 import com.santiago43rus.rupoop.tv.library.TvLibraryScreen
 import com.santiago43rus.rupoop.tv.player.TvPlayerScreen
 import com.santiago43rus.rupoop.tv.search.TvSearchScreen
@@ -47,7 +44,6 @@ enum class TvNavSection(val title: String, val icon: ImageVector) {
     SUBSCRIPTIONS("Подписки", Icons.Default.Subscriptions),
     SEARCH("Поиск", Icons.Default.Search),
     LIBRARY("Библиотека", Icons.AutoMirrored.Filled.LibraryBooks),
-    DOWNLOADS("Загрузки", Icons.Default.Download),
     SETTINGS("Настройки", Icons.Default.Settings)
 }
 
@@ -111,7 +107,6 @@ fun TvRoot(
                     selectedAudioTrackId = vm.selectedAudioTrackId,
                     currentQuality = currentPlaybackQuality,
                     seekStepDurationSeconds = vm.settingsManager.doubleTapSeekDuration,
-                    isAudioOnly = vm.isAudioOnlyMode,
                     onQualitySelected = { quality ->
                         currentPlaybackQuality = quality
                     },
@@ -154,12 +149,6 @@ fun TvRoot(
                     onAddToPlaylist = { video ->
                         vm.showPlaylistDialog = video
                     },
-                    onDownload = { video ->
-                        vm.showDownloadDialog = video
-                    },
-                    onAudioOnlyToggle = {
-                        vm.isAudioOnlyMode = !vm.isAudioOnlyMode
-                    },
                     onAuthorClick = { author ->
                         viewingAuthor = author
                         vm.loadAuthorVideos(author, false)
@@ -174,11 +163,8 @@ fun TvRoot(
                         activeMenuVideo = video
                     }
                 )
-                return@RupoopTvTheme
-            }
-
-            // Экран авторизации GitHub Device Flow
-            if (isLoginScreenOpen) {
+            } else if (isLoginScreenOpen) {
+                // Экран авторизации GitHub Device Flow
                 TvLoginScreen(
                     onAuthSuccess = { token ->
                         vm.onAuthSuccess(token)
@@ -186,11 +172,9 @@ fun TvRoot(
                     },
                     onBack = { isLoginScreenOpen = false }
                 )
-                return@RupoopTvTheme
-            }
-
-            // Экран канала автора (если открыт)
-            viewingAuthor?.let { author ->
+            } else if (viewingAuthor != null) {
+                // Экран канала автора (если открыт)
+                val author = viewingAuthor!!
                 val isSubscribed = vm.userRegistry.subscriptions.any { it.name == author.name }
                 TvAuthorScreen(
                     author = author,
@@ -207,209 +191,186 @@ fun TvRoot(
                     onLoadMore = { vm.loadAuthorVideos(author, true) },
                     onBack = { viewingAuthor = null }
                 )
-                return@RupoopTvTheme
-            }
-
-            // Первоначальная загрузка
-            LaunchedEffect(Unit) {
-                if (vm.homeVideos.isEmpty()) vm.loadHome(false)
-                if (vm.liveVideos.isEmpty()) vm.loadLiveStreams(false)
-                if (vm.subscriptionVideos.isEmpty() && vm.userRegistry.subscriptions.isNotEmpty()) {
-                    vm.loadSubscriptions(false)
+            } else {
+                // Основной интерфейс разделов с рейлом
+                LaunchedEffect(Unit) {
+                    if (vm.homeVideos.isEmpty()) vm.loadHome(false)
+                    if (vm.subscriptionVideos.isEmpty() && vm.userRegistry.subscriptions.isNotEmpty()) {
+                        vm.loadSubscriptions(false)
+                    }
                 }
-            }
 
-            // Фиксированный Row: левый рейл (~96dp) + контент
-            Row(modifier = Modifier.fillMaxSize()) {
-                // Левый навигационный рейл
-                Column(
-                    modifier = Modifier
-                        .width(96.dp)
-                        .fillMaxHeight()
-                        .background(colorScheme.surface)
-                        .padding(vertical = 24.dp, horizontal = 8.dp)
-                        .focusRestorer(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    TvNavSection.entries.forEach { section ->
-                        val isSelected = selectedSection == section
-                        Surface(
-                            onClick = { selectedSection = section },
-                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
-                                focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary
-                            ),
-                            modifier = Modifier.size(72.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxSize(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // Левый навигационный рейл
+                    Column(
+                        modifier = Modifier
+                            .width(96.dp)
+                            .fillMaxHeight()
+                            .background(colorScheme.surface)
+                            .padding(vertical = 24.dp, horizontal = 8.dp)
+                            .focusRestorer(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        TvNavSection.entries.forEach { section ->
+                            val isSelected = selectedSection == section
+                            Surface(
+                                onClick = { selectedSection = section },
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
+                                    contentColor = if (isSelected) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
+                                ),
+                                modifier = Modifier.size(72.dp)
                             ) {
-                                Icon(
-                                    imageVector = section.icon,
-                                    contentDescription = section.title,
-                                    modifier = Modifier.size(24.dp),
-                                    tint = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = section.title,
-                                    color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
-                                )
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = section.icon,
+                                        contentDescription = section.title,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = section.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                // Область контента (занимает всё оставшееся пространство с weight 1f)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                ) {
-                    Crossfade(targetState = selectedSection, label = "TvNavTransition") { section ->
-                        when (section) {
-                            TvNavSection.HOME -> {
-                                TvHomeScreen(
-                                    homeVideos = vm.homeVideos,
-                                    onVideoSelected = { video, list ->
-                                        vm.playVideo(video, list)
-                                        vm.playerState = PlayerState.FULL
-                                    },
-                                    onVideoMenuClick = { video ->
-                                        activeMenuVideo = video
-                                    },
-                                    onLoadMoreHome = { vm.loadHome(true) }
-                                )
-                            }
-                            TvNavSection.SUBSCRIPTIONS -> {
-                                TvSubscriptionsScreen(
-                                    userRegistry = vm.userRegistry,
-                                    subscriptionVideos = vm.subscriptionVideos,
-                                    onVideoSelected = { video, list ->
-                                        vm.playVideo(video, list)
-                                        vm.playerState = PlayerState.FULL
-                                    },
-                                    onVideoMenuClick = { video ->
-                                        activeMenuVideo = video
-                                    },
-                                    onAuthorSelected = { author ->
-                                        viewingAuthor = author
-                                        vm.loadAuthorVideos(author, false)
-                                    },
-                                    onLoadMore = { vm.loadSubscriptions(true) }
-                                )
-                            }
-                            TvNavSection.SEARCH -> {
-                                TvSearchScreen(
-                                    searchQuery = vm.searchQuery,
-                                    selectedSearchSource = vm.selectedSearchSource,
-                                    searchResults = vm.searchResults,
-                                    searchSuggestions = vm.searchSuggestions,
-                                    searchHistory = vm.userRegistry.searchHistory,
-                                    isSearching = vm.isSearching,
-                                    onSearchQueryChange = { vm.updateSearchQuery(it) },
-                                    onSearchSourceSelect = { vm.selectSearchSource(it) },
-                                    onPerformSearch = { vm.performSearch(it) },
-                                    onRemoveSearchQuery = { query -> vm.removeSearchQuery(query) },
-                                    onClearSearchHistory = { vm.clearSearchHistory() },
-                                    onVideoSelected = { video, list ->
-                                        vm.playVideo(video, list)
-                                        vm.playerState = PlayerState.FULL
-                                    },
-                                    onVideoMenuClick = { video ->
-                                        activeMenuVideo = video
-                                    }
-                                )
-                            }
-                            TvNavSection.LIBRARY -> {
-                                val historyVideos = remember(vm.userRegistry.watchHistory) {
-                                    vm.userRegistry.watchHistory.map { item ->
-                                        SearchResult(
-                                            videoUrl = item.videoUrl,
-                                            title = item.title ?: "",
-                                            thumbnailUrl = item.thumbnailUrl,
-                                            author = Author(
-                                                id = item.authorId,
-                                                name = item.authorName ?: "",
-                                                avatarUrl = item.authorAvatarUrl
-                                            ),
-                                            duration = (item.totalDuration / 1000).toInt()
-                                        )
-                                    }
-                                }
-                                TvLibraryScreen(
-                                    historyVideos = historyVideos,
-                                    likedVideos = vm.userRegistry.likedVideos,
-                                    watchLaterVideos = vm.userRegistry.watchLater,
-                                    playlists = vm.userRegistry.playlists,
-                                    hiddenVideos = vm.userRegistry.hiddenVideosList,
-                                    initialTab = libraryInitialTab,
-                                    onVideoSelected = { video, list ->
-                                        vm.playVideo(video, list)
-                                        vm.playerState = PlayerState.FULL
-                                    },
-                                    onVideoMenuClick = { video ->
-                                        activeMenuVideo = video
-                                    },
-                                    onRemoveFromHistory = { vm.removeFromHistory(it.videoUrl) },
-                                    onRemoveFromWatchLater = { vm.toggleWatchLater(it) },
-                                    onRestoreHiddenVideo = { vm.restoreHiddenVideo(it.videoUrl, it.title) },
-                                    onDeletePlaylist = { vm.deletePlaylist(it.id) }
-                                )
-                            }
-                            TvNavSection.DOWNLOADS -> {
-                                val downloadsList by vm.downloadTracker.downloads.collectAsState()
-                                TvDownloadsScreen(
-                                    downloads = downloadsList,
-                                    onPlay = { download ->
-                                        download.filePath?.let { path ->
-                                            vm.playLocalFile(path, download.title)
+                    // Область контента (занимает всё оставшееся пространство с weight 1f)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    ) {
+                        Crossfade(targetState = selectedSection, label = "TvNavTransition") { section ->
+                            when (section) {
+                                TvNavSection.HOME -> {
+                                    TvHomeScreen(
+                                        homeVideos = vm.homeVideos,
+                                        onVideoSelected = { video, list ->
+                                            vm.playVideo(video, list)
                                             vm.playerState = PlayerState.FULL
+                                        },
+                                        onVideoMenuClick = { video ->
+                                            activeMenuVideo = video
+                                        },
+                                        onLoadMoreHome = { vm.loadHome(true) }
+                                    )
+                                }
+                                TvNavSection.SUBSCRIPTIONS -> {
+                                    TvSubscriptionsScreen(
+                                        userRegistry = vm.userRegistry,
+                                        subscriptionVideos = vm.subscriptionVideos,
+                                        onVideoSelected = { video, list ->
+                                            vm.playVideo(video, list)
+                                            vm.playerState = PlayerState.FULL
+                                        },
+                                        onVideoMenuClick = { video ->
+                                            activeMenuVideo = video
+                                        },
+                                        onAuthorSelected = { author ->
+                                            viewingAuthor = author
+                                            vm.loadAuthorVideos(author, false)
+                                        },
+                                        onLoadMore = { vm.loadSubscriptions(true) }
+                                    )
+                                }
+                                TvNavSection.SEARCH -> {
+                                    TvSearchScreen(
+                                        searchQuery = vm.searchQuery,
+                                        selectedSearchSource = vm.selectedSearchSource,
+                                        searchResults = vm.searchResults,
+                                        searchSuggestions = vm.searchSuggestions,
+                                        searchHistory = vm.userRegistry.searchHistory,
+                                        isSearching = vm.isSearching,
+                                        onSearchQueryChange = { vm.updateSearchQuery(it) },
+                                        onSearchSourceSelect = { vm.selectSearchSource(it) },
+                                        onPerformSearch = { vm.performSearch(it) },
+                                        onRemoveSearchQuery = { query -> vm.removeSearchQuery(query) },
+                                        onClearSearchHistory = { vm.clearSearchHistory() },
+                                        onVideoSelected = { video, list ->
+                                            vm.playVideo(video, list)
+                                            vm.playerState = PlayerState.FULL
+                                        },
+                                        onVideoMenuClick = { video ->
+                                            activeMenuVideo = video
                                         }
-                                    },
-                                    onDelete = { videoId ->
-                                        vm.downloadTracker.removeDownload(videoId)
+                                    )
+                                }
+                                TvNavSection.LIBRARY -> {
+                                    val historyVideos = remember(vm.userRegistry.watchHistory) {
+                                        vm.userRegistry.watchHistory.map { item ->
+                                            SearchResult(
+                                                videoUrl = item.videoUrl,
+                                                title = item.title ?: "",
+                                                thumbnailUrl = item.thumbnailUrl,
+                                                author = Author(
+                                                    id = item.authorId,
+                                                    name = item.authorName ?: "",
+                                                    avatarUrl = item.authorAvatarUrl
+                                                ),
+                                                duration = (item.totalDuration / 1000).toInt()
+                                            )
+                                        }
                                     }
-                                )
-                            }
-                            TvNavSection.SETTINGS -> {
-                                TvSettingsScreen(
-                                    settingsManager = vm.settingsManager,
-                                    registry = vm.userRegistry,
-                                    currentThemeMode = vm.settingsManager.themeMode,
-                                    donateUrl = BuildConfig.DONATE_URL,
-                                    versionName = BuildConfig.VERSION_NAME,
-                                    versionCode = BuildConfig.VERSION_CODE,
-                                    onThemeToggle = onThemeToggle,
-                                    onOpenHiddenVideos = {
-                                        libraryInitialTab = 4 // Вкладка «Скрытые»
-                                        selectedSection = TvNavSection.LIBRARY
-                                    },
-                                    onPullFromGist = { vm.pullFromGist() },
-                                    onPushToGist = { vm.pushToGist() },
-                                    onResetSync = {
-                                        vm.settingsManager.cachedGistId = null
-                                        vm.showSnackbar("ID Gist сброшен")
-                                    },
-                                    onClearWatchHistory = { vm.clearWatchHistory() },
-                                    onClearSearchHistory = { vm.clearSearchHistory() },
-                                    onOpenLogin = { isLoginScreenOpen = true },
-                                    onLogout = { vm.logout() }
-                                )
+                                    TvLibraryScreen(
+                                        historyVideos = historyVideos,
+                                        likedVideos = vm.userRegistry.likedVideos,
+                                        watchLaterVideos = vm.userRegistry.watchLater,
+                                        playlists = vm.userRegistry.playlists,
+                                        hiddenVideos = vm.userRegistry.hiddenVideosList,
+                                        initialTab = libraryInitialTab,
+                                        onVideoSelected = { video, list ->
+                                            vm.playVideo(video, list)
+                                            vm.playerState = PlayerState.FULL
+                                        },
+                                        onVideoMenuClick = { video ->
+                                            activeMenuVideo = video
+                                        },
+                                        onRemoveFromHistory = { vm.removeFromHistory(it.videoUrl) },
+                                        onRemoveFromWatchLater = { vm.toggleWatchLater(it) },
+                                        onRestoreHiddenVideo = { vm.restoreHiddenVideo(it.videoUrl, it.title) },
+                                        onDeletePlaylist = { vm.deletePlaylist(it.id) }
+                                    )
+                                }
+                                TvNavSection.SETTINGS -> {
+                                    TvSettingsScreen(
+                                        settingsManager = vm.settingsManager,
+                                        registry = vm.userRegistry,
+                                        currentThemeMode = vm.settingsManager.themeMode,
+                                        donateUrl = BuildConfig.DONATE_URL,
+                                        versionName = BuildConfig.VERSION_NAME,
+                                        versionCode = BuildConfig.VERSION_CODE,
+                                        onThemeToggle = onThemeToggle,
+                                        onOpenHiddenVideos = {
+                                            libraryInitialTab = 4 // Вкладка «Скрытые»
+                                            selectedSection = TvNavSection.LIBRARY
+                                        },
+                                        onPullFromGist = { vm.pullFromGist() },
+                                        onPushToGist = { vm.pushToGist() },
+                                        onClearWatchHistory = { vm.clearWatchHistory() },
+                                        onClearSearchHistory = { vm.clearSearchHistory() },
+                                        onOpenLogin = { isLoginScreenOpen = true },
+                                        onLogout = { vm.logout() }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Контекстное меню ⋮ на карточке видео
+            // Контекстное меню ⋮ на карточке видео (отображается ПОВЕРХ ВСЕГО)
             activeMenuVideo?.let { video ->
                 TvVideoMenuDialog(
                     video = video,
@@ -420,12 +381,12 @@ fun TvRoot(
                 )
             }
 
-            // Диалог выбора плейлиста на ТВ
+            // Диалог выбора плейлиста на ТВ (отображается ПОВЕРХ ВСЕГО)
             vm.showPlaylistDialog?.let { video ->
                 TvPlaylistSelectionDialog(
                     playlists = vm.userRegistry.playlists,
-                    onPlaylistSelected = { playlistId ->
-                        vm.addToPlaylist(playlistId, video)
+                    onPlaylistSelected = { playlistName ->
+                        vm.addToPlaylist(playlistName, video)
                         vm.showPlaylistDialog = null
                     },
                     onCreateNew = { name ->
@@ -433,22 +394,6 @@ fun TvRoot(
                         vm.showPlaylistDialog = null
                     },
                     onDismiss = { vm.showPlaylistDialog = null }
-                )
-            }
-
-            // Диалог выбора загрузки видео на ТВ
-            vm.showDownloadDialog?.let { video ->
-                TvDownloadDialog(
-                    video = video,
-                    onDownloadVideo = {
-                        vm.startDownload(video, isAudio = false)
-                        vm.showDownloadDialog = null
-                    },
-                    onDownloadAudio = {
-                        vm.startDownload(video, isAudio = true)
-                        vm.showDownloadDialog = null
-                    },
-                    onDismiss = { vm.showDownloadDialog = null }
                 )
             }
 

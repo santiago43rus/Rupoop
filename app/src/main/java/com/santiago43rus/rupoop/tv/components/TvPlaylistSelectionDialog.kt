@@ -33,6 +33,13 @@ fun TvPlaylistSelectionDialog(
     var isCreating by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
+    val firstItemFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(isCreating) {
+        if (!isCreating) {
+            firstItemFocusRequester.requestFocus()
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -92,6 +99,7 @@ fun TvPlaylistSelectionDialog(
                             },
                             colors = ButtonDefaults.colors(
                                 containerColor = colorScheme.primary,
+                                contentColor = colorScheme.onPrimary,
                                 focusedContainerColor = colorScheme.primary,
                                 focusedContentColor = colorScheme.onPrimary
                             ),
@@ -104,12 +112,13 @@ fun TvPlaylistSelectionDialog(
                             onClick = { isCreating = false },
                             colors = ButtonDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
                                 focusedContentColor = colorScheme.onPrimary
                             ),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Отмена", color = colorScheme.onSurface)
+                            Text("Отмена")
                         }
                     }
                 } else {
@@ -126,10 +135,13 @@ fun TvPlaylistSelectionDialog(
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
                                     containerColor = colorScheme.surfaceVariant,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 ),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(firstItemFocusRequester)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -145,12 +157,13 @@ fun TvPlaylistSelectionDialog(
                         items(playlists) { playlist ->
                             Surface(
                                 onClick = {
-                                    onPlaylistSelected(playlist.id)
+                                    onPlaylistSelected(playlist.name)
                                     onDismiss()
                                 },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = colorScheme.background,
+                                    containerColor = colorScheme.surface,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 ),

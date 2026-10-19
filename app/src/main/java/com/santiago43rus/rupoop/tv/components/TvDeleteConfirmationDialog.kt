@@ -3,24 +3,33 @@ package com.santiago43rus.rupoop.tv.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.*
-import com.santiago43rus.rupoop.data.SearchResult
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun TvDownloadDialog(
-    video: SearchResult,
-    onDownloadVideo: () -> Unit,
-    onDownloadAudio: () -> Unit,
+fun TvDeleteConfirmationDialog(
+    title: String,
+    message: String,
+    confirmButtonText: String = "Удалить",
+    onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val confirmFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        confirmFocusRequester.requestFocus()
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -30,7 +39,7 @@ fun TvDownloadDialog(
                 containerColor = colorScheme.surface,
                 focusedContainerColor = colorScheme.surface
             ),
-            modifier = Modifier.widthIn(max = 480.dp)
+            modifier = Modifier.widthIn(max = 460.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -40,16 +49,16 @@ fun TvDownloadDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Выберите формат загрузки",
+                    text = title,
                     color = colorScheme.onSurface,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
 
                 Text(
-                    text = "Вы хотите скачать видео целиком или только звуковую дорожку?\n${video.title}",
+                    text = message,
                     color = colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp
+                    fontSize = 15.sp
                 )
 
                 Row(
@@ -60,30 +69,33 @@ fun TvDownloadDialog(
                 ) {
                     Button(
                         onClick = {
-                            onDownloadVideo()
+                            onConfirm()
                             onDismiss()
                         },
                         colors = ButtonDefaults.colors(
                             containerColor = colorScheme.primary,
-                            focusedContainerColor = colorScheme.primary
+                            contentColor = colorScheme.onPrimary,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         ),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(confirmFocusRequester)
                     ) {
-                        Text("Видео (MP4)", color = colorScheme.onPrimary)
+                        Text(confirmButtonText)
                     }
 
                     Button(
-                        onClick = {
-                            onDownloadAudio()
-                            onDismiss()
-                        },
+                        onClick = onDismiss,
                         colors = ButtonDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.primary
+                            contentColor = colorScheme.onSurface,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         ),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Аудио (M4A)", color = colorScheme.onSurface)
+                        Text("Отмена")
                     }
                 }
             }

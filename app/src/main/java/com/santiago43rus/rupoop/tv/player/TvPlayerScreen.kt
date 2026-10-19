@@ -39,7 +39,6 @@ fun TvPlayerScreen(
     selectedAudioTrackId: String? = null,
     currentQuality: String = "Авто",
     seekStepDurationSeconds: Int = 10,
-    isAudioOnly: Boolean = false,
     onQualitySelected: (String) -> Unit = {},
     onPlayPause: () -> Unit,
     onSeekRelative: (Long) -> Unit,
@@ -52,8 +51,6 @@ fun TvPlayerScreen(
     onDislike: (SearchResult) -> Unit = {},
     onWatchLater: (SearchResult) -> Unit = {},
     onAddToPlaylist: (SearchResult) -> Unit = {},
-    onDownload: (SearchResult) -> Unit = {},
-    onAudioOnlyToggle: () -> Unit = {},
     onAuthorClick: (Author) -> Unit = {},
     onToggleSubscription: (Author) -> Unit = {},
     onRelatedVideoClick: (SearchResult) -> Unit = {},
@@ -240,19 +237,16 @@ fun TvPlayerScreen(
             )
         }
 
-        // Панель информации, действий (лайк/подписка/скачать/только аудио/плейлист) и рекомендаций «Далее»
+        // Панель информации, действий (лайк/подписка/плейлист) и рекомендаций «Далее»
         if (showInfoPanel) {
             TvVideoInfoPanel(
                 currentVideo = currentVideo,
                 registry = registry,
                 relatedVideos = relatedVideos,
-                isAudioOnly = isAudioOnly,
                 onLike = onLike,
                 onDislike = onDislike,
                 onWatchLater = onWatchLater,
                 onAddToPlaylist = onAddToPlaylist,
-                onDownload = onDownload,
-                onAudioOnlyToggle = onAudioOnlyToggle,
                 onAuthorClick = onAuthorClick,
                 onToggleSubscription = onToggleSubscription,
                 onRelatedVideoClick = onRelatedVideoClick,
