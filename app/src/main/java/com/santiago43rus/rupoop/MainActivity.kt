@@ -276,6 +276,13 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
+    override fun onStop() {
+        super.onStop()
+        if (isTv()) {
+            appViewModel?.exoPlayer?.pause()
+        }
+    }
+
     private fun handleIntent(intent: Intent?) {
         if (intent?.action == "OPEN_PLAYER") {
             pendingOpenPlayer = true

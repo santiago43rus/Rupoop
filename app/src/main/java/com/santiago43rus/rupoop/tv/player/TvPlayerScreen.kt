@@ -219,6 +219,14 @@ fun TvPlayerScreen(
                 onOpenSettings = {
                     showSettingsDialog = true
                     autoHideJob?.cancel()
+                },
+                onCloseOverlay = {
+                    showControls = false
+                },
+                onOpenInfoPanel = {
+                    showControls = false
+                    showInfoPanel = true
+                    autoHideJob?.cancel()
                 }
             )
         }
@@ -247,7 +255,10 @@ fun TvPlayerScreen(
                 onDislike = onDislike,
                 onWatchLater = onWatchLater,
                 onAddToPlaylist = onAddToPlaylist,
-                onAuthorClick = onAuthorClick,
+                onAuthorClick = { author ->
+                    exoPlayer.pause()
+                    onAuthorClick(author)
+                },
                 onToggleSubscription = onToggleSubscription,
                 onRelatedVideoClick = onRelatedVideoClick,
                 onVideoMenuClick = onVideoMenuClick

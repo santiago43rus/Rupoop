@@ -150,6 +150,7 @@ fun TvRoot(
                         vm.showPlaylistDialog = video
                     },
                     onAuthorClick = { author ->
+                        vm.closePlayer()
                         viewingAuthor = author
                         vm.loadAuthorVideos(author, false)
                     },
@@ -195,6 +196,7 @@ fun TvRoot(
                 // Основной интерфейс разделов с рейлом
                 LaunchedEffect(Unit) {
                     if (vm.homeVideos.isEmpty()) vm.loadHome(false)
+                    if (vm.liveVideos.isEmpty()) vm.loadLiveStreams(false)
                     if (vm.subscriptionVideos.isEmpty() && vm.userRegistry.subscriptions.isNotEmpty()) {
                         vm.loadSubscriptions(false)
                     }
@@ -204,7 +206,7 @@ fun TvRoot(
                     // Левый навигационный рейл
                     Column(
                         modifier = Modifier
-                            .width(96.dp)
+                            .width(116.dp)
                             .fillMaxHeight()
                             .background(colorScheme.surface)
                             .padding(vertical = 24.dp, horizontal = 8.dp)
@@ -223,7 +225,9 @@ fun TvRoot(
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 ),
-                                modifier = Modifier.size(72.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(68.dp)
                             ) {
                                 Column(
                                     modifier = Modifier.fillMaxSize(),
@@ -238,7 +242,8 @@ fun TvRoot(
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
                                         text = section.title,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
                                         fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
                                     )
                                 }
@@ -345,9 +350,7 @@ fun TvRoot(
                                 }
                                 TvNavSection.SETTINGS -> {
                                     TvSettingsScreen(
-                                        settingsManager = vm.settingsManager,
-                                        registry = vm.userRegistry,
-                                        currentThemeMode = vm.settingsManager.themeMode,
+                                        vm = vm,
                                         donateUrl = BuildConfig.DONATE_URL,
                                         versionName = BuildConfig.VERSION_NAME,
                                         versionCode = BuildConfig.VERSION_CODE,
@@ -356,12 +359,7 @@ fun TvRoot(
                                             libraryInitialTab = 4 // Вкладка «Скрытые»
                                             selectedSection = TvNavSection.LIBRARY
                                         },
-                                        onPullFromGist = { vm.pullFromGist() },
-                                        onPushToGist = { vm.pushToGist() },
-                                        onClearWatchHistory = { vm.clearWatchHistory() },
-                                        onClearSearchHistory = { vm.clearSearchHistory() },
-                                        onOpenLogin = { isLoginScreenOpen = true },
-                                        onLogout = { vm.logout() }
+                                        onOpenLogin = { isLoginScreenOpen = true }
                                     )
                                 }
                             }

@@ -129,6 +129,9 @@ dependencies {
     // Compose animations
     implementation(libs.androidx.compose.animation)
 
+    // QR Code generation
+    implementation(libs.zxing.core)
+
     implementation(libs.androidx.media3.transformer)
 
     testImplementation(libs.junit)

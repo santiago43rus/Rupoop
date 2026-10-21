@@ -27,11 +27,17 @@ fun TvTabs(
             Tab(
                 selected = isSelected,
                 onFocus = { onTabSelected(index) },
-                onClick = { onTabSelected(index) }
+                onClick = { onTabSelected(index) },
+                colors = TabDefaults.pillIndicatorTabColors(
+                    contentColor = colorScheme.onSurfaceVariant,
+                    inactiveContentColor = colorScheme.onSurfaceVariant,
+                    selectedContentColor = colorScheme.primary,
+                    focusedContentColor = colorScheme.onPrimary,
+                    focusedSelectedContentColor = colorScheme.onPrimary
+                )
             ) {
                 Text(
                     text = title,
-                    color = if (isSelected) colorScheme.primary else colorScheme.onSurfaceVariant,
                     fontSize = 16.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)

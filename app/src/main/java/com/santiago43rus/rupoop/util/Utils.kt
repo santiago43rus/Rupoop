@@ -135,3 +135,21 @@ fun switchAppIcon(context: Context, iconMode: String) {
     pm.setComponentEnabledSetting(lightComponent, lightState, android.content.pm.PackageManager.DONT_KILL_APP)
     pm.setComponentEnabledSetting(easterComponent, easterState, android.content.pm.PackageManager.DONT_KILL_APP)
 }
+
+fun generateQrCodeBitmap(content: String, sizePx: Int = 512): android.graphics.Bitmap? {
+    return try {
+        val writer = com.google.zxing.qrcode.QRCodeWriter()
+        val bitMatrix = writer.encode(content, com.google.zxing.BarcodeFormat.QR_CODE, sizePx, sizePx)
+        val width = bitMatrix.width
+        val height = bitMatrix.height
+        val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                bitmap.setPixel(x, y, if (bitMatrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bitmap
+    } catch (_: Exception) {
+        null
+    }
+}

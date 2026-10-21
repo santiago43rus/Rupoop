@@ -55,10 +55,14 @@ fun TvPlayerOverlay(
     onPlayPrevious: () -> Unit,
     onEpisodeSelect: (Int) -> Unit,
     onAudioTrackSelect: (AudioTrackSource) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onCloseOverlay: () -> Unit = {},
+    onOpenInfoPanel: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val playPauseFocusRequester = remember { FocusRequester() }
+
+    var lastDownPressTime by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         playPauseFocusRequester.requestFocus()
@@ -121,7 +125,7 @@ fun TvPlayerOverlay(
                 )
             }
 
-            // Выбор сезона (если сериалы с несколькими сезонами)
+            // Выбор сезона
             if (seasons.size > 1) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
@@ -258,6 +262,10 @@ fun TvPlayerOverlay(
                     .focusable()
                     .onPreviewKeyEvent { event ->
                         if (isProgressFocused && event.type == KeyEventType.KeyDown) {
+                            if (event.key == Key.DirectionUp) {
+                                onCloseOverlay()
+                                return@onPreviewKeyEvent true
+                            }
                             val step = if (event.nativeKeyEvent.repeatCount > 2) seekStepDurationMs * 2 else seekStepDurationMs
                             when (event.key) {
                                 Key.DirectionLeft -> {
@@ -345,7 +353,20 @@ fun TvPlayerOverlay(
                         focusedContainerColor = colorScheme.primary,
                         focusedContentColor = colorScheme.onPrimary
                     ),
-                    modifier = Modifier.focusRequester(playPauseFocusRequester)
+                    modifier = Modifier
+                        .focusRequester(playPauseFocusRequester)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                                val now = System.currentTimeMillis()
+                                if (now - lastDownPressTime < 600) {
+                                    onOpenInfoPanel()
+                                    true
+                                } else {
+                                    lastDownPressTime = now
+                                    false
+                                }
+                            } else false
+                        }
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,

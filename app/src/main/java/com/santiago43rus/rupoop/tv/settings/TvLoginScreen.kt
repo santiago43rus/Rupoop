@@ -1,6 +1,7 @@
 package com.santiago43rus.rupoop.tv.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,6 +10,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -17,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import com.santiago43rus.rupoop.data.DeviceCodeRequest
 import com.santiago43rus.rupoop.network.RetrofitClient
+import com.santiago43rus.rupoop.util.generateQrCodeBitmap
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -35,6 +38,9 @@ fun TvLoginScreen(
     var verificationUri by remember { mutableStateOf<String?>(null) }
     var statusText by remember { mutableStateOf("Получение кода авторизации...") }
     var isPolling by remember { mutableStateOf(false) }
+
+    val qrTargetUrl = "https://github.com/login/device/select_account"
+    val qrBitmap = remember { generateQrCodeBitmap(qrTargetUrl, 380) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -66,7 +72,7 @@ fun TvLoginScreen(
 
                         when (tokenResponse.error) {
                             "authorization_pending" -> {
-                                // Ожидание подтверждения
+                                // Ожидание
                             }
                             "slow_down" -> {
                                 interval += 5
@@ -107,7 +113,7 @@ fun TvLoginScreen(
         modifier = modifier
             .fillMaxSize()
             .background(colorScheme.background)
-            .padding(48.dp),
+            .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(
@@ -117,72 +123,107 @@ fun TvLoginScreen(
                 containerColor = colorScheme.surface,
                 focusedContainerColor = colorScheme.surface
             ),
-            modifier = Modifier.widthIn(max = 680.dp)
+            modifier = Modifier.widthIn(max = 840.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(36.dp),
+                    .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Text(
                     text = "Вход в аккаунт GitHub",
                     color = colorScheme.onSurface,
-                    fontSize = 26.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold
                 )
 
-                Text(
-                    text = "Откройте страницу на телефоне или компьютере:\n${verificationUri ?: "https://github.com/login/device"}",
-                    color = colorScheme.primary,
-                    fontSize = 17.sp,
-                    textAlign = TextAlign.Center
-                )
-
-                if (userCode != null) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "И введите одноразовый код:",
-                            color = colorScheme.onSurfaceVariant,
-                            fontSize = 15.sp
-                        )
-                        Surface(
-                            onClick = {},
-                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                focusedContainerColor = colorScheme.surfaceVariant
-                            )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // QR код для сканирования камерой
+                    qrBitmap?.let { bmp ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            Surface(
+                                onClick = {},
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = androidx.compose.ui.graphics.Color.White,
+                                    focusedContainerColor = androidx.compose.ui.graphics.Color.White
+                                )
+                            ) {
+                                Image(
+                                    bitmap = bmp.asImageBitmap(),
+                                    contentDescription = "QR-код для входа",
+                                    modifier = Modifier
+                                        .size(160.dp)
+                                        .padding(8.dp)
+                                )
+                            }
                             Text(
-                                text = userCode ?: "",
-                                color = colorScheme.primary,
-                                fontSize = 38.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontFamily = FontFamily.Monospace,
-                                letterSpacing = 4.sp,
-                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)
+                                text = "Отсканируйте камерой",
+                                color = colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp
                             )
                         }
                     }
-                }
 
-                Text(
-                    text = statusText,
-                    color = colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center
-                )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Откройте страницу на телефоне или компьютере:\n${verificationUri ?: "https://github.com/login/device/select_account"}",
+                            color = colorScheme.primary,
+                            fontSize = 15.sp
+                        )
+
+                        if (userCode != null) {
+                            Text(
+                                text = "И введите одноразовый код:",
+                                color = colorScheme.onSurfaceVariant,
+                                fontSize = 14.sp
+                            )
+                            Surface(
+                                onClick = {},
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = colorScheme.surfaceVariant,
+                                    focusedContainerColor = colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Text(
+                                    text = userCode ?: "",
+                                    color = colorScheme.primary,
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 4.sp,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = statusText,
+                            color = colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Button(
                         onClick = { startDeviceFlow() },
                         colors = ButtonDefaults.colors(
                             containerColor = colorScheme.primary,
+                            contentColor = colorScheme.onPrimary,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )
@@ -196,11 +237,12 @@ fun TvLoginScreen(
                         onClick = onBack,
                         colors = ButtonDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
+                            contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )
                     ) {
-                        Text("Назад", color = colorScheme.onSurface)
+                        Text("Назад")
                     }
                 }
             }

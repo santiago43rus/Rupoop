@@ -90,6 +90,7 @@ fun TvAuthorScreen(
                 onClick = { onToggleSubscription(author) },
                 colors = ButtonDefaults.colors(
                     containerColor = if (isSubscribed) colorScheme.surfaceVariant else colorScheme.primary,
+                    contentColor = if (isSubscribed) colorScheme.onSurface else colorScheme.onPrimary,
                     focusedContainerColor = colorScheme.primary,
                     focusedContentColor = colorScheme.onPrimary
                 )

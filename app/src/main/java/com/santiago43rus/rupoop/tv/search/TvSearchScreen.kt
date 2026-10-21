@@ -87,7 +87,7 @@ fun TvSearchScreen(
                     queryText = it
                     onSearchQueryChange(it)
                 },
-                label = { Text("Поиск видео") },
+                label = { Text("Поиск видео", color = colorScheme.onSurfaceVariant) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
@@ -100,7 +100,9 @@ fun TvSearchScreen(
                     focusedTextColor = colorScheme.onSurface,
                     unfocusedTextColor = colorScheme.onSurface,
                     focusedBorderColor = colorScheme.primary,
-                    unfocusedBorderColor = colorScheme.border
+                    unfocusedBorderColor = colorScheme.border,
+                    focusedLabelColor = colorScheme.primary,
+                    unfocusedLabelColor = colorScheme.onSurfaceVariant
                 ),
                 modifier = Modifier
                     .weight(1f)
@@ -121,7 +123,8 @@ fun TvSearchScreen(
                     onPerformSearch(queryText)
                 },
                 colors = ButtonDefaults.colors(
-                    containerColor = colorScheme.primary,
+                    containerColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurface,
                     focusedContainerColor = colorScheme.primary,
                     focusedContentColor = colorScheme.onPrimary
                 )
@@ -143,6 +146,7 @@ fun TvSearchScreen(
                     },
                     colors = IconButtonDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
                         focusedContainerColor = colorScheme.primary,
                         focusedContentColor = colorScheme.onPrimary
                     )
@@ -171,14 +175,17 @@ fun TvSearchScreen(
                     },
                     colors = FilterChipDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
                         focusedContainerColor = colorScheme.primary,
-                        selectedContainerColor = colorScheme.primary,
-                        focusedSelectedContainerColor = colorScheme.primary
+                        focusedContentColor = colorScheme.onPrimary,
+                        selectedContainerColor = colorScheme.surfaceVariant,
+                        selectedContentColor = colorScheme.primary,
+                        focusedSelectedContainerColor = colorScheme.primary,
+                        focusedSelectedContentColor = colorScheme.onPrimary
                     )
                 ) {
                     Text(
                         text = source.displayName,
-                        color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                         fontSize = 14.sp
                     )
                 }
@@ -206,6 +213,7 @@ fun TvSearchScreen(
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
                                     containerColor = colorScheme.surfaceVariant,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 )
@@ -231,6 +239,7 @@ fun TvSearchScreen(
                             onClick = onClearSearchHistory,
                             colors = ButtonDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
                                 focusedContentColor = colorScheme.onPrimary
                             )
@@ -254,6 +263,7 @@ fun TvSearchScreen(
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
                                     containerColor = colorScheme.surfaceVariant,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 )

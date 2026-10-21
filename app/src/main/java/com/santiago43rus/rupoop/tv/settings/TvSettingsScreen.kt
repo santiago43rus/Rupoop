@@ -15,8 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
-import com.santiago43rus.rupoop.data.SettingsManager
-import com.santiago43rus.rupoop.data.UserRegistry
+import com.santiago43rus.rupoop.*
 import com.santiago43rus.rupoop.tv.components.TvDeleteConfirmationDialog
 import com.santiago43rus.rupoop.tv.components.TvSectionTitle
 import com.santiago43rus.rupoop.util.clearAppCache
@@ -26,27 +25,24 @@ import com.santiago43rus.rupoop.util.getCacheSize
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvSettingsScreen(
-    settingsManager: SettingsManager,
-    registry: UserRegistry,
-    currentThemeMode: String,
+    vm: AppViewModel,
     donateUrl: String,
     versionName: String,
     versionCode: Int,
     onThemeToggle: (String) -> Unit,
     onOpenHiddenVideos: () -> Unit,
-    onPullFromGist: () -> Unit,
-    onPushToGist: () -> Unit,
-    onClearWatchHistory: () -> Unit,
-    onClearSearchHistory: () -> Unit,
     onOpenLogin: () -> Unit,
-    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val colorScheme = MaterialTheme.colorScheme
+    val settingsManager = vm.settingsManager
+    val registryManager = vm.registryManager
+
     val isEasterUnlocked = settingsManager.isEasterEggUnlocked
 
+    var themeMode by remember { mutableStateOf(settingsManager.themeMode) }
     var doubleTapDuration by remember { mutableIntStateOf(settingsManager.doubleTapSeekDuration) }
     var syncFreq by remember { mutableIntStateOf(settingsManager.syncFrequencyHours) }
     val enabledGenres = remember { mutableStateOf(settingsManager.enabledGenres) }
@@ -86,12 +82,19 @@ fun TvSettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(themes) { (mode, label) ->
-                        val isSelected = currentThemeMode == mode
+                        val isSelected = themeMode == mode
                         FilterChip(
                             selected = isSelected,
                             onClick = {
+                                themeMode = mode
                                 settingsManager.themeMode = mode
                                 onThemeToggle(mode)
+                                val updatedRegistry = registryManager.registry.copy(
+                                    appSettings = registryManager.registry.appSettings.copy(theme = mode)
+                                )
+                                registryManager.updateRegistry(updatedRegistry)
+                                vm.onRegistryUpdate(updatedRegistry)
+                                vm.pushToGitHub()
                             },
                             colors = FilterChipDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
@@ -131,6 +134,12 @@ fun TvSettingsScreen(
                             onClick = {
                                 doubleTapDuration = dur
                                 settingsManager.doubleTapSeekDuration = dur
+                                val updatedRegistry = registryManager.registry.copy(
+                                    appSettings = registryManager.registry.appSettings.copy(doubleTapSeekDuration = dur)
+                                )
+                                registryManager.updateRegistry(updatedRegistry)
+                                vm.onRegistryUpdate(updatedRegistry)
+                                vm.pushToGitHub()
                             },
                             colors = FilterChipDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
@@ -173,6 +182,12 @@ fun TvSettingsScreen(
                                 }
                                 enabledGenres.value = updated
                                 settingsManager.enabledGenres = updated
+                                val updatedRegistry = registryManager.registry.copy(
+                                    appSettings = registryManager.registry.appSettings.copy(enabledGenres = updated.toList())
+                                )
+                                registryManager.updateRegistry(updatedRegistry)
+                                vm.onRegistryUpdate(updatedRegistry)
+                                vm.pushToGitHub()
                             },
                             colors = FilterChipDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
@@ -217,7 +232,7 @@ fun TvSettingsScreen(
                     ) {
                         Column {
                             Text("Скрытые и неинтересные видео", fontSize = 16.sp)
-                            Text("Управление видео, исключенными из ленты (${registry.hiddenVideosList.size})", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                            Text("Управление видео, исключенными из ленты (${vm.userRegistry.hiddenVideosList.size})", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
                         }
                         Text("Открыть", color = colorScheme.primary, fontSize = 15.sp)
                     }
@@ -247,7 +262,7 @@ fun TvSettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Button(
-                            onClick = onPullFromGist,
+                            onClick = { vm.pullFromGist() },
                             colors = ButtonDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
                                 contentColor = colorScheme.onSurface,
@@ -257,7 +272,7 @@ fun TvSettingsScreen(
                         ) { Text("Загрузить") }
 
                         Button(
-                            onClick = onPushToGist,
+                            onClick = { vm.pushToGist() },
                             colors = ButtonDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
                                 contentColor = colorScheme.onSurface,
@@ -267,7 +282,7 @@ fun TvSettingsScreen(
                         ) { Text("Выгрузить") }
 
                         Button(
-                            onClick = onLogout,
+                            onClick = { vm.logout() },
                             colors = ButtonDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
                                 contentColor = colorScheme.onSurface,
@@ -291,6 +306,12 @@ fun TvSettingsScreen(
                                 onClick = {
                                     syncFreq = hours
                                     settingsManager.syncFrequencyHours = hours
+                                    val updatedRegistry = registryManager.registry.copy(
+                                        appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = hours)
+                                    )
+                                    registryManager.updateRegistry(updatedRegistry)
+                                    vm.onRegistryUpdate(updatedRegistry)
+                                    vm.pushToGitHub()
                                 },
                                 colors = FilterChipDefaults.colors(
                                     containerColor = colorScheme.surfaceVariant,
@@ -442,7 +463,7 @@ fun TvSettingsScreen(
             message = "Вы уверены, что хотите полностью очистить историю просмотров?",
             confirmButtonText = "Очистить",
             onConfirm = {
-                onClearWatchHistory()
+                vm.clearWatchHistory()
                 showClearWatchHistoryDialog = false
             },
             onDismiss = { showClearWatchHistoryDialog = false }
@@ -455,7 +476,7 @@ fun TvSettingsScreen(
             message = "Вы уверены, что хотите полностью очистить историю поиска?",
             confirmButtonText = "Очистить",
             onConfirm = {
-                onClearSearchHistory()
+                vm.clearSearchHistory()
                 showClearSearchHistoryDialog = false
             },
             onDismiss = { showClearSearchHistoryDialog = false }

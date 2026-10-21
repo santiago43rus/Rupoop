@@ -32,7 +32,7 @@ fun TvRow(
                 .fillMaxWidth()
                 .focusRestorer(),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 8.dp)
         ) {
             items(videos, key = { it.videoUrl }) { video ->
                 TvVideoCard(

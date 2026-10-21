@@ -80,7 +80,9 @@ fun TvSubscriptionsScreen(
                         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
-                            focusedContainerColor = colorScheme.surface
+                            contentColor = colorScheme.onSurface,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
                         ),
                         modifier = Modifier.width(140.dp)
                     ) {
