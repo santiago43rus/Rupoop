@@ -13,6 +13,9 @@ object RetrofitClient {
         coerceInputValues = true
     }
 
+    private const val DESKTOP_USER_AGENT =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor { chain ->
             val request = chain.request().newBuilder()
@@ -22,10 +25,19 @@ object RetrofitClient {
         }
         .build()
 
+    private val rutubeHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .header("User-Agent", DESKTOP_USER_AGENT)
+                .build()
+            chain.proceed(request)
+        }
+        .build()
+
     val api: RutubeApi by lazy {
         Retrofit.Builder()
             .baseUrl("https://rutube.ru/")
-            .client(okHttpClient)
+            .client(rutubeHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(RutubeApi::class.java)

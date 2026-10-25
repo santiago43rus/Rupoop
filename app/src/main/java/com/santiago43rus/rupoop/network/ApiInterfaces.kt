@@ -11,8 +11,20 @@ interface RutubeApi {
         @Query("page") page: Int = 1
     ): SearchResponse
 
+    // Параметры — как у запроса сайта для ПК (client=wdp, mq=all). Без них в ответе нет 2160p.
     @GET("api/play/options/{id}/?format=json")
-    suspend fun getVideoOptions(@Path("id") id: String): RutubeResponse
+    suspend fun getVideoOptions(
+        @Path("id") id: String,
+        @Query("no_404") no404: String = "true",
+        @Query("referer") referer: String = "https%3A%2F%2Frutube.ru",
+        @Query("pver") pver: String = "v2",
+        @Query("client") client: String = "wdp",
+        @Query("mq") mq: String = "all",
+        @Query("av1") av1: String = "1",
+        @Query("ac_client") acClient: String = "web",
+        @Query("ver") ver: String = "358.0.0",
+        @Query("ad_ver") adVer: String = "v2"
+    ): RutubeResponse
 
     @GET("api/video/perso" +
             "n/{id}/?format=json")
