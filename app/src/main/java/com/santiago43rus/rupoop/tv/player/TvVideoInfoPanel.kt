@@ -23,6 +23,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,13 +47,17 @@ fun TvVideoInfoPanel(
     onToggleSubscription: (Author) -> Unit,
     onRelatedVideoClick: (SearchResult) -> Unit,
     onVideoMenuClick: (SearchResult) -> Unit,
+    onClose: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (currentVideo == null) return
 
     val colorScheme = MaterialTheme.colorScheme
+    val videoId = currentVideo.videoUrl.split("/").lastOrNull { it.isNotEmpty() }?.substringBefore("?") ?: ""
     val isLiked = registry.likedVideos.any { it.videoUrl == currentVideo.videoUrl }
-    val isDisliked = registry.dislikedVideos.contains(currentVideo.videoUrl)
+    val isDisliked = registry.dislikedVideos.contains(videoId) ||
+            registry.dislikedVideos.contains(currentVideo.videoUrl) ||
+            registry.dislikedVideosList.any { it.videoUrl == currentVideo.videoUrl }
     val isWatchLater = registry.watchLater.any { it.videoUrl == currentVideo.videoUrl }
     val isSubscribed = currentVideo.author?.let { author ->
         registry.subscriptions.any { it.name == author.name }
@@ -104,13 +109,19 @@ fun TvVideoInfoPanel(
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
                                     containerColor = colorScheme.surfaceVariant,
+                                    contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
-                                )
+                                ),
+                                modifier = Modifier.onPreviewKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp) {
+                                        onClose()
+                                        true
+                                    } else false
+                                }
                             ) {
                                 Text(
                                     text = "Канал: ${author.name}",
-                                    color = colorScheme.onSurface,
                                     fontSize = 15.sp,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
@@ -124,7 +135,13 @@ fun TvVideoInfoPanel(
                                     contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
-                                )
+                                ),
+                                modifier = Modifier.onPreviewKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp) {
+                                        onClose()
+                                        true
+                                    } else false
+                                }
                             ) {
                                 Icon(
                                     imageVector = if (isSubscribed) Icons.Filled.Notifications else Icons.Outlined.NotificationsNone,

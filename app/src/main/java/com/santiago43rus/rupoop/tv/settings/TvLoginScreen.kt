@@ -10,7 +10,10 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -109,6 +112,12 @@ fun TvLoginScreen(
         startDeviceFlow()
     }
 
+    val firstButtonFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        firstButtonFocusRequester.requestFocus()
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -116,14 +125,10 @@ fun TvLoginScreen(
             .padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
-            onClick = {},
-            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(16.dp)),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = colorScheme.surface,
-                focusedContainerColor = colorScheme.surface
-            ),
-            modifier = Modifier.widthIn(max = 840.dp)
+        Box(
+            modifier = Modifier
+                .widthIn(max = 840.dp)
+                .background(colorScheme.surface, RoundedCornerShape(16.dp))
         ) {
             Column(
                 modifier = Modifier
@@ -150,13 +155,9 @@ fun TvLoginScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Surface(
-                                onClick = {},
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = androidx.compose.ui.graphics.Color.White,
-                                    focusedContainerColor = androidx.compose.ui.graphics.Color.White
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.White, RoundedCornerShape(12.dp))
                             ) {
                                 Image(
                                     bitmap = bmp.asImageBitmap(),
@@ -190,13 +191,9 @@ fun TvLoginScreen(
                                 color = colorScheme.onSurfaceVariant,
                                 fontSize = 14.sp
                             )
-                            Surface(
-                                onClick = {},
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = colorScheme.surfaceVariant,
-                                    focusedContainerColor = colorScheme.surfaceVariant
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .background(colorScheme.surfaceVariant, RoundedCornerShape(10.dp))
                             ) {
                                 Text(
                                     text = userCode ?: "",
@@ -226,7 +223,8 @@ fun TvLoginScreen(
                             contentColor = colorScheme.onPrimary,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
-                        )
+                        ),
+                        modifier = Modifier.focusRequester(firstButtonFocusRequester)
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))

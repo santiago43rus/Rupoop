@@ -104,7 +104,6 @@ fun TvSubscriptionsScreen(
                             )
                             Text(
                                 text = author.name,
-                                color = colorScheme.onSurface,
                                 fontSize = 14.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

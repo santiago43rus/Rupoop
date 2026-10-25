@@ -58,6 +58,7 @@ fun TvRoot(
     var selectedSection by remember { mutableStateOf(TvNavSection.HOME) }
     var libraryInitialTab by remember { mutableIntStateOf(0) }
     var viewingAuthor by remember { mutableStateOf<Author?>(null) }
+    var returnToPlayerFromAuthor by remember { mutableStateOf(false) }
     var isLoginScreenOpen by remember { mutableStateOf(false) }
     var activeMenuVideo by remember { mutableStateOf<SearchResult?>(null) }
     var currentPlaybackQuality by remember { mutableStateOf("Авто") }
@@ -74,12 +75,16 @@ fun TvRoot(
     // Обработка кнопки Back: если не на Главной, переключаемся на Главную, иначе выход
     val canHandleBack = selectedSection != TvNavSection.HOME || viewingAuthor != null || isLoginScreenOpen || vm.playerState == PlayerState.FULL
     BackHandler(enabled = canHandleBack) {
-        if (vm.playerState == PlayerState.FULL) {
+        if (viewingAuthor != null) {
+            viewingAuthor = null
+            if (returnToPlayerFromAuthor) {
+                returnToPlayerFromAuthor = false
+                vm.playerState = PlayerState.FULL
+            }
+        } else if (vm.playerState == PlayerState.FULL) {
             vm.closePlayer()
         } else if (isLoginScreenOpen) {
             isLoginScreenOpen = false
-        } else if (viewingAuthor != null) {
-            viewingAuthor = null
         } else if (selectedSection != TvNavSection.HOME) {
             selectedSection = TvNavSection.HOME
         }
@@ -150,7 +155,8 @@ fun TvRoot(
                         vm.showPlaylistDialog = video
                     },
                     onAuthorClick = { author ->
-                        vm.closePlayer()
+                        returnToPlayerFromAuthor = true
+                        vm.exoPlayer.pause()
                         viewingAuthor = author
                         vm.loadAuthorVideos(author, false)
                     },
@@ -164,15 +170,6 @@ fun TvRoot(
                         activeMenuVideo = video
                     }
                 )
-            } else if (isLoginScreenOpen) {
-                // Экран авторизации GitHub Device Flow
-                TvLoginScreen(
-                    onAuthSuccess = { token ->
-                        vm.onAuthSuccess(token)
-                        isLoginScreenOpen = false
-                    },
-                    onBack = { isLoginScreenOpen = false }
-                )
             } else if (viewingAuthor != null) {
                 // Экран канала автора (если открыт)
                 val author = viewingAuthor!!
@@ -183,6 +180,8 @@ fun TvRoot(
                     isSubscribed = isSubscribed,
                     onToggleSubscription = { vm.toggleSubscription(it) },
                     onVideoSelected = { video, list ->
+                        returnToPlayerFromAuthor = false
+                        viewingAuthor = null
                         vm.playVideo(video, list)
                         vm.playerState = PlayerState.FULL
                     },
@@ -190,7 +189,22 @@ fun TvRoot(
                         activeMenuVideo = video
                     },
                     onLoadMore = { vm.loadAuthorVideos(author, true) },
-                    onBack = { viewingAuthor = null }
+                    onBack = {
+                        viewingAuthor = null
+                        if (returnToPlayerFromAuthor) {
+                            returnToPlayerFromAuthor = false
+                            vm.playerState = PlayerState.FULL
+                        }
+                    }
+                )
+            } else if (isLoginScreenOpen) {
+                // Экран авторизации GitHub Device Flow
+                TvLoginScreen(
+                    onAuthSuccess = { token ->
+                        vm.onAuthSuccess(token)
+                        isLoginScreenOpen = false
+                    },
+                    onBack = { isLoginScreenOpen = false }
                 )
             } else {
                 // Основной интерфейс разделов с рейлом

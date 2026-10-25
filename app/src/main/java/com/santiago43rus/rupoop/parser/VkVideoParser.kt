@@ -246,8 +246,8 @@ object VkVideoParser {
             }
         }
 
-        // Priority 2: Direct MP4 resolutions (1080p, 720p, 480p, 360p, 240p)
-        val qualities = listOf("url1080", "url720", "url480", "url360", "url240")
+        // Priority 2: Direct MP4 resolutions (2160p, 1440p, 1080p, 720p, 480p, 360p, 240p)
+        val qualities = listOf("url2160", "url1440", "url1080", "url720", "url480", "url360", "url240")
         for (q in qualities) {
             val qRegex = """(?:["']$q["']|$q)\s*:\s*["']([^"']+)["']"""
             val match = extractRegex(htmlOrJson, qRegex)

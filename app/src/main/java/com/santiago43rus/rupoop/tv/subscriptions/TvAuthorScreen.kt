@@ -115,7 +115,8 @@ fun TvAuthorScreen(
                     .fillMaxSize()
                     .focusRestorer(),
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp)
             ) {
                 itemsIndexed(authorVideos, key = { _, v -> v.videoUrl }) { index, video ->
                     TvVideoCard(

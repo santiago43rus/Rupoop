@@ -174,6 +174,7 @@ fun TvVideoSettingsDialog(
                                         params.setMaxVideoSize(qOption.width, qOption.height)
                                             .setMinVideoSize(qOption.width, qOption.height)
                                             .setForceHighestSupportedBitrate(true)
+                                            .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
                                     }
                                     exoPlayer.trackSelectionParameters = params.build()
                                     onDismiss()

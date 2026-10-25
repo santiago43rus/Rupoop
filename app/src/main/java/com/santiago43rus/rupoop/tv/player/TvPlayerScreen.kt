@@ -58,7 +58,7 @@ fun TvPlayerScreen(
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var showControls by remember { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(true) }
     var showInfoPanel by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var autoHideJob by remember { mutableStateOf<Job?>(null) }
@@ -77,6 +77,11 @@ fun TvPlayerScreen(
                 showControls = false
             }
         }
+    }
+
+    LaunchedEffect(currentVideo) {
+        showControls = true
+        scheduleAutoHide()
     }
 
     LaunchedEffect(showControls, isPlaying, showInfoPanel, showSettingsDialog) {
@@ -193,6 +198,12 @@ fun TvPlayerScreen(
                 PlayerView(ctx).apply {
                     useController = false
                     player = exoPlayer
+                    keepScreenOn = true
+                }
+            },
+            update = { playerView ->
+                if (playerView.player != exoPlayer) {
+                    playerView.player = exoPlayer
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -261,7 +272,12 @@ fun TvPlayerScreen(
                 },
                 onToggleSubscription = onToggleSubscription,
                 onRelatedVideoClick = onRelatedVideoClick,
-                onVideoMenuClick = onVideoMenuClick
+                onVideoMenuClick = onVideoMenuClick,
+                onClose = {
+                    showInfoPanel = false
+                    showControls = true
+                    scheduleAutoHide()
+                }
             )
         }
     }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -48,6 +49,13 @@ fun TvSettingsScreen(
     val enabledGenres = remember { mutableStateOf(settingsManager.enabledGenres) }
     var cacheSize by remember { mutableLongStateOf(getCacheSize(context)) }
 
+    LaunchedEffect(vm.userRegistry.appSettings) {
+        themeMode = settingsManager.themeMode
+        doubleTapDuration = settingsManager.doubleTapSeekDuration
+        syncFreq = settingsManager.syncFrequencyHours
+        enabledGenres.value = settingsManager.enabledGenres
+    }
+
     var showClearWatchHistoryDialog by remember { mutableStateOf(false) }
     var showClearSearchHistoryDialog by remember { mutableStateOf(false) }
 
@@ -59,9 +67,10 @@ fun TvSettingsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
+            .clipToBounds()
             .focusRestorer(),
         verticalArrangement = Arrangement.spacedBy(20.dp),
-        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 24.dp)
+        contentPadding = PaddingValues(start = 48.dp, end = 32.dp, top = 24.dp, bottom = 24.dp)
     ) {
         item {
             TvSectionTitle(title = "Настройки")
@@ -217,11 +226,12 @@ fun TvSettingsScreen(
                 Surface(
                     onClick = onOpenHiddenVideos,
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
                         contentColor = colorScheme.onSurface,
-                        focusedContainerColor = colorScheme.surface,
-                        focusedContentColor = colorScheme.primary
+                        focusedContainerColor = colorScheme.primaryContainer,
+                        focusedContentColor = colorScheme.onPrimaryContainer
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -244,7 +254,7 @@ fun TvSettingsScreen(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("GitHub Синхронизация", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                if (settingsManager.accessToken == null) {
+                if (!vm.isAuthenticated) {
                     Button(
                         onClick = onOpenLogin,
                         colors = ButtonDefaults.colors(
@@ -345,11 +355,12 @@ fun TvSettingsScreen(
                         cacheSize = getCacheSize(context)
                     },
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
                         contentColor = colorScheme.onSurface,
-                        focusedContainerColor = colorScheme.surface,
-                        focusedContentColor = colorScheme.primary
+                        focusedContainerColor = colorScheme.primaryContainer,
+                        focusedContentColor = colorScheme.onPrimaryContainer
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -414,11 +425,12 @@ fun TvSettingsScreen(
                             } catch (_: Exception) {}
                         },
                         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = colorScheme.surfaceVariant,
                             contentColor = colorScheme.onSurface,
-                            focusedContainerColor = colorScheme.surface,
-                            focusedContentColor = colorScheme.primary
+                            focusedContainerColor = colorScheme.primaryContainer,
+                            focusedContentColor = colorScheme.onPrimaryContainer
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -438,6 +450,7 @@ fun TvSettingsScreen(
                 Surface(
                     onClick = {},
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
                         contentColor = colorScheme.onSurface,

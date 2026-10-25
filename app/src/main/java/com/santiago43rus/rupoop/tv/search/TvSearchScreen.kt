@@ -27,7 +27,10 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
@@ -56,14 +59,22 @@ fun TvSearchScreen(
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
     val isSpeechAvailable = remember(context) { SpeechRecognizer.isRecognitionAvailable(context) }
-    var queryText by remember(searchQuery) { mutableStateOf(searchQuery) }
+    var textFieldValue by remember(searchQuery) {
+        mutableStateOf(TextFieldValue(searchQuery, TextRange(searchQuery.length)))
+    }
     val focusManager = LocalFocusManager.current
     val searchFocusRequester = remember { FocusRequester() }
+
+    val pageSize = 12
+    var currentPage by remember(searchResults) { mutableIntStateOf(1) }
+    val totalPages = remember(searchResults) {
+        if (searchResults.isEmpty()) 1 else ((searchResults.size + pageSize - 1) / pageSize)
+    }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
         if (!spokenText.isNullOrBlank()) {
-            queryText = spokenText
+            textFieldValue = TextFieldValue(spokenText, TextRange(spokenText.length))
             onSearchQueryChange(spokenText)
             onPerformSearch(spokenText)
         }
@@ -82,10 +93,12 @@ fun TvSearchScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
-                value = queryText,
-                onValueChange = {
-                    queryText = it
-                    onSearchQueryChange(it)
+                value = textFieldValue,
+                onValueChange = { newValue ->
+                    textFieldValue = newValue
+                    if (newValue.text != searchQuery) {
+                        onSearchQueryChange(newValue.text)
+                    }
                 },
                 label = { Text("Поиск видео", color = colorScheme.onSurfaceVariant) },
                 singleLine = true,
@@ -93,7 +106,7 @@ fun TvSearchScreen(
                 keyboardActions = KeyboardActions(
                     onSearch = {
                         focusManager.clearFocus()
-                        onPerformSearch(queryText)
+                        onPerformSearch(textFieldValue.text)
                     }
                 ),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -108,10 +121,29 @@ fun TvSearchScreen(
                     .weight(1f)
                     .focusRequester(searchFocusRequester)
                     .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.NumPadEnter)) {
-                            focusManager.clearFocus()
-                            onPerformSearch(queryText)
-                            true
+                        if (event.type == KeyEventType.KeyDown) {
+                            when (event.key) {
+                                Key.Enter, Key.NumPadEnter -> {
+                                    focusManager.clearFocus()
+                                    onPerformSearch(textFieldValue.text)
+                                    true
+                                }
+                                Key.DirectionLeft -> {
+                                    val currentPos = textFieldValue.selection.start
+                                    if (currentPos > 0) {
+                                        textFieldValue = textFieldValue.copy(selection = TextRange(currentPos - 1))
+                                        true
+                                    } else false
+                                }
+                                Key.DirectionRight -> {
+                                    val currentPos = textFieldValue.selection.end
+                                    if (currentPos < textFieldValue.text.length) {
+                                        textFieldValue = textFieldValue.copy(selection = TextRange(currentPos + 1))
+                                        true
+                                    } else false
+                                }
+                                else -> false
+                            }
                         } else false
                     }
             )
@@ -120,7 +152,7 @@ fun TvSearchScreen(
             Button(
                 onClick = {
                     focusManager.clearFocus()
-                    onPerformSearch(queryText)
+                    onPerformSearch(textFieldValue.text)
                 },
                 colors = ButtonDefaults.colors(
                     containerColor = colorScheme.surfaceVariant,
@@ -130,6 +162,27 @@ fun TvSearchScreen(
                 )
             ) {
                 Text("Искать")
+            }
+
+            // Кнопка сброса/закрытия поиска
+            if (textFieldValue.text.isNotBlank() || searchResults.isNotEmpty()) {
+                Button(
+                    onClick = {
+                        textFieldValue = TextFieldValue("", TextRange.Zero)
+                        onSearchQueryChange("")
+                        onPerformSearch("")
+                    },
+                    colors = ButtonDefaults.colors(
+                        containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.primary,
+                        focusedContentColor = colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.Clear, contentDescription = "Сброс")
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Сброс")
+                }
             }
 
             // Голосовой ввод через SpeechRecognizer intent
@@ -169,8 +222,8 @@ fun TvSearchScreen(
                     selected = isSelected,
                     onClick = {
                         onSearchSourceSelect(source)
-                        if (queryText.isNotBlank()) {
-                            onPerformSearch(queryText)
+                        if (textFieldValue.text.isNotBlank()) {
+                            onPerformSearch(textFieldValue.text)
                         }
                     },
                     colors = FilterChipDefaults.colors(
@@ -192,10 +245,13 @@ fun TvSearchScreen(
             }
         }
 
-        // Подсказки и история поиска
+        // Подсказки и история поиска: показываются если нет результатов или поле ввода в фокусе/пустое
         if (searchResults.isEmpty() && !isSearching) {
-            if (queryText.isNotBlank() && searchSuggestions.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (textFieldValue.text.isNotBlank() && searchSuggestions.isNotEmpty()) {
+                Column(
+                    modifier = Modifier.padding(start = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text("Подсказки", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
                     LazyRow(
                         modifier = Modifier
@@ -206,7 +262,7 @@ fun TvSearchScreen(
                         items(searchSuggestions) { suggestion ->
                             Surface(
                                 onClick = {
-                                    queryText = suggestion
+                                    textFieldValue = TextFieldValue(suggestion, TextRange(suggestion.length))
                                     onSearchQueryChange(suggestion)
                                     onPerformSearch(suggestion)
                                 },
@@ -228,7 +284,10 @@ fun TvSearchScreen(
                     }
                 }
             } else if (searchHistory.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.padding(start = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -256,7 +315,7 @@ fun TvSearchScreen(
                         items(searchHistory) { historyItem ->
                             Surface(
                                 onClick = {
-                                    queryText = historyItem
+                                    textFieldValue = TextFieldValue(historyItem, TextRange(historyItem.length))
                                     onSearchQueryChange(historyItem)
                                     onPerformSearch(historyItem)
                                 },
@@ -296,12 +355,16 @@ fun TvSearchScreen(
             }
         }
 
-        // Результаты поиска
+        // Результаты поиска и пагинация
         if (isSearching) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Поиск видео...", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }
         } else if (searchResults.isNotEmpty()) {
+            val startIndex = (currentPage - 1) * pageSize
+            val pageVideos = searchResults.drop(startIndex).take(pageSize)
+            val chunkedResults = pageVideos.chunked(4)
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -309,7 +372,6 @@ fun TvSearchScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                val chunkedResults = searchResults.chunked(4)
                 items(chunkedResults) { rowVideos ->
                     TvRow(
                         title = "",
@@ -318,8 +380,63 @@ fun TvSearchScreen(
                         onVideoMenuClick = onVideoMenuClick
                     )
                 }
+
+                // Панель переключения страниц
+                if (totalPages > 1) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp)
+                                .focusRestorer(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (currentPage > 1) currentPage--
+                                },
+                                enabled = currentPage > 1,
+                                colors = ButtonDefaults.colors(
+                                    containerColor = colorScheme.surfaceVariant,
+                                    contentColor = colorScheme.onSurface,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
+                                )
+                            ) {
+                                Text("Предыдущая")
+                            }
+
+                            Spacer(modifier = Modifier.width(20.dp))
+
+                            Text(
+                                text = "Страница $currentPage из $totalPages",
+                                color = colorScheme.onSurface,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+
+                            Spacer(modifier = Modifier.width(20.dp))
+
+                            Button(
+                                onClick = {
+                                    if (currentPage < totalPages) currentPage++
+                                },
+                                enabled = currentPage < totalPages,
+                                colors = ButtonDefaults.colors(
+                                    containerColor = colorScheme.surfaceVariant,
+                                    contentColor = colorScheme.onSurface,
+                                    focusedContainerColor = colorScheme.primary,
+                                    focusedContentColor = colorScheme.onPrimary
+                                )
+                            ) {
+                                Text("Следующая")
+                            }
+                        }
+                    }
+                }
             }
-        } else if (queryText.isNotBlank()) {
+        } else if (textFieldValue.text.isNotBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Ничего не найдено", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }

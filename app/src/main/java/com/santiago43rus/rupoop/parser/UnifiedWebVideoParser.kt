@@ -524,8 +524,8 @@ object UnifiedWebVideoParser {
             }
         }
 
-        // Priority 3: MP4 quality patterns like [1080p]https://... or [720p]https://... or direct MP4
-        val mp4QualityRegex = """\[(?:1080p|720p|480p|360p)\](https?:\/\/[^,\s"']+)"""
+        // Priority 3: MP4 quality patterns like [2160p]..., [1440p]..., [1080p]https://... or [720p]https://... or direct MP4
+        val mp4QualityRegex = """\[(?:2160p|1440p|1080p|720p|480p|360p)\](https?:\/\/[^,\s"']+)"""
         val mp4QualityMatch = extractRegex(html, mp4QualityRegex)
         if (!mp4QualityMatch.isNullOrBlank()) {
             return resolveUrl(baseUrl, mp4QualityMatch)
@@ -537,7 +537,7 @@ object UnifiedWebVideoParser {
         if (bracketMatcher.find()) {
             val qualities = bracketMatcher.group(1)?.split(",")?.map { it.trim() } ?: emptyList()
             val rawTemplate = bracketMatcher.group(2) ?: ""
-            val bestQuality = listOf("1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
+            val bestQuality = listOf("2160p", "2160", "4k", "1440p", "1440", "1080p", "1080", "720p", "720", "480p", "480", "360p", "360")
                 .firstOrNull { q -> qualities.any { it.equals(q, ignoreCase = true) } }
             if (bestQuality != null && rawTemplate.contains(",${bestQuality.removeSuffix("p")},")) {
                 val clean = rawTemplate.replace(Regex(""",[0-9,\s]+,"""), bestQuality.removeSuffix("p"))
@@ -707,7 +707,7 @@ object UnifiedWebVideoParser {
                         val gviJson = JSONObject(gviBody)
                         val links = gviJson.optJSONObject("links")
                         if (links != null) {
-                            val qualityPriority = listOf("1080", "720", "480", "360", "240")
+                            val qualityPriority = listOf("2160", "1440", "1080", "720", "480", "360", "240")
                             for (q in qualityPriority) {
                                 val arr = links.optJSONArray(q)
                                 if (arr != null && arr.length() > 0) {

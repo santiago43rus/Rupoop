@@ -270,22 +270,30 @@ class UserRegistryManager(private val context: Context) {
             combinedWeights[tag] = maxOf(combinedWeights[tag] ?: 0f, weight)
         }
 
-        val combinedAppSettings = AppSettings(
-            theme = if (local.appSettings.theme != "system") local.appSettings.theme else remote.appSettings.theme,
-            language = remote.appSettings.language,
-            videoQuality = remote.appSettings.videoQuality,
-            adultContentEnabled = local.appSettings.adultContentEnabled && remote.appSettings.adultContentEnabled,
-            kidsContentEnabled = local.appSettings.kidsContentEnabled || remote.appSettings.kidsContentEnabled,
-            downloadQuality = if (local.appSettings.downloadQuality != "1080") local.appSettings.downloadQuality else remote.appSettings.downloadQuality,
-            syncFrequencyHours = local.appSettings.syncFrequencyHours,
-            maxConcurrentDownloads = local.appSettings.maxConcurrentDownloads,
-            enabledGenres = if (local.appSettings.enabledGenres.isNotEmpty()) local.appSettings.enabledGenres else remote.appSettings.enabledGenres,
-            autoPlayNext = local.appSettings.autoPlayNext,
-            doubleTapSeekDuration = local.appSettings.doubleTapSeekDuration,
-            appIcon = if (local.appSettings.appIcon != "system") local.appSettings.appIcon else remote.appSettings.appIcon,
-            showDownloadNotifications = local.appSettings.showDownloadNotifications,
-            isEasterEggUnlocked = local.appSettings.isEasterEggUnlocked || remote.appSettings.isEasterEggUnlocked
-        )
+        val isRemoteNewer = remote.lastSynced >= local.lastSynced
+        val combinedAppSettings = if (isRemoteNewer && remote.appSettings.enabledGenres.isNotEmpty()) {
+            remote.appSettings.copy(
+                isEasterEggUnlocked = local.appSettings.isEasterEggUnlocked || remote.appSettings.isEasterEggUnlocked
+            )
+        } else {
+            AppSettings(
+                theme = if (local.appSettings.theme != "system") local.appSettings.theme else remote.appSettings.theme,
+                language = if (remote.appSettings.language.isNotBlank()) remote.appSettings.language else local.appSettings.language,
+                videoQuality = if (remote.appSettings.videoQuality.isNotBlank() && remote.appSettings.videoQuality != "auto") remote.appSettings.videoQuality else local.appSettings.videoQuality,
+                adultContentEnabled = local.appSettings.adultContentEnabled && remote.appSettings.adultContentEnabled,
+                kidsContentEnabled = local.appSettings.kidsContentEnabled || remote.appSettings.kidsContentEnabled,
+                downloadQuality = if (local.appSettings.downloadQuality != "1080") local.appSettings.downloadQuality else remote.appSettings.downloadQuality,
+                syncFrequencyHours = if (remote.appSettings.syncFrequencyHours != 6) remote.appSettings.syncFrequencyHours else local.appSettings.syncFrequencyHours,
+                maxConcurrentDownloads = if (remote.appSettings.maxConcurrentDownloads != 3) remote.appSettings.maxConcurrentDownloads else local.appSettings.maxConcurrentDownloads,
+                enabledGenres = if (remote.appSettings.enabledGenres.isNotEmpty()) remote.appSettings.enabledGenres else local.appSettings.enabledGenres,
+                autoPlayNext = remote.appSettings.autoPlayNext,
+                doubleTapSeekDuration = if (remote.appSettings.doubleTapSeekDuration != 10) remote.appSettings.doubleTapSeekDuration else local.appSettings.doubleTapSeekDuration,
+                appIcon = if (local.appSettings.appIcon != "system") local.appSettings.appIcon else remote.appSettings.appIcon,
+                showDownloadNotifications = local.appSettings.showDownloadNotifications,
+                isEasterEggUnlocked = local.appSettings.isEasterEggUnlocked || remote.appSettings.isEasterEggUnlocked,
+                pipEnabled = local.appSettings.pipEnabled
+            )
+        }
 
         val merged = UserRegistry(
             watchHistory = combinedHistory,

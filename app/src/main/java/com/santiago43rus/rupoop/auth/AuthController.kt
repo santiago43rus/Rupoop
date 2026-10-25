@@ -109,5 +109,8 @@ class AuthController(
         settingsManager.clearAuth()
         isAuthenticated = false
         githubUser = null
+        scope.launch {
+            snackbarMessage.emit("Вы вышли из GitHub")
+        }
     }
 }

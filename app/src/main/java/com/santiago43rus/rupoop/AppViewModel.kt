@@ -329,6 +329,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 userRegistry = withContext(Dispatchers.IO) { syncManager.pull(token) }
                 settingsManager.lastSyncTime = System.currentTimeMillis()
+                settingsManager.applyAppSettings(userRegistry.appSettings)
                 _snackbarMessage.emit("Данные загружены из Gist")
             } catch (_: Exception) {
                 _snackbarMessage.emit("Ошибка загрузки из Gist")
