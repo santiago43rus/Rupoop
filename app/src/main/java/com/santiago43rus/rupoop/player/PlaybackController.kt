@@ -88,10 +88,6 @@ class PlaybackController(
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
     }.also { player ->
-        val trackParams = player.trackSelectionParameters.buildUpon()
-            .setForceHighestSupportedBitrate(true)
-            .build()
-        player.trackSelectionParameters = trackParams
         player.playWhenReady = true
         player.addListener(object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {

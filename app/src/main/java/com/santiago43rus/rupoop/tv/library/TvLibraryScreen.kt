@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import com.santiago43rus.rupoop.data.Playlist
 import com.santiago43rus.rupoop.data.SearchResult
+import com.santiago43rus.rupoop.data.WatchHistoryItem
 import com.santiago43rus.rupoop.tv.components.TvDeleteConfirmationDialog
 import com.santiago43rus.rupoop.tv.components.TvRow
 import com.santiago43rus.rupoop.tv.components.TvTabs
@@ -28,6 +29,7 @@ fun TvLibraryScreen(
     watchLaterVideos: List<SearchResult>,
     playlists: List<Playlist>,
     hiddenVideos: List<SearchResult>,
+    watchHistory: List<WatchHistoryItem>? = null,
     initialTab: Int = 0,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
     onVideoMenuClick: (SearchResult) -> Unit,
@@ -76,7 +78,8 @@ fun TvLibraryScreen(
                                     title = if (idx == 0) "Недавно просмотренные" else "",
                                     videos = rowVideos,
                                     onVideoClick = { onVideoSelected(it, historyVideos) },
-                                    onVideoMenuClick = onVideoMenuClick
+                                    onVideoMenuClick = onVideoMenuClick,
+                                    watchHistory = watchHistory
                                 )
                             }
                         }
@@ -93,7 +96,8 @@ fun TvLibraryScreen(
                                     title = if (idx == 0) "Понравившиеся" else "",
                                     videos = rowVideos,
                                     onVideoClick = { onVideoSelected(it, likedVideos) },
-                                    onVideoMenuClick = onVideoMenuClick
+                                    onVideoMenuClick = onVideoMenuClick,
+                                    watchHistory = watchHistory
                                 )
                             }
                         }
@@ -110,7 +114,8 @@ fun TvLibraryScreen(
                                     title = if (idx == 0) "Смотреть позже" else "",
                                     videos = rowVideos,
                                     onVideoClick = { onVideoSelected(it, watchLaterVideos) },
-                                    onVideoMenuClick = onVideoMenuClick
+                                    onVideoMenuClick = onVideoMenuClick,
+                                    watchHistory = watchHistory
                                 )
                             }
                         }

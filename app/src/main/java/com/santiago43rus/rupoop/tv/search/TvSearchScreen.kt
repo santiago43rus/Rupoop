@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import com.santiago43rus.rupoop.data.SearchResult
 import com.santiago43rus.rupoop.data.SearchSource
+import com.santiago43rus.rupoop.data.WatchHistoryItem
 import com.santiago43rus.rupoop.tv.components.TvRow
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -46,12 +47,14 @@ fun TvSearchScreen(
     searchResults: List<SearchResult>,
     searchSuggestions: List<String>,
     searchHistory: List<String>,
+    watchHistory: List<WatchHistoryItem>? = null,
     isSearching: Boolean,
     onSearchQueryChange: (String) -> Unit,
     onSearchSourceSelect: (SearchSource) -> Unit,
     onPerformSearch: (String) -> Unit,
     onRemoveSearchQuery: (String) -> Unit,
     onClearSearchHistory: () -> Unit,
+    onCloseSearch: (() -> Unit)? = null,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
     onVideoMenuClick: (SearchResult) -> Unit,
     modifier: Modifier = Modifier
@@ -164,7 +167,7 @@ fun TvSearchScreen(
                 Text("Искать")
             }
 
-            // Кнопка сброса/закрытия поиска
+            // Кнопка сброса
             if (textFieldValue.text.isNotBlank() || searchResults.isNotEmpty()) {
                 Button(
                     onClick = {
@@ -181,8 +184,27 @@ fun TvSearchScreen(
                 ) {
                     Icon(Icons.Default.Clear, contentDescription = "Сброс")
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Сброс")
+                    Text("Сбросить")
                 }
+            }
+
+            // Кнопка закрытия поиска со сбросом и возвратом на главную
+            Button(
+                onClick = {
+                    textFieldValue = TextFieldValue("", TextRange.Zero)
+                    onSearchQueryChange("")
+                    onCloseSearch?.invoke()
+                },
+                colors = ButtonDefaults.colors(
+                    containerColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurface,
+                    focusedContainerColor = colorScheme.primary,
+                    focusedContentColor = colorScheme.onPrimary
+                )
+            ) {
+                Icon(Icons.Default.Clear, contentDescription = "Закрыть")
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Закрыть")
             }
 
             // Голосовой ввод через SpeechRecognizer intent
@@ -377,7 +399,8 @@ fun TvSearchScreen(
                         title = "",
                         videos = rowVideos,
                         onVideoClick = { onVideoSelected(it, searchResults) },
-                        onVideoMenuClick = onVideoMenuClick
+                        onVideoMenuClick = onVideoMenuClick,
+                        watchHistory = watchHistory
                     )
                 }
 

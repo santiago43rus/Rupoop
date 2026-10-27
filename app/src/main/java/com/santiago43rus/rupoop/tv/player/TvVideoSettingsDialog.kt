@@ -81,8 +81,6 @@ fun TvVideoSettingsDialog(
         if (qualityList.size == 1) {
             listOf(
                 VideoQualityOption("Авто", 0, 0),
-                VideoQualityOption("2160p", 3840, 2160),
-                VideoQualityOption("1440p", 2560, 1440),
                 VideoQualityOption("1080p", 1920, 1080),
                 VideoQualityOption("720p", 1280, 720),
                 VideoQualityOption("480p", 854, 480),
@@ -172,7 +170,6 @@ fun TvVideoSettingsDialog(
                                             .setForceHighestSupportedBitrate(false)
                                     } else {
                                         params.setMaxVideoSize(qOption.width, qOption.height)
-                                            .setMinVideoSize(qOption.width, qOption.height)
                                             .setForceHighestSupportedBitrate(true)
                                             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
                                     }

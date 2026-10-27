@@ -25,6 +25,7 @@ import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.santiago43rus.rupoop.data.Author
 import com.santiago43rus.rupoop.data.SearchResult
+import com.santiago43rus.rupoop.data.WatchHistoryItem
 import com.santiago43rus.rupoop.tv.components.TvVideoCard
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -33,6 +34,7 @@ fun TvAuthorScreen(
     author: Author,
     authorVideos: List<SearchResult>,
     isSubscribed: Boolean,
+    watchHistory: List<WatchHistoryItem>? = null,
     onToggleSubscription: (Author) -> Unit,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
     onVideoMenuClick: (SearchResult) -> Unit,
@@ -122,7 +124,8 @@ fun TvAuthorScreen(
                     TvVideoCard(
                         video = video,
                         onClick = { onVideoSelected(video, authorVideos) },
-                        onMenuClick = { onVideoMenuClick(video) }
+                        onMenuClick = { onVideoMenuClick(video) },
+                        watchHistory = watchHistory
                     )
                     if (index == authorVideos.lastIndex) {
                         LaunchedEffect(Unit) {

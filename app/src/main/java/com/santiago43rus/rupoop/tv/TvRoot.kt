@@ -86,6 +86,9 @@ fun TvRoot(
         } else if (isLoginScreenOpen) {
             isLoginScreenOpen = false
         } else if (selectedSection != TvNavSection.HOME) {
+            if (selectedSection == TvNavSection.SEARCH) {
+                vm.updateSearchQuery("")
+            }
             selectedSection = TvNavSection.HOME
         }
     }
@@ -99,7 +102,7 @@ fun TvRoot(
                 .background(colorScheme.background)
         ) {
             // Полноэкранный плеер
-            if (vm.playerState == PlayerState.FULL) {
+            if (vm.playerState == PlayerState.FULL && viewingAuthor == null) {
                 TvPlayerScreen(
                     currentVideo = vm.currentVideo,
                     exoPlayer = vm.exoPlayer,
@@ -178,6 +181,7 @@ fun TvRoot(
                     author = author,
                     authorVideos = vm.authorVideos,
                     isSubscribed = isSubscribed,
+                    watchHistory = vm.userRegistry.watchHistory,
                     onToggleSubscription = { vm.toggleSubscription(it) },
                     onVideoSelected = { video, list ->
                         returnToPlayerFromAuthor = false
@@ -276,6 +280,7 @@ fun TvRoot(
                                 TvNavSection.HOME -> {
                                     TvHomeScreen(
                                         homeVideos = vm.homeVideos,
+                                        watchHistory = vm.userRegistry.watchHistory,
                                         onVideoSelected = { video, list ->
                                             vm.playVideo(video, list)
                                             vm.playerState = PlayerState.FULL
@@ -311,12 +316,17 @@ fun TvRoot(
                                         searchResults = vm.searchResults,
                                         searchSuggestions = vm.searchSuggestions,
                                         searchHistory = vm.userRegistry.searchHistory,
+                                        watchHistory = vm.userRegistry.watchHistory,
                                         isSearching = vm.isSearching,
                                         onSearchQueryChange = { vm.updateSearchQuery(it) },
                                         onSearchSourceSelect = { vm.selectSearchSource(it) },
                                         onPerformSearch = { vm.performSearch(it) },
                                         onRemoveSearchQuery = { query -> vm.removeSearchQuery(query) },
                                         onClearSearchHistory = { vm.clearSearchHistory() },
+                                        onCloseSearch = {
+                                            vm.updateSearchQuery("")
+                                            selectedSection = TvNavSection.HOME
+                                        },
                                         onVideoSelected = { video, list ->
                                             vm.playVideo(video, list)
                                             vm.playerState = PlayerState.FULL
@@ -348,6 +358,7 @@ fun TvRoot(
                                         watchLaterVideos = vm.userRegistry.watchLater,
                                         playlists = vm.userRegistry.playlists,
                                         hiddenVideos = vm.userRegistry.hiddenVideosList,
+                                        watchHistory = vm.userRegistry.watchHistory,
                                         initialTab = libraryInitialTab,
                                         onVideoSelected = { video, list ->
                                             vm.playVideo(video, list)

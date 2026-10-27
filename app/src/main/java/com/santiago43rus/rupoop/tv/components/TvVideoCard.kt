@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,6 +22,8 @@ import androidx.compose.ui.zIndex
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import com.santiago43rus.rupoop.data.SearchResult
+import com.santiago43rus.rupoop.data.WatchHistoryItem
+import com.santiago43rus.rupoop.util.extractId
 import com.santiago43rus.rupoop.util.formatDuration
 import com.santiago43rus.rupoop.util.formatTimeAgo
 import com.santiago43rus.rupoop.util.formatViewCount
@@ -31,10 +34,17 @@ fun TvVideoCard(
     video: SearchResult,
     onClick: () -> Unit,
     onMenuClick: (() -> Unit)? = null,
+    watchHistory: List<WatchHistoryItem>? = null,
+    historyItem: WatchHistoryItem? = null,
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val colorScheme = MaterialTheme.colorScheme
+
+    val videoId = remember(video.videoUrl) { extractId(video.videoUrl) }
+    val matchedHistory = remember(historyItem, watchHistory, videoId) {
+        historyItem ?: watchHistory?.find { extractId(it.videoUrl) == videoId || (it.videoId.isNotEmpty() && it.videoId == videoId) }
+    }
 
     val videoUrlLower = video.videoUrl.lowercase()
     val isLordfilm = videoUrlLower.contains("lordfilm") || videoUrlLower.contains("lordserials")
@@ -127,6 +137,19 @@ fun TvVideoCard(
                             )
                         }
                     }
+                }
+
+                if (matchedHistory != null && matchedHistory.totalDuration > 0) {
+                    val progressFraction = (matchedHistory.progress.toFloat() / matchedHistory.totalDuration.toFloat()).coerceIn(0f, 1f)
+                    LinearProgressIndicator(
+                        progress = { progressFraction },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(3.dp),
+                        color = Color.Red,
+                        trackColor = Color.Transparent
+                    )
                 }
             }
 

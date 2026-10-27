@@ -128,7 +128,8 @@ fun TvSubscriptionsScreen(
                         title = if (index == 0) "Новые видео подписок" else "",
                         videos = rowVideos,
                         onVideoClick = { onVideoSelected(it, subscriptionVideos) },
-                        onVideoMenuClick = onVideoMenuClick
+                        onVideoMenuClick = onVideoMenuClick,
+                        watchHistory = userRegistry.watchHistory
                     )
                 }
             }

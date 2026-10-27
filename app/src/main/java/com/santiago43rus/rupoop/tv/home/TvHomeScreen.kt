@@ -10,11 +10,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.unit.dp
 import com.santiago43rus.rupoop.data.SearchResult
+import com.santiago43rus.rupoop.data.WatchHistoryItem
 import com.santiago43rus.rupoop.tv.components.TvVideoCard
 
 @Composable
 fun TvHomeScreen(
     homeVideos: List<SearchResult>,
+    watchHistory: List<WatchHistoryItem>? = null,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
     onVideoMenuClick: ((SearchResult) -> Unit)? = null,
     onLoadMoreHome: () -> Unit,
@@ -33,7 +35,8 @@ fun TvHomeScreen(
             TvVideoCard(
                 video = video,
                 onClick = { onVideoSelected(video, homeVideos) },
-                onMenuClick = { onVideoMenuClick?.invoke(video) }
+                onMenuClick = { onVideoMenuClick?.invoke(video) },
+                watchHistory = watchHistory
             )
 
             if (index == homeVideos.lastIndex) {

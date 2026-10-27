@@ -131,7 +131,7 @@ fun TvVideoInfoPanel(
                             Button(
                                 onClick = { onToggleSubscription(author) },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (isSubscribed) colorScheme.surfaceVariant else colorScheme.surface,
+                                    containerColor = if (isSubscribed) colorScheme.onSurface.copy(alpha = 0.28f) else colorScheme.surface,
                                     contentColor = colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
@@ -168,7 +168,7 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onLike(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isLiked) colorScheme.surfaceVariant else colorScheme.surface,
+                            containerColor = if (isLiked) colorScheme.onSurface.copy(alpha = 0.28f) else colorScheme.surface,
                             contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
@@ -187,7 +187,7 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onDislike(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isDisliked) colorScheme.surfaceVariant else colorScheme.surface,
+                            containerColor = if (isDisliked) colorScheme.onSurface.copy(alpha = 0.28f) else colorScheme.surface,
                             contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
@@ -205,7 +205,7 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onWatchLater(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isWatchLater) colorScheme.surfaceVariant else colorScheme.surface,
+                            containerColor = if (isWatchLater) colorScheme.onSurface.copy(alpha = 0.28f) else colorScheme.surface,
                             contentColor = colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary

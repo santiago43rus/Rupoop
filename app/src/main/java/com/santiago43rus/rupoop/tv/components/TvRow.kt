@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.unit.dp
 import com.santiago43rus.rupoop.data.SearchResult
+import com.santiago43rus.rupoop.data.WatchHistoryItem
 
 @Composable
 fun TvRow(
@@ -19,6 +20,7 @@ fun TvRow(
     videos: List<SearchResult>,
     onVideoClick: (SearchResult) -> Unit,
     onVideoMenuClick: ((SearchResult) -> Unit)? = null,
+    watchHistory: List<WatchHistoryItem>? = null,
     modifier: Modifier = Modifier
 ) {
     if (videos.isEmpty()) return
@@ -39,6 +41,7 @@ fun TvRow(
                     video = video,
                     onClick = { onVideoClick(video) },
                     onMenuClick = { onVideoMenuClick?.invoke(video) },
+                    watchHistory = watchHistory,
                     modifier = Modifier.width(300.dp)
                 )
             }

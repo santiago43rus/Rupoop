@@ -1,3 +1,5 @@
+@file:OptIn(androidx.tv.material3.ExperimentalTvMaterial3Api::class, androidx.media3.common.util.UnstableApi::class)
+
 package com.santiago43rus.rupoop.tv.settings
 
 import androidx.compose.foundation.layout.*
@@ -23,7 +25,6 @@ import com.santiago43rus.rupoop.util.clearAppCache
 import com.santiago43rus.rupoop.util.formatFileSize
 import com.santiago43rus.rupoop.util.getCacheSize
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvSettingsScreen(
     vm: AppViewModel,
@@ -46,6 +47,9 @@ fun TvSettingsScreen(
     var themeMode by remember { mutableStateOf(settingsManager.themeMode) }
     var doubleTapDuration by remember { mutableIntStateOf(settingsManager.doubleTapSeekDuration) }
     var syncFreq by remember { mutableIntStateOf(settingsManager.syncFrequencyHours) }
+    var downloadNotifications by remember { mutableStateOf(settingsManager.showDownloadNotifications) }
+    var downloadQuality by remember { mutableStateOf(settingsManager.downloadQuality) }
+    var maxDownloads by remember { mutableIntStateOf(settingsManager.maxConcurrentDownloads) }
     val enabledGenres = remember { mutableStateOf(settingsManager.enabledGenres) }
     var cacheSize by remember { mutableLongStateOf(getCacheSize(context)) }
 
@@ -53,6 +57,9 @@ fun TvSettingsScreen(
         themeMode = settingsManager.themeMode
         doubleTapDuration = settingsManager.doubleTapSeekDuration
         syncFreq = settingsManager.syncFrequencyHours
+        downloadNotifications = settingsManager.showDownloadNotifications
+        downloadQuality = settingsManager.downloadQuality
+        maxDownloads = settingsManager.maxConcurrentDownloads
         enabledGenres.value = settingsManager.enabledGenres
     }
 
@@ -171,6 +178,38 @@ fun TvSettingsScreen(
             }
         }
 
+        // УВЕДОМЛЕНИЯ О ЗАГРУЗКЕ
+        item {
+            Surface(
+                onClick = {
+                    val newVal = !downloadNotifications
+                    downloadNotifications = newVal
+                    settingsManager.showDownloadNotifications = newVal
+                },
+                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurface,
+                    focusedContainerColor = colorScheme.primaryContainer,
+                    focusedContentColor = colorScheme.onPrimaryContainer
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Уведомления о загрузке", fontSize = 16.sp)
+                        Text("Показывать прогресс и статус загрузки файлов", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    }
+                    Switch(checked = downloadNotifications, onCheckedChange = null)
+                }
+            }
+        }
+
         // 3. ЖАНРЫ
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -211,6 +250,80 @@ fun TvSettingsScreen(
                         ) {
                             Text(
                                 text = genre.replaceFirstChar { it.uppercase() },
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ЗАГРУЗКА
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Загрузка", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Качество видео для скачивания", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                val qualities = listOf("144", "240", "360", "480", "720", "1080", "1440", "2160")
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().focusRestorer(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(qualities) { q ->
+                        val isSelected = downloadQuality == q
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                downloadQuality = q
+                                settingsManager.downloadQuality = q
+                            },
+                            colors = FilterChipDefaults.colors(
+                                containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary,
+                                selectedContainerColor = colorScheme.surfaceVariant,
+                                selectedContentColor = colorScheme.primary,
+                                focusedSelectedContainerColor = colorScheme.primary,
+                                focusedSelectedContentColor = colorScheme.onPrimary
+                            )
+                        ) {
+                            Text(
+                                text = "${q}p",
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+                Text("Максимум одновременных загрузок", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                val limits = listOf(1, 2, 3)
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().focusRestorer(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(limits) { limit ->
+                        val isSelected = maxDownloads == limit
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                maxDownloads = limit
+                                settingsManager.maxConcurrentDownloads = limit
+                                com.santiago43rus.rupoop.service.DownloadService.updateConcurrency(context)
+                            },
+                            colors = FilterChipDefaults.colors(
+                                containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary,
+                                selectedContainerColor = colorScheme.surfaceVariant,
+                                selectedContentColor = colorScheme.primary,
+                                focusedSelectedContainerColor = colorScheme.primary,
+                                focusedSelectedContentColor = colorScheme.onPrimary
+                            )
+                        ) {
+                            Text(
+                                text = "$limit",
                                 fontSize = 14.sp
                             )
                         }
@@ -290,6 +403,19 @@ fun TvSettingsScreen(
                                 focusedContentColor = colorScheme.onPrimary
                             )
                         ) { Text("Выгрузить") }
+
+                        Button(
+                            onClick = {
+                                settingsManager.cachedGistId = null
+                                vm.showSnackbar("ID Gist сброшен")
+                            },
+                            colors = ButtonDefaults.colors(
+                                containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary
+                            )
+                        ) { Text("Сбросить") }
 
                         Button(
                             onClick = { vm.logout() },
