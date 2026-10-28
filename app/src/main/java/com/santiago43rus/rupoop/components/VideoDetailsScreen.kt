@@ -231,23 +231,27 @@ fun VideoDetails(
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
+                    val likeBg = if (isLiked) MaterialTheme.colorScheme.primary else Color.Transparent
+                    val likeContent = if (isLiked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                     // Like button
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(likeBg)
                             .clickable { video?.let { onLike(it) } }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Icon(
                             imageVector = if (isLiked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface,
+                            tint = likeContent,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
                             text = "Лайк",
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = likeContent,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -261,16 +265,20 @@ fun VideoDetails(
                             .background(MaterialTheme.colorScheme.outlineVariant)
                     )
 
+                    val dislikeBg = if (isDisliked) MaterialTheme.colorScheme.primary else Color.Transparent
+                    val dislikeContent = if (isDisliked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
                     // Dislike button
                     Box(
                         modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(dislikeBg)
                             .clickable { video?.let { onDislike(it) } }
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Icon(
                             imageVector = if (isDisliked) Icons.Filled.ThumbDown else Icons.Outlined.ThumbDown,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface,
+                            tint = dislikeContent,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -280,7 +288,7 @@ fun VideoDetails(
                 CapsuleAction(
                     icon = Icons.Default.MusicNote,
                     label = if (isAudioOnly) "Аудио: ВКЛ" else "Только аудио",
-                    iconColor = if (isAudioOnly) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface,
+                    isSelected = isAudioOnly,
                     onClick = onAudioOnlyToggle
                 )
 
@@ -309,7 +317,7 @@ fun VideoDetails(
                 CapsuleAction(
                     icon = Icons.Default.Headphones,
                     label = "Фон",
-                    iconColor = if (isBackgroundEnabled) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurface,
+                    isSelected = isBackgroundEnabled,
                     onClick = onBackgroundPlayToggle
                 )
             }
@@ -471,14 +479,17 @@ fun VideoDetails(
 fun CapsuleAction(
     icon: ImageVector,
     label: String,
-    iconColor: Color = MaterialTheme.colorScheme.onSurface,
+    isSelected: Boolean = false,
+    iconColor: Color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
     onClick: () -> Unit
 ) {
+    val bgColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(bgColor)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
@@ -491,7 +502,7 @@ fun CapsuleAction(
         Spacer(Modifier.width(6.dp))
         Text(
             text = label,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = textColor,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold
         )

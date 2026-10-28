@@ -81,18 +81,13 @@ fun TvAuthorScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = "Видео автора: ${authorVideos.size}",
-                    color = colorScheme.onSurfaceVariant,
-                    fontSize = 15.sp
-                )
             }
 
             Button(
                 onClick = { onToggleSubscription(author) },
                 colors = ButtonDefaults.colors(
-                    containerColor = if (isSubscribed) colorScheme.surfaceVariant else colorScheme.primary,
-                    contentColor = if (isSubscribed) colorScheme.onSurface else colorScheme.onPrimary,
+                    containerColor = if (isSubscribed) colorScheme.secondaryContainer else colorScheme.primary,
+                    contentColor = if (isSubscribed) colorScheme.onSecondaryContainer else colorScheme.onPrimary,
                     focusedContainerColor = colorScheme.primary,
                     focusedContentColor = colorScheme.onPrimary
                 )
@@ -103,8 +98,7 @@ fun TvAuthorScreen(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (isSubscribed) "Вы подписаны" else "Подписаться",
-                    color = if (isSubscribed) colorScheme.onSurface else colorScheme.onPrimary
+                    text = if (isSubscribed) "Вы подписаны" else "Подписаться"
                 )
             }
         }

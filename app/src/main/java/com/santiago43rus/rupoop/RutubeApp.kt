@@ -152,6 +152,16 @@ fun RutubeApp(
 
     val searchState = rememberTextFieldState(vm.searchQuery)
 
+    // Sync searchState typing changes to ViewModel
+    LaunchedEffect(searchState) {
+        snapshotFlow { searchState.text.toString() }.collect { newText ->
+            if (newText != vm.searchQuery) {
+                vm.updateSearchQuery(newText)
+            }
+        }
+    }
+
+    // Sync external searchQuery changes to searchState
     LaunchedEffect(vm.searchQuery) {
         if (searchState.text.toString() != vm.searchQuery) {
             searchState.edit { replace(0, length, vm.searchQuery) }

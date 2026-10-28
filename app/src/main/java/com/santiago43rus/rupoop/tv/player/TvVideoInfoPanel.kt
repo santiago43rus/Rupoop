@@ -81,14 +81,14 @@ fun TvVideoInfoPanel(
                     )
                 )
             )
-            .padding(horizontal = 48.dp, vertical = 24.dp)
+            .padding(horizontal = 40.dp, vertical = 16.dp)
     ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomStart)
                 .focusRestorer(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Заголовок и автор
             item {
@@ -131,8 +131,8 @@ fun TvVideoInfoPanel(
                             Button(
                                 onClick = { onToggleSubscription(author) },
                                 colors = ButtonDefaults.colors(
-                                    containerColor = if (isSubscribed) colorScheme.onSurface.copy(alpha = 0.28f) else colorScheme.surface,
-                                    contentColor = colorScheme.onSurface,
+                                    containerColor = if (isSubscribed) colorScheme.secondaryContainer else colorScheme.surface,
+                                    contentColor = if (isSubscribed) colorScheme.onSecondaryContainer else colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
                                     focusedContentColor = colorScheme.onPrimary
                                 ),
@@ -168,8 +168,8 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onLike(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isLiked) colorScheme.onSurface.copy(alpha = 0.28f) else colorScheme.surface,
-                            contentColor = colorScheme.onSurface,
+                            containerColor = if (isLiked) colorScheme.secondaryContainer else colorScheme.surface,
+                            contentColor = if (isLiked) colorScheme.onSecondaryContainer else colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         ),
@@ -187,8 +187,8 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onDislike(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isDisliked) colorScheme.onSurface.copy(alpha = 0.28f) else colorScheme.surface,
-                            contentColor = colorScheme.onSurface,
+                            containerColor = if (isDisliked) colorScheme.secondaryContainer else colorScheme.surface,
+                            contentColor = if (isDisliked) colorScheme.onSecondaryContainer else colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )
@@ -205,8 +205,8 @@ fun TvVideoInfoPanel(
                     Button(
                         onClick = { onWatchLater(currentVideo) },
                         colors = ButtonDefaults.colors(
-                            containerColor = if (isWatchLater) colorScheme.onSurface.copy(alpha = 0.28f) else colorScheme.surface,
-                            contentColor = colorScheme.onSurface,
+                            containerColor = if (isWatchLater) colorScheme.secondaryContainer else colorScheme.surface,
+                            contentColor = if (isWatchLater) colorScheme.onSecondaryContainer else colorScheme.onSurface,
                             focusedContainerColor = colorScheme.primary,
                             focusedContentColor = colorScheme.onPrimary
                         )

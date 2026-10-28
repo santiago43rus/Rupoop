@@ -109,7 +109,7 @@ class SettingsManager(context: Context) {
     }
 
     fun applyAppSettings(appSettings: AppSettings) {
-        themeMode = appSettings.theme
+        // Theme mode is strictly local to device and not overwritten by Gist sync
         downloadQuality = appSettings.downloadQuality
         syncFrequencyHours = appSettings.syncFrequencyHours
         maxConcurrentDownloads = appSettings.maxConcurrentDownloads

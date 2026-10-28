@@ -188,16 +188,18 @@ fun MoreVideosOverlay(
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Column {
-                                        Text(video.title, color = Color.White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                                        Text(video.title, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
                                         val viewsText = if (video.hits != null && video.hits > 0) formatViewCount(video.hits) else ""
                                         val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
-                                        val metaText = buildString {
+                                        val line2Text = buildString {
                                             append(video.author?.name ?: "Автор")
                                             append(" • Rutube")
                                             if (viewsText.isNotEmpty()) append(" • $viewsText")
-                                            if (timeAgoText.isNotEmpty()) append(" • $timeAgoText")
                                         }
-                                        Text(metaText, color = Color.White.copy(0.6f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(line2Text, color = Color.White.copy(0.7f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        if (timeAgoText.isNotEmpty()) {
+                                            Text(timeAgoText, color = Color.White.copy(0.5f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
                                     }
                                 }
                             }

@@ -95,12 +95,11 @@ fun TvSettingsScreen(
                 }
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().focusRestorer(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(themes) { (mode, label) ->
                         val isSelected = themeMode == mode
-                        FilterChip(
-                            selected = isSelected,
+                        Surface(
                             onClick = {
                                 themeMode = mode
                                 settingsManager.themeMode = mode
@@ -112,20 +111,19 @@ fun TvSettingsScreen(
                                 vm.onRegistryUpdate(updatedRegistry)
                                 vm.pushToGitHub()
                             },
-                            colors = FilterChipDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                contentColor = colorScheme.onSurface,
+                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                            colors = ClickableSurfaceDefaults.colors(
+                                containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                                contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary,
-                                selectedContainerColor = colorScheme.surfaceVariant,
-                                selectedContentColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary,
-                                focusedSelectedContentColor = colorScheme.onPrimary
+                                focusedContentColor = colorScheme.onPrimary
                             )
                         ) {
                             Text(
                                 text = label,
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
                         }
                     }
@@ -141,12 +139,11 @@ fun TvSettingsScreen(
                 val durations = listOf(5, 10, 15, 20, 30)
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().focusRestorer(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(durations) { dur ->
                         val isSelected = doubleTapDuration == dur
-                        FilterChip(
-                            selected = isSelected,
+                        Surface(
                             onClick = {
                                 doubleTapDuration = dur
                                 settingsManager.doubleTapSeekDuration = dur
@@ -157,55 +154,22 @@ fun TvSettingsScreen(
                                 vm.onRegistryUpdate(updatedRegistry)
                                 vm.pushToGitHub()
                             },
-                            colors = FilterChipDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                contentColor = colorScheme.onSurface,
+                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                            colors = ClickableSurfaceDefaults.colors(
+                                containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                                contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary,
-                                selectedContainerColor = colorScheme.surfaceVariant,
-                                selectedContentColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary,
-                                focusedSelectedContentColor = colorScheme.onPrimary
+                                focusedContentColor = colorScheme.onPrimary
                             )
                         ) {
                             Text(
                                 text = "$dur сек",
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
                         }
                     }
-                }
-            }
-        }
-
-        // УВЕДОМЛЕНИЯ О ЗАГРУЗКЕ
-        item {
-            Surface(
-                onClick = {
-                    val newVal = !downloadNotifications
-                    downloadNotifications = newVal
-                    settingsManager.showDownloadNotifications = newVal
-                },
-                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = colorScheme.surfaceVariant,
-                    contentColor = colorScheme.onSurface,
-                    focusedContainerColor = colorScheme.primaryContainer,
-                    focusedContentColor = colorScheme.onPrimaryContainer
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Уведомления о загрузке", fontSize = 16.sp)
-                        Text("Показывать прогресс и статус загрузки файлов", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                    }
-                    Switch(checked = downloadNotifications, onCheckedChange = null)
                 }
             }
         }
@@ -216,12 +180,11 @@ fun TvSettingsScreen(
                 Text("Жанры", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().focusRestorer(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(allGenres) { genre ->
                         val isSelected = enabledGenres.value.contains(genre)
-                        FilterChip(
-                            selected = isSelected,
+                        Surface(
                             onClick = {
                                 val updated = if (isSelected) {
                                     if (enabledGenres.value.size > 1) enabledGenres.value - genre else enabledGenres.value
@@ -237,94 +200,19 @@ fun TvSettingsScreen(
                                 vm.onRegistryUpdate(updatedRegistry)
                                 vm.pushToGitHub()
                             },
-                            colors = FilterChipDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                contentColor = colorScheme.onSurface,
+                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                            colors = ClickableSurfaceDefaults.colors(
+                                containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                                contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary,
-                                selectedContainerColor = colorScheme.surfaceVariant,
-                                selectedContentColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary,
-                                focusedSelectedContentColor = colorScheme.onPrimary
+                                focusedContentColor = colorScheme.onPrimary
                             )
                         ) {
                             Text(
                                 text = genre.replaceFirstChar { it.uppercase() },
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // ЗАГРУЗКА
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Загрузка", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Качество видео для скачивания", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                val qualities = listOf("144", "240", "360", "480", "720", "1080", "1440", "2160")
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().focusRestorer(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(qualities) { q ->
-                        val isSelected = downloadQuality == q
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                downloadQuality = q
-                                settingsManager.downloadQuality = q
-                            },
-                            colors = FilterChipDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                contentColor = colorScheme.onSurface,
-                                focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary,
-                                selectedContainerColor = colorScheme.surfaceVariant,
-                                selectedContentColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary,
-                                focusedSelectedContentColor = colorScheme.onPrimary
-                            )
-                        ) {
-                            Text(
-                                text = "${q}p",
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(4.dp))
-                Text("Максимум одновременных загрузок", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
-                val limits = listOf(1, 2, 3)
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().focusRestorer(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(limits) { limit ->
-                        val isSelected = maxDownloads == limit
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                maxDownloads = limit
-                                settingsManager.maxConcurrentDownloads = limit
-                                com.santiago43rus.rupoop.service.DownloadService.updateConcurrency(context)
-                            },
-                            colors = FilterChipDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                contentColor = colorScheme.onSurface,
-                                focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary,
-                                selectedContainerColor = colorScheme.surfaceVariant,
-                                selectedContentColor = colorScheme.primary,
-                                focusedSelectedContainerColor = colorScheme.primary,
-                                focusedSelectedContentColor = colorScheme.onPrimary
-                            )
-                        ) {
-                            Text(
-                                text = "$limit",
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                             )
                         }
                     }
@@ -405,19 +293,6 @@ fun TvSettingsScreen(
                         ) { Text("Выгрузить") }
 
                         Button(
-                            onClick = {
-                                settingsManager.cachedGistId = null
-                                vm.showSnackbar("ID Gist сброшен")
-                            },
-                            colors = ButtonDefaults.colors(
-                                containerColor = colorScheme.surfaceVariant,
-                                contentColor = colorScheme.onSurface,
-                                focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary
-                            )
-                        ) { Text("Сбросить") }
-
-                        Button(
                             onClick = { vm.logout() },
                             colors = ButtonDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
@@ -433,12 +308,11 @@ fun TvSettingsScreen(
                     val intervals = listOf(1, 6, 12, 24)
                     LazyRow(
                         modifier = Modifier.fillMaxWidth().focusRestorer(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(intervals) { hours ->
                             val isSelected = syncFreq == hours
-                            FilterChip(
-                                selected = isSelected,
+                            Surface(
                                 onClick = {
                                     syncFreq = hours
                                     settingsManager.syncFrequencyHours = hours
@@ -449,20 +323,19 @@ fun TvSettingsScreen(
                                     vm.onRegistryUpdate(updatedRegistry)
                                     vm.pushToGitHub()
                                 },
-                                colors = FilterChipDefaults.colors(
-                                    containerColor = colorScheme.surfaceVariant,
-                                    contentColor = colorScheme.onSurface,
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                                    contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                                     focusedContainerColor = colorScheme.primary,
-                                    focusedContentColor = colorScheme.onPrimary,
-                                    selectedContainerColor = colorScheme.surfaceVariant,
-                                    selectedContentColor = colorScheme.primary,
-                                    focusedSelectedContainerColor = colorScheme.primary,
-                                    focusedSelectedContentColor = colorScheme.onPrimary
+                                    focusedContentColor = colorScheme.onPrimary
                                 )
                             ) {
                                 Text(
                                     text = "$hours ч",
-                                    fontSize = 14.sp
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
                             }
                         }

@@ -42,7 +42,7 @@ fun TvRow(
                     onClick = { onVideoClick(video) },
                     onMenuClick = { onVideoMenuClick?.invoke(video) },
                     watchHistory = watchHistory,
-                    modifier = Modifier.width(300.dp)
+                    modifier = Modifier.width(260.dp)
                 )
             }
         }

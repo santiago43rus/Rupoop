@@ -213,6 +213,9 @@ fun AppViewModel.restoreHiddenVideo(videoId: String, title: String, deleteFromGi
 @UnstableApi
 fun AppViewModel.handleVideoMoreAction(video: SearchResult, action: String) {
     when (action) {
+        "remove_history" -> removeFromHistory(extractId(video.videoUrl) ?: "")
+        "remove_later" -> removeFromWatchLater(video)
+        "remove_liked" -> removeFromLiked(video)
         "later" -> addToWatchLaterViaMenu(video)
         "playlist" -> showPlaylistDialog = video
         "share" -> shareVideo(video)

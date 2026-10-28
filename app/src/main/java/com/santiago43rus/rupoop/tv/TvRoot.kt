@@ -324,7 +324,7 @@ fun TvRoot(
                                         onRemoveSearchQuery = { query -> vm.removeSearchQuery(query) },
                                         onClearSearchHistory = { vm.clearSearchHistory() },
                                         onCloseSearch = {
-                                            vm.updateSearchQuery("")
+                                            vm.clearCurrentSearchStack()
                                             selectedSection = TvNavSection.HOME
                                         },
                                         onVideoSelected = { video, list ->
@@ -395,8 +395,15 @@ fun TvRoot(
 
             // Контекстное меню ⋮ на карточке видео (отображается ПОВЕРХ ВСЕГО)
             activeMenuVideo?.let { video ->
+                val videoId = com.santiago43rus.rupoop.util.extractId(video.videoUrl)
+                val isInHistory = vm.userRegistry.watchHistory.any { com.santiago43rus.rupoop.util.extractId(it.videoUrl) == videoId || it.videoId == videoId }
+                val isInWatchLater = vm.userRegistry.watchLater.any { com.santiago43rus.rupoop.util.extractId(it.videoUrl) == videoId }
+                val isInLiked = vm.userRegistry.likedVideos.any { com.santiago43rus.rupoop.util.extractId(it.videoUrl) == videoId }
                 TvVideoMenuDialog(
                     video = video,
+                    isInHistory = isInHistory,
+                    isInWatchLater = isInWatchLater,
+                    isInLiked = isInLiked,
                     onAction = { action ->
                         vm.handleVideoMoreAction(video, action)
                     },

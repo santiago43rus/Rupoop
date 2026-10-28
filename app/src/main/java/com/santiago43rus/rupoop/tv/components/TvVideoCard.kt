@@ -176,29 +176,33 @@ fun TvVideoCard(
                     Text(
                         text = video.title,
                         color = colorScheme.onSurface,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 18.sp
+                        lineHeight = 16.sp
                     )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    val authorName = video.author?.name ?: "Автор"
+                    Spacer(modifier = Modifier.height(2.dp))
                     val viewsText = if (video.hits != null && video.hits > 0) formatViewCount(video.hits) else ""
                     val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
                     val sep1 = if (viewsText.isNotEmpty()) " • " else ""
-                    val sep2 = if (timeAgoText.isNotEmpty()) " • " else ""
+                    val line2Text = if (isLordfilm) platformName else "$platformName$sep1$viewsText"
                     Text(
-                        text = if (isLordfilm) {
-                            platformName
-                        } else {
-                            "$authorName • $platformName$sep1$viewsText$sep2$timeAgoText"
-                        },
+                        text = line2Text,
                         color = colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (!isLordfilm && timeAgoText.isNotEmpty()) {
+                        Text(
+                            text = timeAgoText,
+                            color = colorScheme.onSurfaceVariant,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 if (onMenuClick != null) {

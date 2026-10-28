@@ -278,8 +278,9 @@ class PlaybackController(
                             exoPlayer.seekTo(historyProg)
                         }
 
-                        exoPlayer.play()
                         playerState = PlayerState.FULL
+                        delay(50)
+                        exoPlayer.play()
                         loadRelatedVideosFor(updatedVideo)
                     } else {
                         snackbarMessage.emit("Не удалось загрузить видео по ссылке")
@@ -323,8 +324,9 @@ class PlaybackController(
                         exoPlayer.seekTo(historyProg)
                     }
                     
-                    exoPlayer.play()
                     playerState = PlayerState.FULL
+                    delay(50)
+                    exoPlayer.play()
                     loadRelatedVideosFor(video)
                 } else {
                     snackbarMessage.emit("Видео не найдено")

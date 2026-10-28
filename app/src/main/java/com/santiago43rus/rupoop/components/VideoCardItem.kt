@@ -185,7 +185,9 @@ fun VideoCardItem(
                     video.title,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Normal,
-                    lineHeight = 20.sp
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 18.sp
                 )
                 Spacer(Modifier.height(2.dp))
                 if (isLordfilm) {
@@ -200,14 +202,22 @@ fun VideoCardItem(
                     val viewsText = if (video.hits != null && video.hits > 0) formatViewCount(video.hits) else ""
                     val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
                     val sep1 = if (viewsText.isNotEmpty()) " • " else ""
-                    val sep2 = if (timeAgoText.isNotEmpty()) " • " else ""
                     Text(
-                        "${video.author?.name ?: "Автор"} • $platformName$sep1$viewsText$sep2$timeAgoText",
+                        "$platformName$sep1$viewsText",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable(enabled = isClickableAuthor) { onAuthorClick(authorToNavigate) },
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (timeAgoText.isNotEmpty()) {
+                        Text(
+                            timeAgoText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 

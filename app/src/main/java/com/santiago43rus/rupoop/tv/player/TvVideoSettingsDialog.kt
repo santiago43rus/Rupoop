@@ -62,18 +62,18 @@ fun TvVideoSettingsDialog(
         // Сортировка от большего к меньшему
         val sortedHeights = heights.sortedDescending()
         for (h in sortedHeights) {
-            val (label, width) = when {
-                h >= 2160 -> "2160p" to 3840
-                h >= 1440 -> "1440p" to 2560
-                h >= 1080 -> "1080p" to 1920
-                h >= 720 -> "720p" to 1280
-                h >= 480 -> "480p" to 854
-                h >= 360 -> "360p" to 640
-                h >= 240 -> "240p" to 426
-                else -> "${h}p" to ((h * 16) / 9)
+            val (label, width, targetH) = when {
+                h >= 1800 -> Triple("2160p (4K)", 3840, 2160)
+                h >= 1200 -> Triple("1440p (2K)", 2560, 1440)
+                h >= 900 -> Triple("1080p (FHD)", 1920, 1080)
+                h >= 576 -> Triple("720p (HD)", 1280, 720)
+                h >= 400 -> Triple("480p (SD)", 854, 480)
+                h >= 288 -> Triple("360p", 640, 360)
+                h >= 180 -> Triple("240p", 426, 240)
+                else -> Triple("144p", 256, 144)
             }
             if (qualityList.none { it.label == label }) {
-                qualityList.add(VideoQualityOption(label, width, h))
+                qualityList.add(VideoQualityOption(label, width, targetH))
             }
         }
 
@@ -81,9 +81,9 @@ fun TvVideoSettingsDialog(
         if (qualityList.size == 1) {
             listOf(
                 VideoQualityOption("Авто", 0, 0),
-                VideoQualityOption("1080p", 1920, 1080),
-                VideoQualityOption("720p", 1280, 720),
-                VideoQualityOption("480p", 854, 480),
+                VideoQualityOption("1080p (FHD)", 1920, 1080),
+                VideoQualityOption("720p (HD)", 1280, 720),
+                VideoQualityOption("480p (SD)", 854, 480),
                 VideoQualityOption("360p", 640, 360),
                 VideoQualityOption("240p", 426, 240),
                 VideoQualityOption("144p", 256, 144)

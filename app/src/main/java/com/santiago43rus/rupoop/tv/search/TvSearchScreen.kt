@@ -62,9 +62,16 @@ fun TvSearchScreen(
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
     val isSpeechAvailable = remember(context) { SpeechRecognizer.isRecognitionAvailable(context) }
-    var textFieldValue by remember(searchQuery) {
+    var textFieldValue by remember {
         mutableStateOf(TextFieldValue(searchQuery, TextRange(searchQuery.length)))
     }
+
+    LaunchedEffect(searchQuery) {
+        if (searchQuery != textFieldValue.text) {
+            textFieldValue = TextFieldValue(searchQuery, TextRange(searchQuery.length))
+        }
+    }
+
     val focusManager = LocalFocusManager.current
     val searchFocusRequester = remember { FocusRequester() }
 
@@ -240,28 +247,26 @@ fun TvSearchScreen(
         ) {
             SearchSource.entries.forEach { source ->
                 val isSelected = selectedSearchSource == source
-                FilterChip(
-                    selected = isSelected,
+                Surface(
                     onClick = {
                         onSearchSourceSelect(source)
                         if (textFieldValue.text.isNotBlank()) {
                             onPerformSearch(textFieldValue.text)
                         }
                     },
-                    colors = FilterChipDefaults.colors(
-                        containerColor = colorScheme.surfaceVariant,
-                        contentColor = colorScheme.onSurface,
+                    shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
+                        contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
                         focusedContainerColor = colorScheme.primary,
-                        focusedContentColor = colorScheme.onPrimary,
-                        selectedContainerColor = colorScheme.surfaceVariant,
-                        selectedContentColor = colorScheme.primary,
-                        focusedSelectedContainerColor = colorScheme.primary,
-                        focusedSelectedContentColor = colorScheme.onPrimary
+                        focusedContentColor = colorScheme.onPrimary
                     )
                 ) {
                     Text(
                         text = source.displayName,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
             }

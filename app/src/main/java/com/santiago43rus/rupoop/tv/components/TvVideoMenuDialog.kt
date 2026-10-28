@@ -27,14 +27,24 @@ private data class TvMenuItem(val id: String, val title: String, val icon: Image
 @Composable
 fun TvVideoMenuDialog(
     video: SearchResult,
+    isInHistory: Boolean = false,
+    isInWatchLater: Boolean = false,
+    isInLiked: Boolean = false,
+    isInPlaylist: Boolean = false,
     onAction: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val items = listOf(
-        TvMenuItem("not_interested", "Не интересно", Icons.Default.VisibilityOff),
-        TvMenuItem("playlist", "В плейлист", Icons.AutoMirrored.Filled.PlaylistAdd),
-        TvMenuItem("later", "Смотреть позже", Icons.Default.WatchLater)
-    )
+    val items = remember(isInHistory, isInWatchLater, isInLiked, isInPlaylist) {
+        val list = mutableListOf<TvMenuItem>()
+        if (isInHistory) list.add(TvMenuItem("remove_history", "Удалить из истории", Icons.Default.Delete))
+        if (isInWatchLater) list.add(TvMenuItem("remove_later", "Удалить из «Смотреть позже»", Icons.Default.Delete))
+        if (isInLiked) list.add(TvMenuItem("remove_liked", "Удалить из понравившихся", Icons.Default.Delete))
+        if (isInPlaylist) list.add(TvMenuItem("remove_playlist", "Удалить из плейлиста", Icons.Default.Delete))
+        list.add(TvMenuItem("not_interested", "Не интересно", Icons.Default.VisibilityOff))
+        list.add(TvMenuItem("playlist", "В плейлист", Icons.AutoMirrored.Filled.PlaylistAdd))
+        if (!isInWatchLater) list.add(TvMenuItem("later", "Смотреть позже", Icons.Default.WatchLater))
+        list
+    }
 
     val colorScheme = MaterialTheme.colorScheme
     val firstItemFocusRequester = remember { FocusRequester() }
