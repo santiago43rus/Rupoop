@@ -104,12 +104,6 @@ fun TvSettingsScreen(
                                 themeMode = mode
                                 settingsManager.themeMode = mode
                                 onThemeToggle(mode)
-                                val updatedRegistry = registryManager.registry.copy(
-                                    appSettings = registryManager.registry.appSettings.copy(theme = mode)
-                                )
-                                registryManager.updateRegistry(updatedRegistry)
-                                vm.onRegistryUpdate(updatedRegistry)
-                                vm.pushToGitHub()
                             },
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
@@ -151,8 +145,7 @@ fun TvSettingsScreen(
                                     appSettings = registryManager.registry.appSettings.copy(doubleTapSeekDuration = dur)
                                 )
                                 registryManager.updateRegistry(updatedRegistry)
-                                vm.onRegistryUpdate(updatedRegistry)
-                                vm.pushToGitHub()
+                                vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                             },
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
@@ -197,8 +190,7 @@ fun TvSettingsScreen(
                                     appSettings = registryManager.registry.appSettings.copy(enabledGenres = updated.toList())
                                 )
                                 registryManager.updateRegistry(updatedRegistry)
-                                vm.onRegistryUpdate(updatedRegistry)
-                                vm.pushToGitHub()
+                                vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                             },
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
@@ -320,8 +312,7 @@ fun TvSettingsScreen(
                                         appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = hours)
                                     )
                                     registryManager.updateRegistry(updatedRegistry)
-                                    vm.onRegistryUpdate(updatedRegistry)
-                                    vm.pushToGitHub()
+                                    vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                                 },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(

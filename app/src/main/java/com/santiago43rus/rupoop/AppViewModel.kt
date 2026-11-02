@@ -221,6 +221,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateDownloadNotifications(enabled: Boolean) {
         showDownloadNotifications = enabled
         settingsManager.showDownloadNotifications = enabled
+        val updatedRegistry = registryManager.registry.copy(
+            appSettings = registryManager.registry.appSettings.copy(showDownloadNotifications = enabled)
+        )
+        registryManager.updateRegistry(updatedRegistry)
+        onRegistryUpdate(updatedRegistry, forceDirect = true)
     }
 
     var showPlaylistDialog by mutableStateOf<SearchResult?>(null)

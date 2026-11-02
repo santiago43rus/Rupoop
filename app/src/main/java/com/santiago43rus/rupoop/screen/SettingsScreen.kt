@@ -55,6 +55,15 @@ fun SettingsScreen(
     )
     var enabledGenres by remember { mutableStateOf(settingsManager.enabledGenres) }
 
+    LaunchedEffect(vm.userRegistry.appSettings) {
+        downloadQuality = settingsManager.downloadQuality
+        concurrentDownloads = settingsManager.maxConcurrentDownloads.coerceIn(1, 4)
+        syncFreq = settingsManager.syncFrequencyHours.toString()
+        selectedIcon = settingsManager.appIcon
+        isEasterUnlocked = settingsManager.isEasterEggUnlocked
+        enabledGenres = settingsManager.enabledGenres
+    }
+
     val createFileLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -112,10 +121,6 @@ fun SettingsScreen(
                         onClick = {
                             themeMode = mode
                             onThemeToggle(mode)
-                            registryManager.updateRegistry(registryManager.registry.copy(
-                                appSettings = registryManager.registry.appSettings.copy(theme = mode)
-                            ))
-                            vm.onRegistryUpdate(registryManager.registry)
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.onBackground,
@@ -153,10 +158,11 @@ fun SettingsScreen(
                             selectedIcon = iconId
                             settingsManager.appIcon = iconId
                             switchAppIcon(context, iconId)
-                            registryManager.updateRegistry(registryManager.registry.copy(
+                            val updatedRegistry = registryManager.registry.copy(
                                 appSettings = registryManager.registry.appSettings.copy(appIcon = iconId)
-                            ))
-                            vm.onRegistryUpdate(registryManager.registry)
+                            )
+                            registryManager.updateRegistry(updatedRegistry)
+                            vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.onBackground,
@@ -192,10 +198,11 @@ fun SettingsScreen(
                             onCheckedChange = { checked ->
                                 pipEnabled = checked
                                 settingsManager.pipEnabled = checked
-                                registryManager.updateRegistry(registryManager.registry.copy(
+                                val updatedRegistry = registryManager.registry.copy(
                                     appSettings = registryManager.registry.appSettings.copy(pipEnabled = checked)
-                                ))
-                                vm.onRegistryUpdate(registryManager.registry)
+                                )
+                                registryManager.updateRegistry(updatedRegistry)
+                                vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                             }
                         )
                     },
@@ -212,6 +219,11 @@ fun SettingsScreen(
                         onClick = {
                             doubleTapSeek = seconds
                             settingsManager.doubleTapSeekDuration = seconds
+                            val updatedRegistry = registryManager.registry.copy(
+                                appSettings = registryManager.registry.appSettings.copy(doubleTapSeekDuration = seconds)
+                            )
+                            registryManager.updateRegistry(updatedRegistry)
+                            vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.onBackground,
@@ -266,10 +278,11 @@ fun SettingsScreen(
                         onClick = {
                             enabledGenres = if (selected) enabledGenres - genre else enabledGenres + genre
                             settingsManager.enabledGenres = enabledGenres
-                            registryManager.updateRegistry(registryManager.registry.copy(
+                            val updatedRegistry = registryManager.registry.copy(
                                 appSettings = registryManager.registry.appSettings.copy(enabledGenres = enabledGenres.toList())
-                            ))
-                            vm.onRegistryUpdate(registryManager.registry)
+                            )
+                            registryManager.updateRegistry(updatedRegistry)
+                            vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.onBackground,
@@ -314,8 +327,11 @@ fun SettingsScreen(
                                 onClick = {
                                     downloadQuality = q
                                     settingsManager.downloadQuality = q
-                                    registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(downloadQuality = q)))
-                                    vm.onRegistryUpdate(registryManager.registry)
+                                    val updatedRegistry = registryManager.registry.copy(
+                                        appSettings = registryManager.registry.appSettings.copy(downloadQuality = q)
+                                    )
+                                    registryManager.updateRegistry(updatedRegistry)
+                                    vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.onBackground,
@@ -336,8 +352,11 @@ fun SettingsScreen(
                                     val next = concurrentDownloads - 1
                                     concurrentDownloads = next
                                     settingsManager.maxConcurrentDownloads = next
-                                    registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)))
-                                    vm.onRegistryUpdate(registryManager.registry)
+                                    val updatedRegistry = registryManager.registry.copy(
+                                        appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)
+                                    )
+                                    registryManager.updateRegistry(updatedRegistry)
+                                    vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                                     com.santiago43rus.rupoop.service.DownloadService.updateConcurrency(context)
                                 }
                             },
@@ -359,8 +378,11 @@ fun SettingsScreen(
                                     val next = concurrentDownloads + 1
                                     concurrentDownloads = next
                                     settingsManager.maxConcurrentDownloads = next
-                                    registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)))
-                                    vm.onRegistryUpdate(registryManager.registry)
+                                    val updatedRegistry = registryManager.registry.copy(
+                                        appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)
+                                    )
+                                    registryManager.updateRegistry(updatedRegistry)
+                                    vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                                     com.santiago43rus.rupoop.service.DownloadService.updateConcurrency(context)
                                 }
                             },
@@ -376,8 +398,11 @@ fun SettingsScreen(
                                 val next = 1
                                 concurrentDownloads = next
                                 settingsManager.maxConcurrentDownloads = next
-                                registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)))
-                                vm.onRegistryUpdate(registryManager.registry)
+                                val updatedRegistry = registryManager.registry.copy(
+                                    appSettings = registryManager.registry.appSettings.copy(maxConcurrentDownloads = next)
+                                )
+                                registryManager.updateRegistry(updatedRegistry)
+                                vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                                 com.santiago43rus.rupoop.service.DownloadService.updateConcurrency(context)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
@@ -494,8 +519,11 @@ fun SettingsScreen(
                                             val nextHours = hoursInt - 1
                                             settingsManager.syncFrequencyHours = nextHours
                                             syncFreq = nextHours.toString()
-                                            registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)))
-                                            vm.onRegistryUpdate(registryManager.registry)
+                                            val updatedRegistry = registryManager.registry.copy(
+                                                appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)
+                                            )
+                                            registryManager.updateRegistry(updatedRegistry)
+                                            vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                                         }
                                     },
                                     enabled = hoursInt > 1
@@ -516,8 +544,11 @@ fun SettingsScreen(
                                             val nextHours = hoursInt + 1
                                             settingsManager.syncFrequencyHours = nextHours
                                             syncFreq = nextHours.toString()
-                                            registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)))
-                                            vm.onRegistryUpdate(registryManager.registry)
+                                            val updatedRegistry = registryManager.registry.copy(
+                                                appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)
+                                            )
+                                            registryManager.updateRegistry(updatedRegistry)
+                                            vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                                         }
                                     },
                                     enabled = hoursInt < 48
@@ -532,8 +563,11 @@ fun SettingsScreen(
                                         val nextHours = 24
                                         settingsManager.syncFrequencyHours = nextHours
                                         syncFreq = "24"
-                                        registryManager.updateRegistry(registryManager.registry.copy(appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)))
-                                        vm.onRegistryUpdate(registryManager.registry)
+                                        val updatedRegistry = registryManager.registry.copy(
+                                            appSettings = registryManager.registry.appSettings.copy(syncFrequencyHours = nextHours)
+                                        )
+                                        registryManager.updateRegistry(updatedRegistry)
+                                        vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
                                     },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.onBackground,
@@ -638,10 +672,11 @@ fun SettingsScreen(
                     if (versionClicks >= 10) {
                         settingsManager.isEasterEggUnlocked = true
                         isEasterUnlocked = true
-                        registryManager.updateRegistry(registryManager.registry.copy(
+                        val updatedRegistry = registryManager.registry.copy(
                             appSettings = registryManager.registry.appSettings.copy(isEasterEggUnlocked = true)
-                        ))
-                        vm.onRegistryUpdate(registryManager.registry)
+                        )
+                        registryManager.updateRegistry(updatedRegistry)
+                        vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
 
                         toastRef?.cancel()
                         toastRef = android.widget.Toast.makeText(context, "Пасхалка найдена! Секретная тема и иконка открыты! 🎉", android.widget.Toast.LENGTH_SHORT).apply { show() }
