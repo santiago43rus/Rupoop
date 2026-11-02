@@ -54,7 +54,7 @@ object RetrofitClient {
 
     val gitHubApi: GitHubApi by lazy {
         Retrofit.Builder()
-            .baseUrl(BuildConfig.PROXY_URL)
+            .baseUrl("https://api.github.com/")
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()

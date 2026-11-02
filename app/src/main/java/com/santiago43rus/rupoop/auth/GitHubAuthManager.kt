@@ -37,7 +37,7 @@ class GitHubAuthManager(context: Context) {
     }
 
     suspend fun exchangeCodeForToken(response: AuthorizationResponse): String = suspendCancellableCoroutine { continuation ->
-        Log.d("RupoopAuth", "Exchanging code for token via Proxy")
+        Log.d("RupoopAuth", "Exchanging code for token via Auth Server")
         
         val code = response.authorizationCode
         if (code == null) {
@@ -49,7 +49,6 @@ class GitHubAuthManager(context: Context) {
         json.put("code", code)
         val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
 
-        // Use the Cloudflare Proxy instead of directly hardcoding the secret in the app
         val request = Request.Builder()
             .url(BuildConfig.PROXY_URL + "auth/token")
             .header("Accept", "application/json")
@@ -62,7 +61,7 @@ class GitHubAuthManager(context: Context) {
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 if (continuation.isActive) {
-                    Log.e("RupoopAuth", "Token exchange failed via Proxy", e)
+                    Log.e("RupoopAuth", "Token exchange failed", e)
                     continuation.resumeWithException(e)
                 }
             }
@@ -71,7 +70,7 @@ class GitHubAuthManager(context: Context) {
                 if (!continuation.isActive) return
 
                 if (!response.isSuccessful) {
-                    val ex = Exception("Proxy returned HTTP ${response.code}: ${response.body.string()}")
+                    val ex = Exception("Auth server returned HTTP ${response.code}: ${response.body.string()}")
                     Log.e("RupoopAuth", "Token exchange HTTP Error", ex)
                     continuation.resumeWithException(ex)
                     return
@@ -96,13 +95,13 @@ class GitHubAuthManager(context: Context) {
                     }
 
                     if (token.isNotEmpty()) {
-                        Log.d("RupoopAuth", "Token received from Proxy")
+                        Log.d("RupoopAuth", "Token received from Auth server")
                         continuation.resume(token)
                     } else {
-                        throw Exception("Token is missing in Proxy response. Response: $respBody")
+                        throw Exception("Token is missing in response. Response: $respBody")
                     }
                 } catch (e: Exception) {
-                    Log.e("RupoopAuth", "Failed to parse Proxy token response", e)
+                    Log.e("RupoopAuth", "Failed to parse token response", e)
                     continuation.resumeWithException(e)
                 }
             }

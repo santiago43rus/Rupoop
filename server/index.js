@@ -1,9 +1,3 @@
-// Список разрешенных путей для проксирования на api.github.com
-const ALLOWED_PATHS = [
-  "/user",
-  "/gists"
-];
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -146,52 +140,13 @@ export default {
       }
     }
 
-    // 3. ЗАЩИТА ОТ БОТОВ: Проверяем, входит ли запрашиваемый путь в белый список
-    const isAllowed = ALLOWED_PATHS.some(allowedPath =>
-      url.pathname === allowedPath || url.pathname.startsWith(allowedPath + "/")
-    );
-
-    if (!isAllowed) {
-      // Боты мгновенно получают от воркера 403, не нагружая твой аккаунт и GitHub
-      return new Response(JSON.stringify({ error: "Access Denied: Path not allowed on proxy" }), {
-        status: 403,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*"
-        }
-      });
-    }
-
-    // 4. ОСНОВНОЙ ПРОКСИ: Перенаправляем разрешенные запросы на api.github.com
-    const targetUrl = new URL(request.url);
-    targetUrl.hostname = "api.github.com";
-
-    // Создаем новые заголовки, удаляя старый Host (иначе GitHub выдаст ошибку)
-    const newHeaders = new Headers(request.headers);
-    newHeaders.delete("Host");
-
-    // GitHub API требует наличие User-Agent
-    if (!newHeaders.has("User-Agent")) {
-       newHeaders.set("User-Agent", "Rupoop-Proxy");
-    }
-
-    const proxyRequest = new Request(targetUrl, {
-      method: request.method,
-      headers: newHeaders,
-      body: request.body,
-      redirect: "follow"
+    // Любые другие пути больше не проксируются
+    return new Response(JSON.stringify({ error: "Not Found" }), {
+      status: 404,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
     });
-
-    try {
-      const response = await fetch(proxyRequest);
-      const newResponse = new Response(response.body, response);
-      newResponse.headers.set("Access-Control-Allow-Origin", "*");
-      return newResponse;
-    } catch (e) {
-      return new Response(JSON.stringify({ error: "Failed to fetch from GitHub API" }), {
-        status: 502,
-        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
-      });
-    }
   }
 };

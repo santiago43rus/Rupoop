@@ -54,7 +54,7 @@ class GistIntegrationTest {
             .build()
 
         val retrofit = Retrofit.Builder()
-            .baseUrl(proxyUrl)
+            .baseUrl("https://api.github.com/")
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
@@ -214,7 +214,7 @@ class GistIntegrationTest {
     }
 
     @Test
-    fun testProxyGistApiConnection() = runBlocking {
+    fun testDirectGistApiConnection() = runBlocking {
         try {
             val response = gistApi.listGists("Bearer invalid_test_token")
             assertNotNull(response)

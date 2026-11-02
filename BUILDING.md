@@ -68,9 +68,9 @@ GH_CLIENT_SECRET=ваш_client_secret
 ```
 
 ### `PROXY_URL`
-URL CORS-прокси (Cloudflare Workers) для обмена OAuth-кода на токен GitHub. Исходный код воркера доступен в директории `server/`.
+URL сервера авторизации (Cloudflare Workers) для обмена OAuth-кода на токен GitHub. Исходный код воркера доступен в директории `server/`.
 ```properties
-PROXY_URL=https://rupoop-proxy.example.workers.dev/
+PROXY_URL=https://rupoop-auth.example.workers.dev/
 ```
 
 ### `DONATE_URL`
@@ -105,13 +105,9 @@ KEY_PASSWORD=пароль_ключа
 
 ---
 
-## 🌐 Авторизационный Прокси-Сервер (Cloudflare Worker)
+## 🌐 Сервер авторизации (Cloudflare Worker)
 
-Для выполнения безопасной OAuth-авторизации через GitHub в приложении используется легковесный прокси-сервер, развернутый на платформе **Cloudflare Workers**.
-
-Исходный код прокси открыт и расположен в директории [`/server`](server/):
-*   [`index.js`](server/index.js) — оптимизированный, высокопроизводительный JS-код воркера со встроенной **защитой от ботов** (белый список разрешает запросы только на роуты `/auth/token`, `/user` и `/gists`, блокируя сканеры мгновенно на уровне CDN с кодом `403 Forbidden`).
-*   [`wrangler.toml.example`](server/wrangler.toml.example) — шаблон конфигурации для быстрого деплоя воркера через Wrangler.
-
-### Зачем нужен прокси-сервер?
-По спецификации OAuth 2.0 для обмена кода на `access_token` требуется передать секретный ключ приложения (`Client Secret`). Вшивать секретный ключ в клиентское Android-приложение **категорически запрещено**, так как злоумышленники могут легко извлечь его через декомпиляцию APK. Прокси-сервер скрывает `Client Secret` внутри безопасного окружения переменных среды Cloudflare, обеспечивая 100% безопасность авторизации.
+Для безопасного обмена OAuth-кода на токен GitHub без хранения `Client Secret` в клиенте используется легковесный воркер Cloudflare ([`server/index.js`](server/index.js)). Все запросы к данным и Gists выполняются приложением напрямую.
+```properties
+PROXY_URL=https://rupoop-auth.example.workers.dev/
+```
