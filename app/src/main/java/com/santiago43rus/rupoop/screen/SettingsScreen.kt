@@ -182,6 +182,70 @@ fun SettingsScreen(
             // ── Плеер ──
             Text("Плеер", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(4.dp))
+            var autoPlayNext by remember { mutableStateOf(settingsManager.autoPlayNext) }
+            var autoPlayDelay by remember { mutableIntStateOf(settingsManager.autoPlayDelaySeconds) }
+            Surface(
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            ) {
+                Column {
+                    ListItem(
+                        headlineContent = { Text("Автовоспроизведение") },
+                        supportingContent = { Text("Автоматически включать следующее видео или серию по завершении") },
+                        leadingContent = { Icon(Icons.Default.PlayCircleOutline, null, tint = Color.Gray) },
+                        trailingContent = {
+                            Switch(
+                                checked = autoPlayNext,
+                                onCheckedChange = { checked ->
+                                    autoPlayNext = checked
+                                    settingsManager.autoPlayNext = checked
+                                    val updatedRegistry = registryManager.registry.copy(
+                                        appSettings = registryManager.registry.appSettings.copy(autoPlayNext = checked)
+                                    )
+                                    registryManager.updateRegistry(updatedRegistry)
+                                    vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
+                                }
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+
+                    if (autoPlayNext) {
+                        Text(
+                            "Задержка автовоспроизведения",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(0 to "Сразу", 3 to "3с", 5 to "5с", 10 to "10с").forEach { (sec, label) ->
+                                FilterChip(
+                                    selected = autoPlayDelay == sec,
+                                    onClick = {
+                                        autoPlayDelay = sec
+                                        settingsManager.autoPlayDelaySeconds = sec
+                                        val updatedRegistry = registryManager.registry.copy(
+                                            appSettings = registryManager.registry.appSettings.copy(autoPlayDelaySeconds = sec)
+                                        )
+                                        registryManager.updateRegistry(updatedRegistry)
+                                        vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.onBackground,
+                                        selectedLabelColor = MaterialTheme.colorScheme.background
+                                    ),
+                                    label = { Text(label) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             var pipEnabled by remember { mutableStateOf(settingsManager.pipEnabled) }
             Surface(
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),

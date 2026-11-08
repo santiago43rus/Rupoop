@@ -146,7 +146,7 @@ fun VideoDetails(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (isLordfilm) "Новинки кино и сериалов" else if (isRutube) "Rutube • 1.2 млн подписчиков" else platformName,
+                        text = if (isLordfilm) "Новинки кино и сериалов" else if (isRutube) "Rutube" else platformName,
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

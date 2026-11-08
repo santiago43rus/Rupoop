@@ -256,10 +256,10 @@ fun TvSearchScreen(
                     },
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                     colors = ClickableSurfaceDefaults.colors(
-                        containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
-                        contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
-                        focusedContainerColor = colorScheme.primary,
-                        focusedContentColor = colorScheme.onPrimary
+                        containerColor = if (isSelected) colorScheme.onSurface else colorScheme.surfaceVariant,
+                        contentColor = if (isSelected) colorScheme.surface else colorScheme.onSurface,
+                        focusedContainerColor = if (isSelected) androidx.compose.ui.graphics.Color(0xFF333333) else com.santiago43rus.rupoop.theme.RupoopRed,
+                        focusedContentColor = androidx.compose.ui.graphics.Color.White
                     )
                 ) {
                     Text(
@@ -272,108 +272,108 @@ fun TvSearchScreen(
             }
         }
 
-        // Подсказки и история поиска: показываются если нет результатов или поле ввода в фокусе/пустое
-        if (searchResults.isEmpty() && !isSearching) {
-            if (textFieldValue.text.isNotBlank() && searchSuggestions.isNotEmpty()) {
-                Column(
-                    modifier = Modifier.padding(start = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+        // Подсказки и история поиска
+        if (textFieldValue.text.isNotBlank() && searchSuggestions.isNotEmpty()) {
+            Column(
+                modifier = Modifier.padding(start = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Подсказки", color = colorScheme.onSurfaceVariant, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp))
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRestorer(),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Подсказки", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRestorer(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(searchSuggestions) { suggestion ->
-                            Surface(
-                                onClick = {
-                                    textFieldValue = TextFieldValue(suggestion, TextRange(suggestion.length))
-                                    onSearchQueryChange(suggestion)
-                                    onPerformSearch(suggestion)
-                                },
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = colorScheme.surfaceVariant,
-                                    contentColor = colorScheme.onSurface,
-                                    focusedContainerColor = colorScheme.primary,
-                                    focusedContentColor = colorScheme.onPrimary
-                                )
-                            ) {
-                                Text(
-                                    text = suggestion,
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            } else if (searchHistory.isNotEmpty()) {
-                Column(
-                    modifier = Modifier.padding(start = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("История поиска", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
-                        Button(
-                            onClick = onClearSearchHistory,
-                            colors = ButtonDefaults.colors(
+                    items(searchSuggestions) { suggestion ->
+                        Surface(
+                            onClick = {
+                                textFieldValue = TextFieldValue(suggestion, TextRange(suggestion.length))
+                                onSearchQueryChange(suggestion)
+                                onPerformSearch(suggestion)
+                            },
+                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                            colors = ClickableSurfaceDefaults.colors(
                                 containerColor = colorScheme.surfaceVariant,
                                 contentColor = colorScheme.onSurface,
                                 focusedContainerColor = colorScheme.primary,
                                 focusedContentColor = colorScheme.onPrimary
                             )
                         ) {
-                            Text("Очистить историю", fontSize = 13.sp)
+                            Text(
+                                text = suggestion,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                            )
                         }
                     }
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRestorer(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                }
+            }
+        } else if (searchResults.isEmpty() && !isSearching && searchHistory.isNotEmpty()) {
+            Column(
+                modifier = Modifier.padding(start = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("История поиска", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
+                    Button(
+                        onClick = onClearSearchHistory,
+                        colors = ButtonDefaults.colors(
+                            containerColor = colorScheme.surfaceVariant,
+                            contentColor = colorScheme.onSurface,
+                            focusedContainerColor = colorScheme.primary,
+                            focusedContentColor = colorScheme.onPrimary
+                        )
                     ) {
-                        items(searchHistory) { historyItem ->
-                            Surface(
-                                onClick = {
-                                    textFieldValue = TextFieldValue(historyItem, TextRange(historyItem.length))
-                                    onSearchQueryChange(historyItem)
-                                    onPerformSearch(historyItem)
-                                },
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = colorScheme.surfaceVariant,
-                                    contentColor = colorScheme.onSurface,
-                                    focusedContainerColor = colorScheme.primary,
-                                    focusedContentColor = colorScheme.onPrimary
-                                )
+                        Text("Очистить историю", fontSize = 13.sp)
+                    }
+                }
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRestorer(),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(searchHistory) { historyItem ->
+                        Surface(
+                            onClick = {
+                                textFieldValue = TextFieldValue(historyItem, TextRange(historyItem.length))
+                                onSearchQueryChange(historyItem)
+                                onPerformSearch(historyItem)
+                            },
+                            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                            colors = ClickableSurfaceDefaults.colors(
+                                containerColor = colorScheme.surfaceVariant,
+                                contentColor = colorScheme.onSurface,
+                                focusedContainerColor = colorScheme.primary,
+                                focusedContentColor = colorScheme.onPrimary
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                Icon(
+                                    Icons.Default.History,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = historyItem,
+                                    fontSize = 14.sp
+                                )
+                                IconButton(
+                                    onClick = { onRemoveSearchQuery(historyItem) },
+                                    modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Default.History,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = historyItem,
-                                        fontSize = 14.sp
-                                    )
-                                    IconButton(
-                                        onClick = { onRemoveSearchQuery(historyItem) },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Удалить", modifier = Modifier.size(14.dp))
-                                    }
+                                    Icon(Icons.Default.Clear, contentDescription = "Удалить", modifier = Modifier.size(14.dp))
                                 }
                             }
                         }
@@ -384,8 +384,25 @@ fun TvSearchScreen(
 
         // Результаты поиска и пагинация
         if (isSearching) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Поиск видео...", color = colorScheme.onSurfaceVariant, fontSize = 16.sp)
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusRestorer(),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                item {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        modifier = Modifier.padding(top = 12.dp)
+                    ) {
+                        repeat(3) {
+                            Box(modifier = Modifier.width(260.dp)) {
+                                com.santiago43rus.rupoop.components.VideoCardShimmer()
+                            }
+                        }
+                    }
+                }
             }
         } else if (searchResults.isNotEmpty()) {
             val startIndex = (currentPage - 1) * pageSize

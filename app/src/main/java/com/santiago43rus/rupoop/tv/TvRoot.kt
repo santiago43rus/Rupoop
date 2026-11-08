@@ -227,8 +227,7 @@ fun TvRoot(
                             .width(116.dp)
                             .fillMaxHeight()
                             .background(colorScheme.surface)
-                            .padding(vertical = 24.dp, horizontal = 8.dp)
-                            .focusRestorer(),
+                            .padding(vertical = 24.dp, horizontal = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
@@ -238,10 +237,10 @@ fun TvRoot(
                                 onClick = { selectedSection = section },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
-                                    contentColor = if (isSelected) colorScheme.primary else colorScheme.onSurfaceVariant,
-                                    focusedContainerColor = colorScheme.primary,
-                                    focusedContentColor = colorScheme.onPrimary
+                                    containerColor = if (isSelected) colorScheme.onSurface else colorScheme.surface,
+                                    contentColor = if (isSelected) colorScheme.surface else colorScheme.onSurfaceVariant,
+                                    focusedContainerColor = if (isSelected) androidx.compose.ui.graphics.Color(0xFF333333) else com.santiago43rus.rupoop.theme.RupoopRed,
+                                    focusedContentColor = androidx.compose.ui.graphics.Color.White
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -281,6 +280,7 @@ fun TvRoot(
                                     TvHomeScreen(
                                         homeVideos = vm.homeVideos,
                                         watchHistory = vm.userRegistry.watchHistory,
+                                        isLoadingMore = vm.isHomeLoadingMore,
                                         onVideoSelected = { video, list ->
                                             vm.playVideo(video, list)
                                             vm.playerState = PlayerState.FULL

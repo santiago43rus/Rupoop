@@ -108,6 +108,7 @@ data class AppSettings(
         "драма", "документальные", "мультфильмы", "мультсериалы", "сериалы"
     ),
     val autoPlayNext: Boolean = true,
+    val autoPlayDelaySeconds: Int = 5,
     val doubleTapSeekDuration: Int = 10,
     val appIcon: String = "system",
     val showDownloadNotifications: Boolean = true,

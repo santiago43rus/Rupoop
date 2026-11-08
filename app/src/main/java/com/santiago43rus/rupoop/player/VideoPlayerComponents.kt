@@ -161,18 +161,21 @@ fun CustomVideoPlayer(
 
         seekAnimationJob?.cancel()
 
+        val currentPos = if (accumulatedSeekAmount > 0L) currentTime else exoPlayer.currentPosition
+        val duration = if (exoPlayer.duration > 0) exoPlayer.duration else Long.MAX_VALUE
+
         if (side < 0) {
             if (seekDirection == 1) accumulatedSeekAmount = 0L
             seekDirection = -1
             accumulatedSeekAmount += baseSeek
-            val target = (exoPlayer.currentPosition - baseSeek).coerceAtLeast(0)
+            val target = (currentPos - baseSeek).coerceAtLeast(0)
             currentTime = target
             exoPlayer.seekTo(target)
         } else {
             if (seekDirection == -1) accumulatedSeekAmount = 0L
             seekDirection = 1
             accumulatedSeekAmount += baseSeek
-            val target = (exoPlayer.currentPosition + baseSeek).coerceAtMost(exoPlayer.duration)
+            val target = (currentPos + baseSeek).coerceAtMost(duration)
             currentTime = target
             exoPlayer.seekTo(target)
         }
@@ -208,18 +211,25 @@ fun CustomVideoPlayer(
         onDispose { exoPlayer.removeListener(listener) }
     }
 
-    // --- Up Next / autoplay (always on, matching YouTube's default behavior) ---
+    // --- Up Next / autoplay ---
     var showUpNext by remember { mutableStateOf(false) }
     var upNextCountdown by remember { mutableIntStateOf(5) }
     var upNextJob by remember { mutableStateOf<Job?>(null) }
-    val upNextTotalSeconds = 5
+    val upNextTotalSeconds = remember(settingsManager.autoPlayDelaySeconds) {
+        settingsManager.autoPlayDelaySeconds
+    }
     val nextVideoPreview = relatedVideos.firstOrNull()
 
-    DisposableEffect(exoPlayer) {
+    DisposableEffect(exoPlayer, settingsManager.autoPlayNext) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED && !isLastVideo) {
-                    showUpNext = true
+                if (playbackState == Player.STATE_ENDED && settingsManager.autoPlayNext) {
+                    if (upNextTotalSeconds == 0) {
+                        // Без задержки (0 сек): переключаем сразу
+                        onNext()
+                    } else {
+                        showUpNext = true
+                    }
                 }
             }
         }

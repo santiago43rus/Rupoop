@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FastForward
@@ -77,14 +76,6 @@ fun TvPlayerOverlay(
         mutableStateOf(currentEp?.seasonNumber ?: seasons.firstOrNull() ?: 1)
     }
 
-    val seasonEpisodes = remember(episodes, selectedSeason, seasons) {
-        if (seasons.size > 1) {
-            episodes.filter { it.seasonNumber == selectedSeason }
-        } else {
-            episodes
-        }
-    }
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -116,139 +107,14 @@ fun TvPlayerOverlay(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                val isLordfilmVid = currentVideo?.videoUrl?.lowercase()?.let { it.contains("lordfilm") || it.contains("lordserials") } == true
                 Text(
-                    text = currentVideo?.author?.name ?: "",
+                    text = if (isLordfilmVid) "Lordfilm" else (currentVideo?.author?.name ?: ""),
                     color = colorScheme.onSurfaceVariant,
                     fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-            }
-
-            // Выбор сезона
-            if (seasons.size > 1) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Сезон",
-                        color = colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRestorer(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(seasons.size) { idx ->
-                            val sNum = seasons[idx]
-                            val isSelected = sNum == selectedSeason
-                            Surface(
-                                onClick = {
-                                    selectedSeason = sNum
-                                    val firstEpInSeason = episodes.indexOfFirst { it.seasonNumber == sNum }
-                                    if (firstEpInSeason != -1) {
-                                        onEpisodeSelect(firstEpInSeason)
-                                    }
-                                },
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
-                                    focusedContainerColor = colorScheme.primary,
-                                    focusedContentColor = colorScheme.onPrimary
-                                )
-                            ) {
-                                Text(
-                                    text = "$sNum сезон",
-                                    color = colorScheme.onSurface,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Серии выбранного сезона
-            if (episodes.size > 1) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Серии",
-                        color = colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRestorer(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        itemsIndexed(seasonEpisodes) { _, episode ->
-                            val globalIndex = episodes.indexOf(episode)
-                            val isSelected = globalIndex == currentEpisodeIndex
-                            Surface(
-                                onClick = { onEpisodeSelect(globalIndex) },
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
-                                    focusedContainerColor = colorScheme.primary,
-                                    focusedContentColor = colorScheme.onPrimary
-                                )
-                            ) {
-                                Text(
-                                    text = episode.title.ifBlank { "Серия ${episode.episodeNumber}" },
-                                    color = colorScheme.onSurface,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Аудиодорожки / Озвучки
-            if (audioTracks.size > 1) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = "Озвучка / Дорожка",
-                        color = colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRestorer(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(audioTracks.size) { idx ->
-                            val track = audioTracks[idx]
-                            val isSelected = track.id == selectedAudioTrackId || (selectedAudioTrackId == null && idx == 0)
-                            Surface(
-                                onClick = { onAudioTrackSelect(track) },
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.surfaceVariant else colorScheme.surface,
-                                    focusedContainerColor = colorScheme.primary,
-                                    focusedContentColor = colorScheme.onPrimary
-                                )
-                            ) {
-                                Text(
-                                    text = track.name,
-                                    color = colorScheme.onSurface,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-                }
             }
 
             // Фокусируемый Прогресс-бар с текущей позицией

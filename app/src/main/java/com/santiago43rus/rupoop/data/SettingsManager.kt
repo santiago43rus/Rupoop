@@ -74,6 +74,10 @@ class SettingsManager(context: Context) {
         get() = prefs.getBoolean("auto_play_next", true)
         set(value) = prefs.edit { putBoolean("auto_play_next", value) }
 
+    var autoPlayDelaySeconds: Int
+        get() = prefs.getInt("auto_play_delay", 5)
+        set(value) = prefs.edit { putInt("auto_play_delay", value) }
+
     var doubleTapSeekDuration: Int
         get() = prefs.getInt("double_tap_seek", 10)
         set(value) = prefs.edit { putInt("double_tap_seek", value) }
@@ -100,6 +104,7 @@ class SettingsManager(context: Context) {
             kidsContentEnabled = kidsContentEnabled,
             enabledGenres = enabledGenres.toList(),
             autoPlayNext = autoPlayNext,
+            autoPlayDelaySeconds = autoPlayDelaySeconds,
             doubleTapSeekDuration = doubleTapSeekDuration,
             appIcon = appIcon,
             showDownloadNotifications = showDownloadNotifications,
@@ -116,6 +121,7 @@ class SettingsManager(context: Context) {
         kidsContentEnabled = appSettings.kidsContentEnabled
         enabledGenres = appSettings.enabledGenres.toSet()
         autoPlayNext = appSettings.autoPlayNext
+        autoPlayDelaySeconds = if (appSettings.autoPlayDelaySeconds in listOf(0, 3, 5, 10)) appSettings.autoPlayDelaySeconds else 5
         doubleTapSeekDuration = appSettings.doubleTapSeekDuration
         appIcon = appSettings.appIcon
         showDownloadNotifications = appSettings.showDownloadNotifications

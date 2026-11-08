@@ -17,6 +17,7 @@ import com.santiago43rus.rupoop.tv.components.TvVideoCard
 fun TvHomeScreen(
     homeVideos: List<SearchResult>,
     watchHistory: List<WatchHistoryItem>? = null,
+    isLoadingMore: Boolean = false,
     onVideoSelected: (SearchResult, List<SearchResult>) -> Unit,
     onVideoMenuClick: ((SearchResult) -> Unit)? = null,
     onLoadMoreHome: () -> Unit,
@@ -31,17 +32,29 @@ fun TvHomeScreen(
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        itemsIndexed(homeVideos, key = { _, v -> v.videoUrl }) { index, video ->
-            TvVideoCard(
-                video = video,
-                onClick = { onVideoSelected(video, homeVideos) },
-                onMenuClick = { onVideoMenuClick?.invoke(video) },
-                watchHistory = watchHistory
-            )
+        if (homeVideos.isEmpty()) {
+            items(6) {
+                com.santiago43rus.rupoop.components.VideoCardShimmer()
+            }
+        } else {
+            itemsIndexed(homeVideos, key = { _, v -> v.videoUrl }) { index, video ->
+                TvVideoCard(
+                    video = video,
+                    onClick = { onVideoSelected(video, homeVideos) },
+                    onMenuClick = { onVideoMenuClick?.invoke(video) },
+                    watchHistory = watchHistory
+                )
 
-            if (index == homeVideos.lastIndex) {
-                LaunchedEffect(Unit) {
-                    onLoadMoreHome()
+                if (index == homeVideos.lastIndex && !isLoadingMore) {
+                    LaunchedEffect(Unit) {
+                        onLoadMoreHome()
+                    }
+                }
+            }
+
+            if (isLoadingMore) {
+                items(3) {
+                    com.santiago43rus.rupoop.components.VideoCardShimmer()
                 }
             }
         }

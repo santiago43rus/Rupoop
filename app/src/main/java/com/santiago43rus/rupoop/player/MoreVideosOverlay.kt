@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -17,7 +18,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -71,6 +79,13 @@ fun MoreVideosOverlay(
         label = "moreVideosY"
     )
 
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(showMoreVideos) {
+        if (showMoreVideos) {
+            focusRequester.requestFocus()
+        }
+    }
+
     if ((showMoreVideos || animatedOffsetY < panelHeightPx) && !isLocalFile) {
         Box(
             modifier = modifier.fillMaxSize(),
@@ -82,6 +97,14 @@ fun MoreVideosOverlay(
                     .height(panelHeight)
                     .offset { IntOffset(0, animatedOffsetY.roundToInt()) }
                     .background(Color.Black.copy(0.9f))
+                    .focusRequester(focusRequester)
+                    .focusable()
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && (event.key == Key.DirectionUp || event.key == Key.Back)) {
+                            onClose()
+                            true
+                        } else false
+                    }
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { },
@@ -120,12 +143,14 @@ fun MoreVideosOverlay(
                     ) {
                         FilterChip(selected = true, onClick = {}, label = { Text("Все видео") }, colors = FilterChipDefaults.filterChipColors(labelColor = Color.White, selectedContainerColor = Color.White.copy(0.2f)))
                         Spacer(Modifier.width(8.dp))
+                        val isLordfilmVideo = currentVideo?.videoUrl?.lowercase()?.let { it.contains("lordfilm") || it.contains("lordserials") } == true
+                        val authorChipName = if (isLordfilmVideo) "Lordfilm" else (currentVideo?.author?.name ?: "Автор")
                         FilterChip(
                             selected = false,
                             onClick = {},
                             label = {
                                 Text(
-                                    text = "Автор: ${currentVideo?.author?.name ?: "Автор"}",
+                                    text = "Автор: $authorChipName",
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -189,11 +214,20 @@ fun MoreVideosOverlay(
                                     Spacer(Modifier.width(8.dp))
                                     Column {
                                         Text(video.title, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                                        val viewsText = if (video.hits != null && video.hits > 0) formatViewCount(video.hits) else ""
+                                        val isLordfilm = video.videoUrl.lowercase().let { it.contains("lordfilm") || it.contains("lordserials") }
+                                        val platformName = when {
+                                            video.videoUrl.lowercase().contains("vk.com") || video.videoUrl.lowercase().contains("vkvideo.ru") || video.videoUrl.lowercase().contains("vk.ru") -> "VK Видео"
+                                            video.videoUrl.lowercase().contains("ok.ru") || video.videoUrl.lowercase().contains("odnoklassniki.ru") -> "Одноклассники"
+                                            isLordfilm -> "Lordfilm"
+                                            else -> "Rutube"
+                                        }
+                                        val viewsText = if (video.hits != null && video.hits > 0 && !isLordfilm) formatViewCount(video.hits) else ""
                                         val timeAgoText = formatTimeAgo(video.publicationTs ?: video.createdTs)
+                                        val authorName = if (isLordfilm) "Lordfilm" else (video.author?.name ?: "Автор")
                                         val line2Text = buildString {
-                                            append(video.author?.name ?: "Автор")
-                                            append(" • Rutube")
+                                            append(authorName)
+                                            append(" • ")
+                                            append(platformName)
                                             if (viewsText.isNotEmpty()) append(" • $viewsText")
                                         }
                                         Text(line2Text, color = Color.White.copy(0.7f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

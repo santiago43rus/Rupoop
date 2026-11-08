@@ -256,12 +256,18 @@ fun TvPlayerScreen(
             )
         }
 
-        // Панель информации, действий (лайк/подписка/плейлист) и рекомендаций «Далее»
+        // Панель информации, действий (лайк/подписка/плейлист), серий, озвучек и рекомендаций «Далее»
         if (showInfoPanel) {
             TvVideoInfoPanel(
                 currentVideo = currentVideo,
                 registry = registry,
                 relatedVideos = relatedVideos,
+                episodes = episodes,
+                currentEpisodeIndex = currentEpisodeIndex,
+                audioTracks = audioTracks,
+                selectedAudioTrackId = selectedAudioTrackId,
+                onEpisodeSelect = onEpisodeSelect,
+                onAudioTrackSelect = onAudioTrackSelect,
                 onLike = onLike,
                 onDislike = onDislike,
                 onWatchLater = onWatchLater,

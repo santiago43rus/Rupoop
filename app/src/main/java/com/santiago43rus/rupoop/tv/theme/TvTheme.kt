@@ -13,15 +13,15 @@ import com.santiago43rus.rupoop.theme.*
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun RupoopTvTheme(
-    themeMode: String = "system",
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: String = "dark",
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val isEaster = themeMode == "easter" || themeMode == "secret"
     val isDark = when (themeMode) {
         "light" -> false
         "dark", "easter", "secret" -> true
-        else -> darkTheme
+        else -> true // В ТВ-версии темная тема по умолчанию
     }
 
     val mobileColors = when {
@@ -34,12 +34,12 @@ fun RupoopTvTheme(
         darkColorScheme(
             primary = mobileColors.primary,
             onPrimary = mobileColors.onPrimary,
-            primaryContainer = mobileColors.surfaceVariant,
-            onPrimaryContainer = mobileColors.onSurface,
+            primaryContainer = mobileColors.primaryContainer,
+            onPrimaryContainer = mobileColors.onPrimaryContainer,
             secondary = mobileColors.secondary,
             onSecondary = mobileColors.onSecondary,
-            secondaryContainer = mobileColors.surfaceVariant,
-            onSecondaryContainer = mobileColors.onSurface,
+            secondaryContainer = mobileColors.secondaryContainer,
+            onSecondaryContainer = mobileColors.onSecondaryContainer,
             tertiary = mobileColors.tertiary,
             onTertiary = mobileColors.onTertiary,
             background = mobileColors.background,
@@ -48,20 +48,20 @@ fun RupoopTvTheme(
             onSurface = mobileColors.onSurface,
             surfaceVariant = mobileColors.surfaceVariant,
             onSurfaceVariant = mobileColors.onSurfaceVariant,
-            inverseSurface = mobileColors.onSurface,
-            inverseOnSurface = mobileColors.surface,
+            inverseSurface = mobileColors.inverseSurface,
+            inverseOnSurface = mobileColors.inverseOnSurface,
             border = mobileColors.outline
         )
     } else {
         lightColorScheme(
             primary = mobileColors.primary,
             onPrimary = mobileColors.onPrimary,
-            primaryContainer = mobileColors.surfaceVariant,
-            onPrimaryContainer = mobileColors.onSurface,
+            primaryContainer = mobileColors.primaryContainer,
+            onPrimaryContainer = mobileColors.onPrimaryContainer,
             secondary = mobileColors.secondary,
             onSecondary = mobileColors.onSecondary,
-            secondaryContainer = mobileColors.surfaceVariant,
-            onSecondaryContainer = mobileColors.onSurface,
+            secondaryContainer = mobileColors.secondaryContainer,
+            onSecondaryContainer = mobileColors.onSecondaryContainer,
             tertiary = mobileColors.tertiary,
             onTertiary = mobileColors.onTertiary,
             background = mobileColors.background,
@@ -70,8 +70,8 @@ fun RupoopTvTheme(
             onSurface = mobileColors.onSurface,
             surfaceVariant = mobileColors.surfaceVariant,
             onSurfaceVariant = mobileColors.onSurfaceVariant,
-            inverseSurface = mobileColors.onSurface,
-            inverseOnSurface = mobileColors.surface,
+            inverseSurface = mobileColors.inverseSurface,
+            inverseOnSurface = mobileColors.inverseOnSurface,
             border = mobileColors.outline
         )
     }

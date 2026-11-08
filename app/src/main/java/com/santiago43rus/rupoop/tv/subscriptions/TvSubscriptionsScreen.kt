@@ -135,7 +135,16 @@ fun TvSubscriptionsScreen(
             }
         } else {
             item {
-                Text("Загрузка видео подписок...", color = colorScheme.onSurfaceVariant, fontSize = 15.sp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    modifier = Modifier.padding(top = 12.dp)
+                ) {
+                    repeat(3) {
+                        Box(modifier = Modifier.width(260.dp)) {
+                            com.santiago43rus.rupoop.components.VideoCardShimmer()
+                        }
+                    }
+                }
             }
         }
     }

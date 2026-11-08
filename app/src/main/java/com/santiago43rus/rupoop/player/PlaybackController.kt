@@ -371,6 +371,36 @@ class PlaybackController(
     }
 
     fun playNext() {
+        if (!settingsManager.autoPlayNext) {
+            return
+        }
+
+        if (currentEpisodes.isNotEmpty()) {
+            val nextEpIndex = currentEpisodeIndex + 1
+            if (nextEpIndex in currentEpisodes.indices) {
+                playEpisode(nextEpIndex)
+                return
+            } else {
+                // Все серии текущего сезона закончены или всего 1 сезон
+                // Проверяем, есть ли следующий сезон
+                val currentEp = currentEpisodes.getOrNull(currentEpisodeIndex)
+                val currentSeason = currentEp?.seasonNumber ?: 1
+                val seasons = currentEpisodes.mapNotNull { it.seasonNumber }.distinct().sorted()
+                val nextSeasonIndex = seasons.indexOf(currentSeason) + 1
+                if (nextSeasonIndex in seasons.indices) {
+                    val nextSeasonNumber = seasons[nextSeasonIndex]
+                    val firstEpOfNextSeason = currentEpisodes.indexOfFirst { it.seasonNumber == nextSeasonNumber }
+                    if (firstEpOfNextSeason != -1) {
+                        playEpisode(firstEpOfNextSeason)
+                        return
+                    }
+                }
+                // Все сезоны и серии закончились для Lordfilm/сериала: останавливаем воспроизведение
+                exoPlayer.pause()
+                return
+            }
+        }
+
         if (isPlaylistMode) {
             if (currentVideoIndex < currentVideoList.size - 1) {
                 playVideo(currentVideoList[currentVideoIndex + 1], currentVideoList, true)

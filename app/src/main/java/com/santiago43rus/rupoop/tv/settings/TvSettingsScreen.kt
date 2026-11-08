@@ -6,11 +6,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -74,31 +77,36 @@ fun TvSettingsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .clipToBounds()
             .focusRestorer(),
         verticalArrangement = Arrangement.spacedBy(20.dp),
-        contentPadding = PaddingValues(start = 48.dp, end = 32.dp, top = 24.dp, bottom = 24.dp)
+        contentPadding = PaddingValues(start = 44.dp, end = 28.dp, top = 24.dp, bottom = 24.dp)
     ) {
         item {
-            TvSectionTitle(title = "Настройки")
+            TvSectionTitle(title = "Настройки", modifier = Modifier.padding(start = 4.dp))
         }
 
         // 1. ВНЕШНИЙ ВИД
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Внешний вид", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Тема приложения", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                Text("Внешний вид", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                Text("Тема приложения", color = colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp))
+                val currentThemeMode = if (themeMode == "system") "dark" else themeMode
                 val themes = remember(isEasterUnlocked) {
-                    val list = mutableListOf("system" to "Системная", "light" to "Светлая", "dark" to "Тёмная")
+                    val list = mutableListOf("dark" to "Тёмная", "light" to "Светлая")
                     if (isEasterUnlocked) list.add("easter" to "Секретная ✨")
                     list
                 }
+                val firstItemFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) {
+                    firstItemFocusRequester.requestFocus()
+                }
                 LazyRow(
-                    modifier = Modifier.fillMaxWidth().focusRestorer(),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(themes) { (mode, label) ->
-                        val isSelected = themeMode == mode
+                    itemsIndexed(themes) { index, (mode, label) ->
+                        val isSelected = currentThemeMode == mode
                         Surface(
                             onClick = {
                                 themeMode = mode
@@ -107,11 +115,12 @@ fun TvSettingsScreen(
                             },
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
-                                containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
-                                contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
-                                focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary
-                            )
+                                containerColor = if (isSelected) colorScheme.onSurface else colorScheme.surfaceVariant,
+                                contentColor = if (isSelected) colorScheme.surface else colorScheme.onSurface,
+                                focusedContainerColor = if (isSelected) androidx.compose.ui.graphics.Color(0xFF333333) else com.santiago43rus.rupoop.theme.RupoopRed,
+                                focusedContentColor = androidx.compose.ui.graphics.Color.White
+                            ),
+                            modifier = if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier
                         ) {
                             Text(
                                 text = label,
@@ -128,11 +137,55 @@ fun TvSettingsScreen(
         // 2. ПЛЕЕР
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Плеер", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Шаг перемотки (в секундах)", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                Text("Плеер", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
+                
+                var autoPlayNext by remember { mutableStateOf(settingsManager.autoPlayNext) }
+                Surface(
+                    onClick = {
+                        val newValue = !autoPlayNext
+                        autoPlayNext = newValue
+                        settingsManager.autoPlayNext = newValue
+                        val updatedRegistry = registryManager.registry.copy(
+                            appSettings = registryManager.registry.appSettings.copy(autoPlayNext = newValue)
+                        )
+                        registryManager.updateRegistry(updatedRegistry)
+                        vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
+                    },
+                    shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.surfaceVariant,
+                        focusedContentColor = colorScheme.onSurface
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Автовоспроизведение", fontSize = 16.sp)
+                            Text(
+                                if (autoPlayNext) "Включено (следующее видео/серия запускается автоматически)" else "Выключено",
+                                color = colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp
+                            )
+                        }
+                        Switch(
+                            checked = autoPlayNext,
+                            onCheckedChange = null
+                        )
+                    }
+                }
+
+                Text("Шаг перемотки (в секундах)", color = colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp))
                 val durations = listOf(5, 10, 15, 20, 30)
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().focusRestorer(),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(durations) { dur ->
@@ -149,10 +202,10 @@ fun TvSettingsScreen(
                             },
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
-                                containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
-                                contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
-                                focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary
+                                containerColor = if (isSelected) colorScheme.onSurface else colorScheme.surfaceVariant,
+                                contentColor = if (isSelected) colorScheme.surface else colorScheme.onSurface,
+                                focusedContainerColor = if (isSelected) androidx.compose.ui.graphics.Color(0xFF333333) else com.santiago43rus.rupoop.theme.RupoopRed,
+                                focusedContentColor = androidx.compose.ui.graphics.Color.White
                             )
                         ) {
                             Text(
@@ -164,15 +217,56 @@ fun TvSettingsScreen(
                         }
                     }
                 }
+
+                var autoPlayDelay by remember { mutableIntStateOf(settingsManager.autoPlayDelaySeconds) }
+                if (autoPlayNext) {
+                    Text("Задержка автовоспроизведения", color = colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+                    val delays = listOf(0 to "Сразу", 3 to "3 сек", 5 to "5 сек", 10 to "10 сек")
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().focusRestorer(),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(delays) { (sec, label) ->
+                            val isSelected = autoPlayDelay == sec
+                            Surface(
+                                onClick = {
+                                    autoPlayDelay = sec
+                                    settingsManager.autoPlayDelaySeconds = sec
+                                    val updatedRegistry = registryManager.registry.copy(
+                                        appSettings = registryManager.registry.appSettings.copy(autoPlayDelaySeconds = sec)
+                                    )
+                                    registryManager.updateRegistry(updatedRegistry)
+                                    vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
+                                },
+                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                                colors = ClickableSurfaceDefaults.colors(
+                                    containerColor = if (isSelected) colorScheme.onSurface else colorScheme.surfaceVariant,
+                                    contentColor = if (isSelected) colorScheme.surface else colorScheme.onSurface,
+                                    focusedContainerColor = if (isSelected) androidx.compose.ui.graphics.Color(0xFF333333) else com.santiago43rus.rupoop.theme.RupoopRed,
+                                    focusedContentColor = androidx.compose.ui.graphics.Color.White
+                                )
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
         // 3. ЖАНРЫ
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Жанры", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Жанры", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().focusRestorer(),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(allGenres) { genre ->
@@ -194,10 +288,10 @@ fun TvSettingsScreen(
                             },
                             shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                             colors = ClickableSurfaceDefaults.colors(
-                                containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
-                                contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
-                                focusedContainerColor = colorScheme.primary,
-                                focusedContentColor = colorScheme.onPrimary
+                                containerColor = if (isSelected) colorScheme.onSurface else colorScheme.surfaceVariant,
+                                contentColor = if (isSelected) colorScheme.surface else colorScheme.onSurface,
+                                focusedContainerColor = if (isSelected) androidx.compose.ui.graphics.Color(0xFF333333) else com.santiago43rus.rupoop.theme.RupoopRed,
+                                focusedContentColor = androidx.compose.ui.graphics.Color.White
                             )
                         ) {
                             Text(
@@ -223,8 +317,8 @@ fun TvSettingsScreen(
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
                         contentColor = colorScheme.onSurface,
-                        focusedContainerColor = colorScheme.primaryContainer,
-                        focusedContentColor = colorScheme.onPrimaryContainer
+                        focusedContainerColor = colorScheme.surfaceVariant,
+                        focusedContentColor = colorScheme.onSurface
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -248,16 +342,35 @@ fun TvSettingsScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("GitHub Синхронизация", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 if (!vm.isAuthenticated) {
-                    Button(
-                        onClick = onOpenLogin,
-                        colors = ButtonDefaults.colors(
-                            containerColor = colorScheme.primary,
-                            contentColor = colorScheme.onPrimary,
-                            focusedContainerColor = colorScheme.primary,
-                            focusedContentColor = colorScheme.onPrimary
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("Войти через GitHub (Device Flow)")
+                        Button(
+                            onClick = onOpenLogin,
+                            colors = ButtonDefaults.colors(
+                                containerColor = colorScheme.primary,
+                                contentColor = colorScheme.onPrimary,
+                                focusedContainerColor = colorScheme.surfaceVariant,
+                                focusedContentColor = colorScheme.onSurface
+                            )
+                        ) {
+                            Text("Войти через GitHub (Device Flow)")
+                        }
+
+                        if (vm.isAuthenticating) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = colorScheme.primary
+                                )
+                                Text("Выполняется вход...", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                            }
+                        }
                     }
                 } else {
                     Row(
@@ -296,10 +409,11 @@ fun TvSettingsScreen(
                     }
 
                     Spacer(Modifier.height(4.dp))
-                    Text("Периодичность (в часах)", color = colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                    Text("Периодичность (в часах)", color = colorScheme.onSurfaceVariant, fontSize = 14.sp, modifier = Modifier.padding(start = 4.dp))
                     val intervals = listOf(1, 6, 12, 24)
                     LazyRow(
                         modifier = Modifier.fillMaxWidth().focusRestorer(),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(intervals) { hours ->
@@ -316,10 +430,10 @@ fun TvSettingsScreen(
                                 },
                                 shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
                                 colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = if (isSelected) colorScheme.primary else colorScheme.surfaceVariant,
-                                    contentColor = if (isSelected) colorScheme.onPrimary else colorScheme.onSurface,
-                                    focusedContainerColor = colorScheme.primary,
-                                    focusedContentColor = colorScheme.onPrimary
+                                    containerColor = if (isSelected) colorScheme.onSurface else colorScheme.surfaceVariant,
+                                    contentColor = if (isSelected) colorScheme.surface else colorScheme.onSurface,
+                                    focusedContainerColor = if (isSelected) androidx.compose.ui.graphics.Color(0xFF333333) else com.santiago43rus.rupoop.theme.RupoopRed,
+                                    focusedContentColor = androidx.compose.ui.graphics.Color.White
                                 )
                             ) {
                                 Text(
@@ -349,8 +463,8 @@ fun TvSettingsScreen(
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = colorScheme.surfaceVariant,
                         contentColor = colorScheme.onSurface,
-                        focusedContainerColor = colorScheme.primaryContainer,
-                        focusedContentColor = colorScheme.onPrimaryContainer
+                        focusedContainerColor = colorScheme.surfaceVariant,
+                        focusedContentColor = colorScheme.onSurface
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -417,11 +531,11 @@ fun TvSettingsScreen(
                         shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
                         colors = ClickableSurfaceDefaults.colors(
-                            containerColor = colorScheme.surfaceVariant,
-                            contentColor = colorScheme.onSurface,
-                            focusedContainerColor = colorScheme.primaryContainer,
-                            focusedContentColor = colorScheme.onPrimaryContainer
-                        ),
+                        containerColor = colorScheme.surfaceVariant,
+                        contentColor = colorScheme.onSurface,
+                        focusedContainerColor = colorScheme.surfaceVariant,
+                        focusedContentColor = colorScheme.onSurface
+                    ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -435,10 +549,40 @@ fun TvSettingsScreen(
 
         // 9. О ПРИЛОЖЕНИИ
         item {
+            var versionClicks by remember { mutableIntStateOf(0) }
+            var lastVersionClickTime by remember { mutableLongStateOf(0L) }
+            val toastRef = remember { mutableStateOf<android.widget.Toast?>(null) }
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("О приложении", color = colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Surface(
-                    onClick = {},
+                    onClick = {
+                        if (settingsManager.isEasterEggUnlocked) return@Surface
+
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastVersionClickTime < 600) {
+                            versionClicks++
+                        } else {
+                            versionClicks = 1
+                        }
+                        lastVersionClickTime = currentTime
+
+                        if (versionClicks >= 10) {
+                            settingsManager.isEasterEggUnlocked = true
+                            val updatedRegistry = registryManager.registry.copy(
+                                appSettings = registryManager.registry.appSettings.copy(isEasterEggUnlocked = true)
+                            )
+                            registryManager.updateRegistry(updatedRegistry)
+                            vm.onRegistryUpdate(updatedRegistry, forceDirect = true)
+
+                            toastRef.value?.cancel()
+                            toastRef.value = android.widget.Toast.makeText(context, "Пасхалка найдена! Секретная тема открыта! 🎉", android.widget.Toast.LENGTH_SHORT).apply { show() }
+                            versionClicks = 0
+                        } else if (versionClicks in 6..9) {
+                            toastRef.value?.cancel()
+                            toastRef.value = android.widget.Toast.makeText(context, "Осталось нажать: ${10 - versionClicks}", android.widget.Toast.LENGTH_SHORT).apply { show() }
+                        }
+                    },
                     shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
                     scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
                     colors = ClickableSurfaceDefaults.colors(
