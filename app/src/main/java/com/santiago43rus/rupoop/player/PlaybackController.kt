@@ -13,6 +13,7 @@ import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.santiago43rus.rupoop.auth.GistSyncManager
 import com.santiago43rus.rupoop.data.Author
@@ -73,6 +74,39 @@ class PlaybackController(
     var availableAudioTracks by mutableStateOf<List<com.santiago43rus.rupoop.parser.AudioTrackSource>>(emptyList())
     var selectedAudioTrackId by mutableStateOf<String?>(null)
 
+    // ── Старт звука и таймера только после первого кадра ──
+    // На слабом ТВ декодер и видеоповерхность поднимаются дольше, чем аудио,
+    // поэтому без этого звук и таймер идут раньше картинки.
+    private var waitingFirstFrame = false
+    private var firstFrameTimeoutJob: Job? = null
+    private val firstFrameTimeoutMs = 2000L
+
+    // Вызывать перед prepare() при старте нового видео
+    internal fun armFirstFrameGate() {
+        waitingFirstFrame = true
+        firstFrameTimeoutJob?.cancel()
+        exoPlayer.playWhenReady = false
+        Log.d("RupoopPlayer", "first-frame gate armed")
+    }
+
+    // Запасной вариант: если кадра нет (поверхность не готова), запускаем по таймауту
+    private fun startFirstFrameTimeout() {
+        firstFrameTimeoutJob?.cancel()
+        firstFrameTimeoutJob = scope.launch {
+            delay(firstFrameTimeoutMs)
+            if (waitingFirstFrame) Log.w("RupoopPlayer", "first frame timeout, starting playback")
+            releaseFirstFrameGate()
+        }
+    }
+
+    internal fun releaseFirstFrameGate() {
+        if (!waitingFirstFrame) return
+        waitingFirstFrame = false
+        firstFrameTimeoutJob?.cancel()
+        exoPlayer.playWhenReady = true
+        Log.d("RupoopPlayer", "playback released")
+    }
+
     // ── ExoPlayer ──
     val exoPlayer: ExoPlayer = run {
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
@@ -88,11 +122,19 @@ class PlaybackController(
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
     }.also { player ->
-        player.playWhenReady = true
+        // Не стартовать сам после prepare: запуск делает releaseFirstFrameGate()
+        player.playWhenReady = false
+        player.addAnalyticsListener(object : AnalyticsListener {
+            override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+                Log.d("RupoopPlayer", "first frame rendered")
+                releaseFirstFrameGate()
+            }
+        })
         player.addListener(object : Player.Listener {
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                // Пауза, в том числе при уходе приложения в фон, отправляется сразу
-                if (!playWhenReady) flushToGitHub()
+                // Пауза, в том числе при уходе приложения в фон, отправляется сразу.
+                // Временная пауза на время ожидания первого кадра не отправляется.
+                if (!playWhenReady && !waitingFirstFrame) flushToGitHub()
             }
             override fun onIsPlayingChanged(playing: Boolean) {
                 this@PlaybackController.isPlaying = playing
@@ -107,6 +149,10 @@ class PlaybackController(
             }
             override fun onPlaybackStateChanged(state: Int) {
                 this@PlaybackController.isBuffering = state == Player.STATE_BUFFERING
+                if (state == Player.STATE_READY && waitingFirstFrame) {
+                    // Аудио без видео: кадров не будет, стартуем сразу. Иначе ждём первый кадр.
+                    if (player.videoFormat == null) releaseFirstFrameGate() else startFirstFrameTimeout()
+                }
                 if (state == Player.STATE_READY && currentVideo != null) {
                     val id = extractId(currentVideo!!.videoUrl) ?: currentVideo!!.videoUrl
                     registryManager.updateWatchProgress(id, player.contentPosition, player.duration)
@@ -266,6 +312,7 @@ class PlaybackController(
                             .createMediaSource(mediaItem)
 
                         exoPlayer.setMediaSource(mediaSource)
+                        armFirstFrameGate()
                         exoPlayer.prepare()
 
                         syncPlaybackService()
@@ -280,7 +327,6 @@ class PlaybackController(
 
                         playerState = PlayerState.FULL
                         delay(50)
-                        exoPlayer.play()
                         loadRelatedVideosFor(updatedVideo)
                     } else {
                         snackbarMessage.emit("Не удалось загрузить видео по ссылке")
@@ -312,6 +358,7 @@ class PlaybackController(
                         .setMediaMetadata(mediaMetadata)
                         .build()
                     exoPlayer.setMediaItem(mediaItem)
+                    armFirstFrameGate()
                     exoPlayer.prepare()
                     
                     syncPlaybackService()
@@ -326,7 +373,6 @@ class PlaybackController(
                     
                     playerState = PlayerState.FULL
                     delay(50)
-                    exoPlayer.play()
                     loadRelatedVideosFor(video)
                 } else {
                     snackbarMessage.emit("Видео не найдено")
@@ -547,8 +593,8 @@ class PlaybackController(
                     .createMediaSource(mediaItem)
 
                 exoPlayer.setMediaSource(mediaSource)
+                armFirstFrameGate()
                 exoPlayer.prepare()
-                exoPlayer.play()
             }
         }
     }

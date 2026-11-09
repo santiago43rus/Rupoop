@@ -129,6 +129,12 @@ fun TvVideoInfoPanel(
                     )
                     currentVideo.author?.let { author ->
                         Row(
+                            modifier = Modifier.onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp) {
+                                    onClose()
+                                    true
+                                } else false
+                            },
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -176,7 +182,17 @@ fun TvVideoInfoPanel(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRestorer(),
+                        .focusRestorer()
+                        .then(
+                            if (currentVideo.author == null) {
+                                Modifier.onPreviewKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp) {
+                                        onClose()
+                                        true
+                                    } else false
+                                }
+                            } else Modifier
+                        ),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

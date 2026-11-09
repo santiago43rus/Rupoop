@@ -107,6 +107,7 @@ fun TvRoot(
                     currentVideo = vm.currentVideo,
                     exoPlayer = vm.exoPlayer,
                     isPlaying = vm.isPlaying,
+                    isBuffering = vm.isBuffering,
                     registry = vm.userRegistry,
                     relatedVideos = vm.relatedVideos,
                     episodes = vm.currentEpisodes,
@@ -357,7 +358,7 @@ fun TvRoot(
                                         likedVideos = vm.userRegistry.likedVideos,
                                         watchLaterVideos = vm.userRegistry.watchLater,
                                         playlists = vm.userRegistry.playlists,
-                                        hiddenVideos = vm.userRegistry.hiddenVideosList,
+                                        hiddenVideos = (vm.userRegistry.hiddenVideosList + vm.userRegistry.dislikedVideosList).distinctBy { it.videoUrl },
                                         watchHistory = vm.userRegistry.watchHistory,
                                         initialTab = libraryInitialTab,
                                         onVideoSelected = { video, list ->

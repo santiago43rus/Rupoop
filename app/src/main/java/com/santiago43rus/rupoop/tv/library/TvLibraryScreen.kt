@@ -11,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
@@ -169,31 +171,65 @@ fun TvLibraryScreen(
                     } else {
                         items(hiddenVideos, key = { it.videoUrl }) { video ->
                             Surface(
-                                onClick = { onVideoSelected(video, hiddenVideos) },
-                                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(12.dp)),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = colorScheme.surfaceVariant,
-                                    focusedContainerColor = colorScheme.surface
+                                shape = RoundedCornerShape(12.dp),
+                                colors = SurfaceDefaults.colors(
+                                    containerColor = colorScheme.surfaceVariant
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(video.title, color = colorScheme.onSurface, fontSize = 16.sp, maxLines = 1)
-                                        Text(video.author?.name ?: "", color = colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                                    Surface(
+                                        onClick = { onVideoSelected(video, hiddenVideos) },
+                                        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                                        scale = ClickableSurfaceDefaults.scale(scale = 1.0f, focusedScale = 1.01f),
+                                        colors = ClickableSurfaceDefaults.colors(
+                                            containerColor = Color.Transparent,
+                                            contentColor = colorScheme.onSurface,
+                                            focusedContainerColor = colorScheme.surface,
+                                            focusedContentColor = colorScheme.onSurface
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 12.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(8.dp)) {
+                                            Text(
+                                                text = video.title,
+                                                color = colorScheme.onSurface,
+                                                fontSize = 16.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = video.author?.name ?: "",
+                                                color = colorScheme.onSurfaceVariant,
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
+
                                     Button(
-                                        onClick = { onRestoreHiddenVideo(video) },
+                                        onClick = {
+                                            deleteDialogTitle = "Удалить из скрытых"
+                                            deleteDialogMessage = "Вы уверены, что хотите удалить «${video.title}» из списка скрытых и вернуть в рекомендации?"
+                                            pendingDeleteItem = video
+                                        },
+                                        scale = ButtonDefaults.scale(scale = 1.0f, focusedScale = 1.05f),
                                         colors = ButtonDefaults.colors(
                                             containerColor = colorScheme.primary,
                                             contentColor = colorScheme.onPrimary,
                                             focusedContainerColor = colorScheme.primary,
                                             focusedContentColor = colorScheme.onPrimary
-                                        )
+                                        ),
+                                        modifier = Modifier.padding(end = 8.dp)
                                     ) {
                                         Icon(Icons.Default.Restore, contentDescription = null)
                                         Spacer(Modifier.width(6.dp))
@@ -216,6 +252,8 @@ fun TvLibraryScreen(
             onConfirm = {
                 if (currentItem is Playlist) {
                     onDeletePlaylist(currentItem)
+                } else if (currentItem is SearchResult) {
+                    onRestoreHiddenVideo(currentItem)
                 }
                 pendingDeleteItem = null
             },

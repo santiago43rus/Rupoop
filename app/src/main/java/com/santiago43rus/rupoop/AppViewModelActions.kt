@@ -200,7 +200,8 @@ fun AppViewModel.removeFromPlaylist(playlistId: String, videoUrl: String, delete
 
 @UnstableApi
 fun AppViewModel.restoreHiddenVideo(videoId: String, title: String, deleteFromGist: Boolean = false) {
-    registryManager.restoreVideo(videoId, title)
+    val id = com.santiago43rus.rupoop.util.extractId(videoId) ?: videoId
+    registryManager.restoreVideo(id, title)
     userRegistry = registryManager.registry
     if (deleteFromGist) {
         pushToGitHub(forceDirect = true)

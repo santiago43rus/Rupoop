@@ -6,12 +6,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -31,6 +35,7 @@ fun TvPlayerScreen(
     currentVideo: SearchResult?,
     exoPlayer: ExoPlayer,
     isPlaying: Boolean,
+    isBuffering: Boolean = false,
     registry: UserRegistry,
     relatedVideos: List<SearchResult> = emptyList(),
     episodes: List<Episode> = emptyList(),
@@ -208,6 +213,17 @@ fun TvPlayerScreen(
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Анимация загрузки (крутящийся кружок) во время буферизации
+        if (isBuffering) {
+            CircularProgressIndicator(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(56.dp),
+                color = Color.Red,
+                strokeWidth = 4.dp
+            )
+        }
 
         // Панель информации, прогресса и управления (сезоны, серии, звук, кнопки, настройки)
         if (showControls && !showInfoPanel && !showSettingsDialog) {
