@@ -5,18 +5,27 @@
 -renamesourcefileattribute SourceFile
 
 # ── Custom App Code Safety ──────────────────────────────────────────────────
-# Data models, services and parsers preservation
+# Data models, services, lan and parsers preservation
 -keep class com.santiago43rus.rupoop.data.** { *; }
 -keepclassmembers class com.santiago43rus.rupoop.data.** { *; }
+-keep class com.santiago43rus.rupoop.lan.** { *; }
+-keepclassmembers class com.santiago43rus.rupoop.lan.** { *; }
 -keep class com.santiago43rus.rupoop.parser.** { *; }
 -keepclassmembers class com.santiago43rus.rupoop.parser.** { *; }
 -keep class com.santiago43rus.rupoop.network.** { *; }
 -keepclassmembers class com.santiago43rus.rupoop.network.** { *; }
 -keep class com.santiago43rus.rupoop.service.** { *; }
 
-# ── Compose Animation / Graphics ────────────────────────────────────────────
+# ── CameraX & ZXing (LAN Sync QR Scanner) ──────────────────────────────────
+-keep class androidx.camera.** { *; }
+-dontwarn androidx.camera.**
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.zxing.**
+
+# ── Compose Animation / Graphics / TV ───────────────────────────────────────
 -keep class androidx.compose.animation.** { *; }
 -keep class androidx.compose.material3.** { *; }
+-keep class androidx.tv.** { *; }
 
 # ── Kotlin Serialization ────────────────────────────────────────────────────
 -keepclassmembers class * {

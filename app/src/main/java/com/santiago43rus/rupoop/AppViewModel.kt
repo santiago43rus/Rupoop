@@ -17,6 +17,7 @@ import com.santiago43rus.rupoop.auth.AuthController
 import com.santiago43rus.rupoop.auth.GistSyncManager
 import com.santiago43rus.rupoop.auth.GitHubAuthManager
 import com.santiago43rus.rupoop.data.*
+import com.santiago43rus.rupoop.lan.LanSyncManager
 import com.santiago43rus.rupoop.network.RetrofitClient
 import com.santiago43rus.rupoop.parser.UniversalVideoParser
 import com.santiago43rus.rupoop.player.PlaybackController
@@ -49,6 +50,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val syncManager = GistSyncManager(RetrofitClient.gistApi, registryManager, settingsManager)
     val backupManager = BackupManager(registryManager, settingsManager)
     val downloadTracker = DownloadTracker(context)
+    val lan = LanSyncManager(context, registryManager, settingsManager, viewModelScope) { merged ->
+        userRegistry = merged
+        settingsManager.applyAppSettings(merged.appSettings)
+        pushToGitHub()
+    }
 
     var userRegistry by mutableStateOf(registryManager.registry)
 
@@ -202,6 +208,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     var isInPipMode by mutableStateOf(false)
     var onRequestPip: (() -> Unit)? = null
+    var onRequestLanPermission: (() -> Unit)? = null
     val isLoadingRelated: Boolean get() = playbackController.isLoadingRelated
 
     var showDownloadNotifications by mutableStateOf(settingsManager.showDownloadNotifications)
@@ -394,6 +401,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        lan.stop()
         playbackController.release()
         sharedPlayer = null
         if (instance == this) {

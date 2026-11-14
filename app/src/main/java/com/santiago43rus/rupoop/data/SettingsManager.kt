@@ -86,6 +86,10 @@ class SettingsManager(context: Context) {
         get() = prefs.getBoolean("pip_enabled", true)
         set(value) = prefs.edit { putBoolean("pip_enabled", value) }
 
+    var appSettingsUpdatedAt: Long
+        get() = prefs.getLong("app_settings_updated_at", 0L)
+        set(value) = prefs.edit { putLong("app_settings_updated_at", value) }
+
     // Sub-genre categories stored as comma-separated string
     var enabledGenres: Set<String>
         get() = prefs.getStringSet("enabled_genres", null) ?: setOf(
@@ -109,7 +113,8 @@ class SettingsManager(context: Context) {
             appIcon = appIcon,
             showDownloadNotifications = showDownloadNotifications,
             isEasterEggUnlocked = isEasterEggUnlocked,
-            pipEnabled = pipEnabled
+            pipEnabled = pipEnabled,
+            updatedAt = appSettingsUpdatedAt
         )
     }
 
@@ -127,6 +132,7 @@ class SettingsManager(context: Context) {
         showDownloadNotifications = appSettings.showDownloadNotifications
         isEasterEggUnlocked = appSettings.isEasterEggUnlocked || isEasterEggUnlocked
         pipEnabled = appSettings.pipEnabled
+        appSettingsUpdatedAt = maxOf(appSettingsUpdatedAt, appSettings.updatedAt)
     }
 
     fun clearAuth() {

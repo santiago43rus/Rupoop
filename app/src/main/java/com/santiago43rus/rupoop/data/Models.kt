@@ -76,7 +76,9 @@ data class UserRegistry(
     val appSettings: AppSettings = AppSettings(),
     val lastSynced: Long = System.currentTimeMillis(),
     val watchHistoryClearedAt: Long = 0,
-    val searchHistoryClearedAt: Long = 0
+    val searchHistoryClearedAt: Long = 0,
+    val addedAt: Map<String, Long> = emptyMap(),
+    val tombstones: Map<String, Long> = emptyMap()
 )
 
 @Serializable
@@ -113,7 +115,8 @@ data class AppSettings(
     val appIcon: String = "system",
     val showDownloadNotifications: Boolean = true,
     val isEasterEggUnlocked: Boolean = false,
-    val pipEnabled: Boolean = true
+    val pipEnabled: Boolean = true,
+    val updatedAt: Long = 0L
 )
 
 @Serializable

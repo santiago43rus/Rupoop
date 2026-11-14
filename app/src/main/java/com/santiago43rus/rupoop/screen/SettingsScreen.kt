@@ -714,6 +714,10 @@ fun SettingsScreen(
 
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
+            // ── Синхронизация по Wi‑Fi ──
+            LanSyncSection(vm)
+            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+
             // ── Поддержать автора и О приложении ──
             SupportAndAboutSection(
                 uriHandler = uriHandler,

@@ -235,7 +235,7 @@ fun RutubeApp(
     }
 
     if (vm.showOnboarding) {
-        ContentSelectionDialog(settingsManager = vm.settingsManager, onDismiss = { vm.dismissOnboarding() })
+        ContentSelectionDialog(settingsManager = vm.settingsManager, registryManager = vm.registryManager, onDismiss = { vm.dismissOnboarding() })
     }
 
     if (vm.showOpenUrlDialog) {

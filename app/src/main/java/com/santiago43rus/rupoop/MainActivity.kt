@@ -23,6 +23,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
 import android.graphics.drawable.Icon
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.santiago43rus.rupoop.theme.RupoopTheme
@@ -39,7 +41,14 @@ class MainActivity : ComponentActivity() {
     private var pendingLocalFileTitle by mutableStateOf<String?>(null)
     private var pendingOpenDownloads by mutableStateOf(false)
     private var pendingOpenPlayer by mutableStateOf(false)
+    private var pendingPairLink by mutableStateOf<String?>(null)
     private var appViewModel: AppViewModel? = null
+
+    private val lanPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        appViewModel?.lan?.start()
+    }
 
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -194,6 +203,15 @@ class MainActivity : ComponentActivity() {
             val vm: AppViewModel = viewModel()
             appViewModel = vm
             vm.onRequestPip = { enterPipMode() }
+            vm.onRequestLanPermission = { lanPermissionLauncher.launch("android.permission.ACCESS_LOCAL_NETWORK") }
+            LaunchedEffect(Unit) { vm.lan.start() }
+            LaunchedEffect(pendingPairLink) {
+                pendingPairLink?.let { link ->
+                    pendingPairLink = null
+                    val msg = vm.lan.pairWithLink(link)
+                    Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                }
+            }
 
             // Update PiP actions whenever state changes
             LaunchedEffect(vm.settingsManager.pipEnabled, vm.currentVideo, vm.playerState, vm.isPlaying, vm.currentVideoIndex) {
@@ -276,14 +294,24 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        appViewModel?.lan?.start()
+    }
+
     override fun onStop() {
         super.onStop()
+        appViewModel?.lan?.stop()
         if (isTv()) {
             appViewModel?.exoPlayer?.pause()
         }
     }
 
     private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW && intent.data?.scheme == "rupoop-sync") {
+            pendingPairLink = intent.data.toString()
+            return
+        }
         if (intent?.action == "OPEN_PLAYER") {
             pendingOpenPlayer = true
         } else if (intent?.action == "OPEN_DOWNLOADS") {

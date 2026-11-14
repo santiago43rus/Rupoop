@@ -2,6 +2,8 @@ package com.santiago43rus.rupoop.data
 
 import android.content.Context
 import android.util.Log
+import com.santiago43rus.rupoop.lan.RegistryKeys
+import com.santiago43rus.rupoop.lan.RegistryMerge
 import com.santiago43rus.rupoop.network.RetrofitClient
 import kotlinx.serialization.encodeToString
 import java.io.File
@@ -10,12 +12,41 @@ class UserRegistryManager(private val context: Context) {
     private val json = RetrofitClient.json
     private val registryFile = File(context.filesDir, "user_registry.json")
     
-    var registry: UserRegistry = loadLocal()
+    @Volatile
+    var registry: UserRegistry = RegistryKeys.migrateAddedAt(loadLocal())
         private set
 
+    /** Вызывается после каждого локального изменения (LAN-синхронизация ставит сюда отправку). */
+    @Volatile
+    var onLocalChange: (() -> Unit)? = null
+
+    /** Все локальные изменения идут сюда: проставляем время добавления и надгробия удалённым. */
+    @Synchronized
     fun updateRegistry(newRegistry: UserRegistry) {
-        registry = newRegistry
+        val now = System.currentTimeMillis()
+        val updatedSettings = if (newRegistry.appSettings != registry.appSettings) {
+            newRegistry.appSettings.copy(updatedAt = now)
+        } else {
+            newRegistry.appSettings
+        }
+        val regWithSettings = newRegistry.copy(appSettings = updatedSettings)
+        val stamped = RegistryKeys.stampLocalChange(registry, regWithSettings, now)
+        registry = stamped.copy(lastSynced = now)
         saveLocal(registry)
+        onLocalChange?.invoke()
+    }
+
+    /** Применить результат слияния. Без надгробий и без onLocalChange. */
+    @Synchronized
+    fun applyMerged(merged: UserRegistry) {
+        registry = merged
+        saveLocal(merged)
+    }
+
+    /** Слияние с реестром другого устройства (LAN). Вызывать на главном потоке. */
+    @Synchronized
+    fun mergeRemote(remote: UserRegistry): UserRegistry {
+        return mergeWith(remote)
     }
 
     fun addWatchHistory(item: WatchHistoryItem) {
@@ -236,7 +267,13 @@ class UserRegistryManager(private val context: Context) {
 
     private fun saveLocal(data: UserRegistry) {
         try {
-            registryFile.writeText(json.encodeToString(data))
+            val tmp = File(context.filesDir, "user_registry.json.tmp")
+            tmp.writeText(json.encodeToString(data))
+            java.nio.file.Files.move(
+                tmp.toPath(), registryFile.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE
+            )
         } catch (e: Exception) {
             Log.e("UserRegistry", "Save error", e)
         }
@@ -244,83 +281,24 @@ class UserRegistryManager(private val context: Context) {
 
     fun mergeWith(remote: UserRegistry): UserRegistry {
         val local = registry
-        
-        val maxWatchClearedAt = maxOf(local.watchHistoryClearedAt, remote.watchHistoryClearedAt)
-        val maxSearchClearedAt = maxOf(local.searchHistoryClearedAt, remote.searchHistoryClearedAt)
 
-        val combinedHistory = (local.watchHistory + remote.watchHistory)
-            .filter { it.timestamp > maxWatchClearedAt }
-            .groupBy { if (it.videoId.isNotEmpty()) it.videoId else extractId(it.videoUrl) }
-            .map { (_, items) ->
-                items.maxWithOrNull(compareBy({ it.timestamp }, { it.progress }))!!
-            }
-            .sortedByDescending { it.timestamp }
-            .take(500)
+        val remoteSettingsTime = if (remote.appSettings.updatedAt > 0L) remote.appSettings.updatedAt else remote.lastSynced
+        val localSettingsTime = if (local.appSettings.updatedAt > 0L) local.appSettings.updatedAt else local.lastSynced
+        val isRemoteSettingsNewer = remoteSettingsTime > localSettingsTime
 
-        val combinedSearch = if (local.searchHistoryClearedAt > remote.lastSynced && local.searchHistoryClearedAt > remote.searchHistoryClearedAt) {
-            local.searchHistory
-        } else if (remote.searchHistoryClearedAt > local.lastSynced && remote.searchHistoryClearedAt > local.searchHistoryClearedAt) {
-            remote.searchHistory
-        } else {
-            (local.searchHistory + remote.searchHistory).distinct().take(20)
-        }
-
-        val combinedWeights = local.tagWeights.toMutableMap()
-        remote.tagWeights.forEach { (tag, weight) ->
-            combinedWeights[tag] = maxOf(combinedWeights[tag] ?: 0f, weight)
-        }
-
-        val isRemoteNewer = remote.lastSynced >= local.lastSynced
-        val combinedAppSettings = if (isRemoteNewer && remote.appSettings.enabledGenres.isNotEmpty()) {
-            remote.appSettings.copy(
-                theme = local.appSettings.theme,
-                isEasterEggUnlocked = local.appSettings.isEasterEggUnlocked || remote.appSettings.isEasterEggUnlocked
-            )
-        } else {
-            AppSettings(
-                theme = local.appSettings.theme,
-                language = if (remote.appSettings.language.isNotBlank()) remote.appSettings.language else local.appSettings.language,
-                videoQuality = if (remote.appSettings.videoQuality.isNotBlank() && remote.appSettings.videoQuality != "auto") remote.appSettings.videoQuality else local.appSettings.videoQuality,
-                adultContentEnabled = local.appSettings.adultContentEnabled && remote.appSettings.adultContentEnabled,
-                kidsContentEnabled = local.appSettings.kidsContentEnabled || remote.appSettings.kidsContentEnabled,
-                downloadQuality = if (local.appSettings.downloadQuality != "1080") local.appSettings.downloadQuality else remote.appSettings.downloadQuality,
-                syncFrequencyHours = if (remote.appSettings.syncFrequencyHours != 6) remote.appSettings.syncFrequencyHours else local.appSettings.syncFrequencyHours,
-                maxConcurrentDownloads = if (remote.appSettings.maxConcurrentDownloads != 3) remote.appSettings.maxConcurrentDownloads else local.appSettings.maxConcurrentDownloads,
-                enabledGenres = if (remote.appSettings.enabledGenres.isNotEmpty()) remote.appSettings.enabledGenres else local.appSettings.enabledGenres,
-                autoPlayNext = remote.appSettings.autoPlayNext,
-            autoPlayDelaySeconds = remote.appSettings.autoPlayDelaySeconds,
-            doubleTapSeekDuration = if (remote.appSettings.doubleTapSeekDuration != 10) remote.appSettings.doubleTapSeekDuration else local.appSettings.doubleTapSeekDuration,
-                appIcon = if (local.appSettings.appIcon != "system") local.appSettings.appIcon else remote.appSettings.appIcon,
-                showDownloadNotifications = remote.appSettings.showDownloadNotifications,
-                isEasterEggUnlocked = local.appSettings.isEasterEggUnlocked || remote.appSettings.isEasterEggUnlocked,
-                pipEnabled = local.appSettings.pipEnabled
-            )
-        }
-
-        val merged = UserRegistry(
-            watchHistory = combinedHistory,
-            searchHistory = combinedSearch,
-            tagWeights = combinedWeights,
-            subscriptions = (local.subscriptions + remote.subscriptions).distinctBy { it.name },
-            likedVideos = (local.likedVideos + remote.likedVideos).distinctBy { it.videoUrl },
-            watchLater = (local.watchLater + remote.watchLater).distinctBy { it.videoUrl },
-            playlists = (local.playlists + remote.playlists).groupBy { it.name }.map { (_, lists) ->
-                val first = lists.first()
-                val allVideos = lists.flatMap { it.videos }.distinctBy { it.videoUrl }
-                first.copy(videos = allVideos)
-            },
-            hiddenVideos = (local.hiddenVideos + remote.hiddenVideos).distinct(),
-            hiddenTitles = (local.hiddenTitles + remote.hiddenTitles).distinct(),
-            dislikedVideos = (local.dislikedVideos + remote.dislikedVideos).distinct(),
-            hiddenVideosList = (local.hiddenVideosList + remote.hiddenVideosList).distinctBy { it.videoUrl },
-            dislikedVideosList = (local.dislikedVideosList + remote.dislikedVideosList).distinctBy { it.videoUrl },
-            appSettings = combinedAppSettings,
-            lastSynced = System.currentTimeMillis(),
-            watchHistoryClearedAt = maxWatchClearedAt,
-            searchHistoryClearedAt = maxSearchClearedAt
+        val baseSettings = if (isRemoteSettingsNewer) remote.appSettings else local.appSettings
+        val combinedAppSettings = baseSettings.copy(
+            theme = local.appSettings.theme,
+            isEasterEggUnlocked = local.appSettings.isEasterEggUnlocked || remote.appSettings.isEasterEggUnlocked,
+            updatedAt = maxOf(localSettingsTime, remoteSettingsTime)
         )
-        
-        updateRegistry(merged)
+
+        val dataMerged = RegistryMerge.merge(local, remote, System.currentTimeMillis())
+        val merged = dataMerged.copy(
+            appSettings = combinedAppSettings,
+            lastSynced = maxOf(local.lastSynced, remote.lastSynced)
+        )
+        applyMerged(merged)
         return merged
     }
 }

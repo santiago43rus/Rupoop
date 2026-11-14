@@ -547,6 +547,9 @@ fun TvSettingsScreen(
             }
         }
 
+        // 8.5. СИНХРОНИЗАЦИЯ ПО WI-FI
+        item { TvLanSection(vm) }
+
         // 9. О ПРИЛОЖЕНИИ
         item {
             var versionClicks by remember { mutableIntStateOf(0) }

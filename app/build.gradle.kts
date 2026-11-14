@@ -25,7 +25,7 @@ android {
         applicationId = "com.santiago43rus.rupoop"
         minSdk = 28
         targetSdk = 37
-        versionCode = 9
+        versionCode = 10
         versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -131,6 +131,12 @@ dependencies {
 
     // QR Code generation
     implementation(libs.zxing.core)
+
+    // Camera (сканер QR для LAN-синхронизации)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
 
     implementation(libs.androidx.media3.transformer)
 

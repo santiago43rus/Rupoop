@@ -26,6 +26,7 @@ import com.santiago43rus.rupoop.data.*
 @Composable
 fun ContentSelectionDialog(
     settingsManager: SettingsManager,
+    registryManager: UserRegistryManager,
     onDismiss: () -> Unit
 ) {
     val config = LocalConfiguration.current
@@ -84,6 +85,10 @@ fun ContentSelectionDialog(
                 onClick = {
                     settingsManager.enabledGenres = enabledGenres
                     settingsManager.isFirstLaunch = false
+                    val updatedRegistry = registryManager.registry.copy(
+                        appSettings = settingsManager.toAppSettings()
+                    )
+                    registryManager.updateRegistry(updatedRegistry)
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
